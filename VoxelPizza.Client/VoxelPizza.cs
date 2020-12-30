@@ -42,12 +42,14 @@ namespace VoxelPizza.Client
         private event Action<int, int> _resizeHandled;
         private bool _windowResized;
 
+        private ParticlePlane particlePlane;
+
         public VoxelPizza() : base(preferredBackend: GraphicsBackend.Direct3D11)
         {
             Sdl2Native.SDL_Init(SDLInitFlags.GameController);
             Sdl2ControllerTracker.CreateDefault(out _controllerTracker);
 
-            //GraphicsDevice.SyncToVerticalBlank = true;
+            GraphicsDevice.SyncToVerticalBlank = true;
 
             _scene = new Scene(GraphicsDevice, Window);
             _scene.Camera.Controller = _controllerTracker;
@@ -65,7 +67,7 @@ namespace VoxelPizza.Client
             ShadowmapDrawer texDrawIndexeder = new ShadowmapDrawer(() => Window, () => _sc.NearShadowMapView);
             _resizeHandled += (w, h) => texDrawIndexeder.OnWindowResized();
             texDrawIndexeder.Position = new Vector2(10, 25);
-            _scene.AddRenderable(texDrawIndexeder);
+            //_scene.AddRenderable(texDrawIndexeder);
 
             ShadowmapDrawer texDrawIndexeder2 = new ShadowmapDrawer(() => Window, () => _sc.MidShadowMapView);
             _resizeHandled += (w, h) => texDrawIndexeder2.OnWindowResized();
@@ -82,6 +84,11 @@ namespace VoxelPizza.Client
 
             _fsq = new FullScreenQuad();
             _scene.AddRenderable(_fsq);
+
+
+            particlePlane = new ParticlePlane(_scene.Camera);
+            _scene.AddRenderable(particlePlane);
+
 
             _loadTasks.Add(Task.Run(() =>
             {
@@ -158,9 +165,12 @@ namespace VoxelPizza.Client
             }
             _updateCommands.End();
             GraphicsDevice.SubmitCommands(_updateCommands);
+
             _scene.Update(time.DeltaSeconds);
 
             DrawMainMenu();
+
+            particlePlane.Update(time);
 
             if (InputTracker.GetKeyDown(Key.F11))
             {

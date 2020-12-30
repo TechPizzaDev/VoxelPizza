@@ -8,6 +8,10 @@
     <AssetsDir>$(MSBuildThisFileDirectory)Assets</AssetsDir>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+
   <ItemGroup>
     <Content Include="$(AssetsDir)\Textures\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

@@ -33,6 +33,7 @@ namespace VoxelPizza.Client
         public Texture MainSceneColorTexture { get; private set; }
         public Texture MainSceneDepthTexture { get; private set; }
         public Framebuffer MainSceneFramebuffer { get; private set; }
+
         public Texture MainSceneResolvedColorTexture { get; private set; }
         public TextureView MainSceneResolvedColorView { get; private set; }
         public ResourceSet MainSceneViewResourceSet { get; private set; }

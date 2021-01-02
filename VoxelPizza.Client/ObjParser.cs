@@ -70,7 +70,7 @@ namespace VoxelPizza.Client
 
             int readIndex = 0;
 
-            // Tries to processes one or more lines inside the read buffer.
+            // Tries to process one or more lines inside the read buffer.
             void TryProcessLines()
             {
                 Span<char> text = _readBuffer.AsSpan(0, readIndex);
@@ -78,7 +78,11 @@ namespace VoxelPizza.Client
                 while ((lineEnd = text.IndexOf('\n')) != -1)
                 {
                     Span<char> line = text.Slice(0, lineEnd);
-                    if (line[^1] == '\r')
+                    if (line.IsEmpty)
+                    {
+                        lineEnd++;
+                    }
+                    else if (line[^1] == '\r')
                     {
                         lineEnd++;
                         line = line[..^1];

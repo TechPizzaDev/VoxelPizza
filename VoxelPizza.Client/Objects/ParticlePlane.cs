@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -8,63 +9,113 @@ using Veldrid.Utilities;
 namespace VoxelPizza.Client.Objects
 {
     [StructLayout(LayoutKind.Sequential)]
-    public struct ParticleInstance
+    public struct ParticleInstanceStatic
+    {
+        public Vector4 InitialPosition;
+        public Vector4 Color;
+
+        public override string ToString()
+        {
+            return InitialPosition.ToString();
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ParticleInstanceDynamic
     {
         public Vector4 Position;
         public Vector4 Velocity;
-        public Vector4 Color;
+        public Vector4 Scale;
+        public float Time;
+
+        public override string ToString()
+        {
+            return Position.ToString();
+        }
     }
 
     internal class ParticlePlane : Renderable
     {
         private static ushort[] s_quadIndices = new ushort[] { 0, 1, 2, 0, 2, 3 };
-        private static float[] s_quadVertices = new float[] {
-            0, 0, 0, 0,
-            1, 0, 1, 0,
-            1, 1, 1, 1,
-            0, 1, 0, 1
+
+        private static Vector3[] s_quadVertices = new Vector3[] {
+            new Vector3(0, 0, 0),
+            new Vector3(0, 1, 0),
+            new Vector3(1, 1, 0),
+            new Vector3(1, 0, 0)
         };
 
         private DisposeCollector _disposeCollector;
         private Pipeline _pipeline;
         private ResourceSet _sharedResourceSet;
-        private DeviceBuffer _cameraProjViewBuffer;
+        private DeviceBuffer _cameraInfoBuffer;
         private DeviceBuffer _ib;
         private DeviceBuffer _vb;
-        private DeviceBuffer _instanceVb;
+        private DeviceBuffer _instanceStaticVb;
+        private DeviceBuffer _instanceDynamicVb;
 
         public Camera Camera { get; }
 
-        Random rng = new Random(1234);
-        float range = 500;
+        ParticleInstanceStatic[] particlesStatic;
+        ParticleInstanceDynamic[] particlesDynamic;
 
-        ParticleInstance[] particles;
+        static ParticlePlane()
+        {
+            var p = new ObjParser();
+            var obj = p.Parse(File.OpenRead("Assets/Models/suzanne.obj"));
+
+            var mesh = obj.GetMesh(obj.MeshGroups[0]);
+            s_quadIndices = mesh.Indices;
+            s_quadVertices = mesh.GetVertexPositions();
+        }
 
         public ParticlePlane(Camera camera)
         {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
 
+            particlesStatic = new ParticleInstanceStatic[0_10_000];
+            particlesDynamic = new ParticleInstanceDynamic[particlesStatic.Length];
 
-            particles = new ParticleInstance[1_000_000];
-            for (int i = 0; i < particles.Length; i++)
+            for (int i = 0; i < particlesStatic.Length; i++)
             {
-                particles[i].Position = GetRandomVec4() * range - new Vector4(range / 2f);
-                particles[i].Position.W = 0;
+                ref ParticleInstanceStatic particleStatic = ref particlesStatic[i];
+                ref ParticleInstanceDynamic particleDynamic = ref particlesDynamic[i];
 
-                particles[i].Color = new Vector4(i / (float)particles.Length, 0, 0, 0);
+                //if (i > 250000)
+                //{
+                //    particle.InitialPosition = GetRandomVec4() * range - new Vector4(range / 2f, 0, range / 2f, 0);
+                //}
+                //else
+                {
+                    Vector3 unit = rng.NextUnitVector3();
+
+                    particleStatic.InitialPosition = new Vector4(unit * range / 2f, 0);
+                    particleStatic.InitialPosition.Y += range / 2f;
+                }
+                particleStatic.InitialPosition.W = 0;
+
+                particleDynamic.Position = particleStatic.InitialPosition;
+
+                particleStatic.Color = new Vector4(i / (float)particlesStatic.Length, 0, 0, 0);
+
+                particleDynamic.Scale = new Vector4(new Vector3(4), 1);
             }
         }
 
         public Vector4 GetRandomVec4()
         {
             return new Vector4(
-                (float)rng.NextDouble(),
-                (float)rng.NextDouble(),
-                (float)rng.NextDouble(),
+                rng.NextSingle(),
+                rng.NextSingle(),
+                rng.NextSingle(),
                 1);
         }
 
+        FastRandom rng = new FastRandom(1234);
+        float range = 1000;
+
         float waveRange = 10;
+        float lerpAmount = 0;
 
         public void Update(in FrameTime time)
         {
@@ -88,41 +139,92 @@ namespace VoxelPizza.Client.Objects
             ImGuiNET.ImGui.Text(distance.ToString());
 
             ImGuiNET.ImGui.SliderFloat("Wave Range", ref waveRange, 0, 1000);
+            ImGuiNET.ImGui.SliderFloat("Lerp Amount", ref lerpAmount, 0, 1);
 
             ImGuiNET.ImGui.End();
 
-            for (int i = 0; i < particles.Length; i++)
+            //for (int i = 0; i < particles.Length; i++)
+            //{
+            //    ref ParticleInstance particle = ref particles[i];
+            //
+            //    ref Vector4 position = ref particle.Position;
+            //
+            //    if (intersect)
+            //    {
+            //        float distanceToRayPoint = Vector4.DistanceSquared(position, raypoint4);
+            //        if (distanceToRayPoint < waveRange * waveRange)
+            //        {
+            //            particle.Velocity += new Vector4(0, (500 - acceleration.Y) * delta, 0, 0);
+            //
+            //            particle.Time = lerpAmount;
+            //        }
+            //    }
+            //
+            //    particle.Velocity += acceleration * delta;
+            //
+            //    position += particle.Velocity * delta;
+            //
+            //    if (position.Y < 0f)
+            //    {
+            //        position.Y = 0f;
+            //        particle.Velocity = Vector4.Zero;
+            //    }
+            //
+            //    position = Vector4.Lerp(position, particle.InitialPosition, particle.Time);
+            //
+            //    //position = Vector4.Lerp(position, target, delta);
+            //    //
+            //    //float distSqr = Vector4.DistanceSquared(position, target);
+            //    //if (distSqr < 1f)
+            //    //{
+            //    //    position = GetRandomVec4() * range - new Vector4(range / 2f);
+            //    //}
+            //}
+
+            if (lerpAmount == 0)
             {
-                ref ParticleInstance particle = ref particles[i];
-
-                ref Vector4 position = ref particle.Position;
-
-                if (intersect)
+                for (int i = 0; i < particlesDynamic.Length; i++)
                 {
-                    float distanceToRayPoint = Vector4.DistanceSquared(position, raypoint4);
-                    if (distanceToRayPoint < waveRange * waveRange)
+                    ref ParticleInstanceDynamic particle = ref particlesDynamic[i];
+
+                    ref Vector4 position = ref particle.Position;
+
+                    if (intersect)
                     {
-                        particle.Velocity += new Vector4(0, (500 - acceleration.Y) * delta, 0, 0);
+                        float distanceToRayPoint = Vector4.DistanceSquared(position, raypoint4);
+                        if (distanceToRayPoint < waveRange * waveRange)
+                        {
+                            if (rng.NextSingle() < 0.5f)
+                            {
+                                particle.Velocity += new Vector4(0, (500 - acceleration.Y) * delta, 0, 0);
+                            }
+                        }
+                    }
+
+                    particle.Velocity += acceleration * delta;
+
+                    position += particle.Velocity * delta;
+
+                    if (position.Y < 0f)
+                    {
+                        position.Y = 0f;
+                        particle.Velocity = Vector4.Zero;
                     }
                 }
-
-                particle.Velocity += acceleration * delta;
-
-                position += particle.Velocity * delta;
-
-                if (position.Y < 0f)
+            }
+            else
+            {
+                for (int i = 0; i < particlesDynamic.Length; i++)
                 {
-                    position.Y = 0f;
-                    particle.Velocity = Vector4.Zero;
-                }
+                    ref ParticleInstanceStatic particleStatic = ref particlesStatic[i];
+                    ref ParticleInstanceDynamic particleDynamic = ref particlesDynamic[i];
 
-                //position = Vector4.Lerp(position, target, delta);
-                //
-                //float distSqr = Vector4.DistanceSquared(position, target);
-                //if (distSqr < 1f)
-                //{
-                //    position = GetRandomVec4() * range - new Vector4(range / 2f);
-                //}
+                    particleDynamic.Time = lerpAmount;
+
+                    ref Vector4 position = ref particleDynamic.Position;
+
+                    position = Vector4.Lerp(position, particleStatic.InitialPosition, particleDynamic.Time);
+                }
             }
         }
 
@@ -136,18 +238,27 @@ namespace VoxelPizza.Client.Objects
             VertexLayoutDescription sharedVertexLayout = new VertexLayoutDescription(
                 new VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3));
 
-            VertexLayoutDescription vertexLayoutPerInstance = new VertexLayoutDescription(
+            VertexLayoutDescription vertexLayoutPerInstanceStatic = new VertexLayoutDescription(
+                new VertexElementDescription("InstanceInitialPosition", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4),
+                new VertexElementDescription("InstanceColor", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4));
+            vertexLayoutPerInstanceStatic.InstanceStepRate = 1;
+
+            VertexLayoutDescription vertexLayoutPerInstanceDynamic = new VertexLayoutDescription(
                 new VertexElementDescription("InstancePosition", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4),
                 new VertexElementDescription("InstanceVelocity", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4),
-                new VertexElementDescription("InstanceColor", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4));
-            vertexLayoutPerInstance.InstanceStepRate = 1;
+                new VertexElementDescription("InstanceScale", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4),
+                new VertexElementDescription("InstanceTime", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float1));
+            vertexLayoutPerInstanceDynamic.InstanceStepRate = 1;
 
             ResourceLayoutElementDescription[] resourceLayoutElementDescriptions =
             {
-                new ResourceLayoutElementDescription("ProjView", ResourceKind.UniformBuffer, ShaderStages.Vertex),
+                new ResourceLayoutElementDescription("CameraInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex),
             };
             ResourceLayoutDescription resourceLayoutDescription = new ResourceLayoutDescription(resourceLayoutElementDescriptions);
             ResourceLayout sharedLayout = factory.CreateResourceLayout(resourceLayoutDescription);
+
+            RasterizerStateDescription rasterState = RasterizerStateDescription.Default;
+            rasterState.DepthClipEnabled = false;
 
             GraphicsPipelineDescription pd = new GraphicsPipelineDescription(
                 new BlendStateDescription(
@@ -155,13 +266,14 @@ namespace VoxelPizza.Client.Objects
                     BlendAttachmentDescription.OverrideBlend,
                     BlendAttachmentDescription.OverrideBlend),
                 gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
-                RasterizerStateDescription.Default,
+                rasterState,
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(
                     new[]
                     {
                         sharedVertexLayout,
-                        vertexLayoutPerInstance
+                        vertexLayoutPerInstanceStatic,
+                        vertexLayoutPerInstanceDynamic
                     },
                     new[] { vs, fs, },
                     ShaderHelper.GetSpecializations(gd)),
@@ -169,20 +281,23 @@ namespace VoxelPizza.Client.Objects
                 sc.MainSceneFramebuffer.OutputDescription);
             _pipeline = factory.CreateGraphicsPipeline(ref pd);
 
-            _cameraProjViewBuffer = factory.CreateBuffer(
-                new BufferDescription((uint)(Unsafe.SizeOf<Matrix4x4>() * 2), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            _cameraInfoBuffer = factory.CreateBuffer(
+                new BufferDescription((uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
 
             _vb = factory.CreateBuffer(
-                new BufferDescription((uint)s_quadVertices.Length * sizeof(float), BufferUsage.VertexBuffer));
+                new BufferDescription((uint)s_quadVertices.SizeInBytes(), BufferUsage.VertexBuffer));
             cl.UpdateBuffer(_vb, 0, s_quadVertices);
 
             _ib = factory.CreateBuffer(
-                new BufferDescription((uint)s_quadIndices.Length * sizeof(ushort), BufferUsage.IndexBuffer));
+                new BufferDescription((uint)s_quadIndices.SizeInBytes(), BufferUsage.IndexBuffer));
             cl.UpdateBuffer(_ib, 0, s_quadIndices);
 
-            _instanceVb = factory.CreateBuffer(new BufferDescription(particles.SizeInBytes(), BufferUsage.VertexBuffer | BufferUsage.Dynamic));
+            _instanceStaticVb = factory.CreateBuffer(new BufferDescription(particlesStatic.SizeInBytes(), BufferUsage.VertexBuffer | BufferUsage.Dynamic));
+            cl.UpdateBuffer(_instanceStaticVb, 0, particlesStatic);
 
-            ResourceSetDescription resourceSetDescription = new ResourceSetDescription(sharedLayout, new[] { _cameraProjViewBuffer });
+            _instanceDynamicVb = factory.CreateBuffer(new BufferDescription(particlesDynamic.SizeInBytes(), BufferUsage.VertexBuffer | BufferUsage.Dynamic));
+
+            ResourceSetDescription resourceSetDescription = new ResourceSetDescription(sharedLayout, new[] { _cameraInfoBuffer });
             _sharedResourceSet = factory.CreateResourceSet(resourceSetDescription);
         }
 
@@ -198,15 +313,18 @@ namespace VoxelPizza.Client.Objects
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
         {
-            cl.UpdateBuffer(_cameraProjViewBuffer, 0, new MatrixPair(Camera.ViewMatrix, Camera.ProjectionMatrix));
-            cl.UpdateBuffer(_instanceVb, 0, particles);
+            Matrix4x4 viewMatrix = Camera.ViewMatrix;
+            Matrix4x4.Invert(viewMatrix, out Matrix4x4 inversedViewMatrix);
+            cl.UpdateBuffer(_cameraInfoBuffer, 0, new CameraInfo(Camera.ProjectionMatrix, viewMatrix, inversedViewMatrix));
+            cl.UpdateBuffer(_instanceDynamicVb, 0, particlesDynamic);
 
             cl.SetPipeline(_pipeline);
             cl.SetGraphicsResourceSet(0, _sharedResourceSet);
             cl.SetVertexBuffer(0, _vb);
-            cl.SetVertexBuffer(1, _instanceVb);
+            cl.SetVertexBuffer(1, _instanceStaticVb);
+            cl.SetVertexBuffer(2, _instanceDynamicVb);
             cl.SetIndexBuffer(_ib, IndexFormat.UInt16);
-            cl.DrawIndexed(6, (uint)particles.Length, 0, 0, 0);
+            cl.DrawIndexed((uint)s_quadIndices.Length, (uint)particlesDynamic.Length, 0, 0, 0);
         }
 
         public override RenderPasses RenderPasses => RenderPasses.Standard;
@@ -215,15 +333,17 @@ namespace VoxelPizza.Client.Objects
         {
         }
 
-        public struct MatrixPair
+        public struct CameraInfo
         {
-            public Matrix4x4 First;
-            public Matrix4x4 Second;
+            public Matrix4x4 Projection;
+            public Matrix4x4 View;
+            public Matrix4x4 InverseView;
 
-            public MatrixPair(Matrix4x4 first, Matrix4x4 second)
+            public CameraInfo(Matrix4x4 projection, Matrix4x4 view, Matrix4x4 inverseView)
             {
-                First = first;
-                Second = second;
+                Projection = projection;
+                View = view;
+                InverseView = inverseView;
             }
         }
     }

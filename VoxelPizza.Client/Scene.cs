@@ -162,8 +162,7 @@ namespace VoxelPizza.Client
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
             float fbWidth = sc.MainSceneFramebuffer.Width;
             float fbHeight = sc.MainSceneFramebuffer.Height;
-            cl.SetViewport(0, new Viewport(0, 0, fbWidth, fbHeight, 0, 1));
-            cl.SetFullViewports();
+            cl.SetViewport(0, new Viewport(0, 0, fbWidth, fbHeight, 0, 1f));
             cl.SetFullScissorRects();
             cl.ClearDepthStencil(depthClear);
             sc.UpdateCameraBuffers(cl); // Re-set because reflection step changed it.
@@ -296,7 +295,7 @@ namespace VoxelPizza.Client
                 cls[4].SetFramebuffer(sc.MainSceneFramebuffer);
                 float scWidth = sc.MainSceneFramebuffer.Width;
                 float scHeight = sc.MainSceneFramebuffer.Height;
-                cls[4].SetViewport(0, new Viewport(0, 0, scWidth, scHeight, 0, 1));
+                cls[4].SetViewport(0, new Viewport(0, 0, scWidth, scHeight, 0, 1f));
                 cls[4].SetScissorRect(0, 0, 0, (uint)scWidth, (uint)scHeight);
                 cls[4].ClearColorTarget(0, RgbaFloat.Black);
                 cls[4].ClearDepthStencil(depthClear);

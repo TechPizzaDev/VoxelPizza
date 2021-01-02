@@ -11,7 +11,7 @@ namespace VoxelPizza.Client
     {
         private float _fov = 1f;
         private float _near = 1f;
-        private float _far = 1000f;
+        private float _far = 5000f;
 
         private Matrix4x4 _viewMatrix;
         private Matrix4x4 _projectionMatrix;

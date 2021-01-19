@@ -1,10 +1,7 @@
-﻿using System.Numerics;
-using System.Runtime.CompilerServices;
-using System;
-using Veldrid.ImageSharp;
-using Veldrid.Utilities;
-using System.Collections.Generic;
+﻿using System;
+using System.Numerics;
 using Veldrid;
+using Veldrid.Utilities;
 
 namespace VoxelPizza.Client.Objects
 {
@@ -15,7 +12,7 @@ namespace VoxelPizza.Client.Objects
         private uint _uniformOffset = 0;
 
         private readonly string _name;
-        private readonly MeshData _meshData;
+        private readonly ConstructedMesh _meshData;
         private readonly ImageSharpTexture? _textureData;
         private readonly ImageSharpTexture? _alphaTextureData;
         private readonly Transform _transform;
@@ -37,7 +34,7 @@ namespace VoxelPizza.Client.Objects
 
         private bool _transformDirty = true;
         private DeviceBuffer _worldAndInverseBuffer;
-
+        
         private readonly DisposeCollector _disposeCollector = new DisposeCollector();
 
         private readonly MaterialPropertyBuffer _materialProps;
@@ -45,12 +42,12 @@ namespace VoxelPizza.Client.Objects
         private bool _materialPropsOwned = false;
 
         public MaterialProperties MaterialProperties { get => _materialProps.Properties; set { _materialProps.Properties = value; } }
-
+        
         public Transform Transform => _transform;
 
         public TexturedMesh(
             string name,
-            MeshData meshData,
+            ConstructedMesh meshData,
             ImageSharpTexture? textureData,
             ImageSharpTexture? alphaTexture,
             MaterialPropertyBuffer materialProps)
@@ -83,14 +80,16 @@ namespace VoxelPizza.Client.Objects
             ResourceFactory disposeFactory = new DisposeCollectorResourceFactory(gd.ResourceFactory, _disposeCollector);
             _vb = _meshData.CreateVertexBuffer(disposeFactory, cl);
             _vb.Name = _name + "_VB";
-            _ib = _meshData.CreateIndexBuffer(disposeFactory, cl, out _indexCount);
+            _ib = _meshData.CreateIndexBuffer(disposeFactory, cl);
             _ib.Name = _name + "_IB";
+            _indexCount = _meshData.IndexCount;
 
             uint bufferSize = 128;
             if (s_useUniformOffset)
             { bufferSize += _uniformOffset * 2; }
 
             _worldAndInverseBuffer = disposeFactory.CreateBuffer(new BufferDescription(bufferSize, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            
             if (_materialPropsOwned)
             {
                 _materialProps.CreateDeviceObjects(gd, cl, sc);
@@ -159,7 +158,7 @@ namespace VoxelPizza.Client.Objects
             };
 
             (Shader mainVS, Shader mainFS) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ShadowMain");
-
+            
             ResourceLayout projViewLayout = StaticResourceCache.GetResourceLayout(
                 gd.ResourceFactory,
                 StaticResourceCache.ProjViewLayoutDescription);
@@ -224,7 +223,7 @@ namespace VoxelPizza.Client.Objects
                 sc.FarShadowMapView,
                 gd.LinearSampler));
 
-            Transform_TransformChanged(_transform);
+            _transformDirty = true;
         }
 
         private ResourceSet[] CreateShadowMapResourceSets(
@@ -316,7 +315,7 @@ namespace VoxelPizza.Client.Objects
                 WorldAndInverse wai;
                 wai.World = _transform.GetTransformMatrix();
                 wai.InverseWorld = VdUtilities.CalculateInverseTranspose(ref wai.World);
-                gd.UpdateBuffer(_worldAndInverseBuffer, _uniformOffset * 2, ref wai);
+                cl.UpdateBuffer(_worldAndInverseBuffer, _uniformOffset * 2, ref wai);
             }
         }
 
@@ -328,7 +327,7 @@ namespace VoxelPizza.Client.Objects
             cl.SetGraphicsResourceSet(1, _shadowMapResourceSets[shadowMapIndex * 2 + 1], 1, ref offset);
 
             cl.SetVertexBuffer(0, _vb);
-            cl.SetIndexBuffer(_ib, IndexFormat.UInt16);
+            cl.SetIndexBuffer(_ib, _meshData.IndexFormat);
             cl.DrawIndexed((uint)_indexCount, 1, 0, 0, 0);
         }
 
@@ -341,7 +340,7 @@ namespace VoxelPizza.Client.Objects
             cl.SetGraphicsResourceSet(2, _mainPerObjectRS, 1, ref offset);
 
             cl.SetVertexBuffer(0, _vb);
-            cl.SetIndexBuffer(_ib, IndexFormat.UInt16);
+            cl.SetIndexBuffer(_ib, _meshData.IndexFormat);
             cl.DrawIndexed((uint)_indexCount, 1, 0, 0, 0);
         }
     }

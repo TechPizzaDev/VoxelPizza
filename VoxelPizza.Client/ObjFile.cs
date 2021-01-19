@@ -26,16 +26,17 @@ namespace VoxelPizza.Client
         }
 
         /// <summary>
-        /// Gets a <see cref="ConstructedMeshInfo"/> for the given OBJ <see cref="MeshGroup"/>.
+        /// Gets a <see cref="ConstructedMesh16"/> for the given OBJ <see cref="MeshGroup"/>.
         /// </summary>
         /// <param name="group">The OBJ <see cref="MeshGroup"/> to construct.</param>
         /// <param name="reduce">Whether to simplify the mesh by sharing identical vertices.</param>
-        /// <returns>A new <see cref="ConstructedMeshInfo"/>.</returns>
-        public ConstructedMeshInfo GetMesh(MeshGroup group, bool reduce = true)
+        /// <returns>A new <see cref="ConstructedMesh16"/>.</returns>
+        public ConstructedMesh16 GetMesh16(MeshGroup group, bool reduce = true)
         {
             ushort[] indices = new ushort[group.Faces.Length * 3];
-            Dictionary<FaceVertex, ushort> vertexMap = new();
-            List<VertexPositionNormalTexture> vertices = new();
+            int vertexFactor = reduce ? 2 : 3;
+            Dictionary<FaceVertex, ushort> vertexMap = new(group.Faces.Length * (reduce ? 2 : 0));
+            List<VertexPositionNormalTexture> vertices = new(group.Faces.Length * (reduce ? 2 : 3));
 
             for (int i = 0; i < group.Faces.Length; i++)
             {
@@ -46,9 +47,9 @@ namespace VoxelPizza.Client
 
                 if (reduce)
                 {
-                    index0 = GetOrCreate(vertexMap, vertices, face.Vertex0, face.Vertex1, face.Vertex2);
-                    index1 = GetOrCreate(vertexMap, vertices, face.Vertex1, face.Vertex2, face.Vertex0);
-                    index2 = GetOrCreate(vertexMap, vertices, face.Vertex2, face.Vertex0, face.Vertex1);
+                    index0 = GetOrCreate16(vertexMap, vertices, face.Vertex0, face.Vertex1, face.Vertex2);
+                    index1 = GetOrCreate16(vertexMap, vertices, face.Vertex1, face.Vertex2, face.Vertex0);
+                    index2 = GetOrCreate16(vertexMap, vertices, face.Vertex2, face.Vertex0, face.Vertex1);
                 }
                 else
                 {
@@ -66,10 +67,54 @@ namespace VoxelPizza.Client
                 indices[(i * 3) + 1] = index2;
             }
 
-            return new ConstructedMeshInfo(vertices.ToArray(), indices, group.Material);
+            return new ConstructedMesh16(vertices.ToArray(), indices, group.Material);
         }
 
-        private ushort GetOrCreate(
+        /// <summary>
+        /// Gets a <see cref="ConstructedMesh32"/> for the given OBJ <see cref="MeshGroup"/>.
+        /// </summary>
+        /// <param name="group">The OBJ <see cref="MeshGroup"/> to construct.</param>
+        /// <param name="reduce">Whether to simplify the mesh by sharing identical vertices.</param>
+        /// <returns>A new <see cref="ConstructedMesh16"/>.</returns>
+        public ConstructedMesh32 GetMesh32(MeshGroup group, bool reduce = true)
+        {
+            uint[] indices = new uint[group.Faces.Length * 3];
+            Dictionary<FaceVertex, uint> vertexMap = new(group.Faces.Length * (reduce ? 2 : 0));
+            List<VertexPositionNormalTexture> vertices = new(group.Faces.Length * (reduce ? 2 : 3));
+
+            for (int i = 0; i < group.Faces.Length; i++)
+            {
+                Face face = group.Faces[i];
+                uint index0;
+                uint index1;
+                uint index2;
+
+                if (reduce)
+                {
+                    index0 = GetOrCreate32(vertexMap, vertices, face.Vertex0, face.Vertex1, face.Vertex2);
+                    index1 = GetOrCreate32(vertexMap, vertices, face.Vertex1, face.Vertex2, face.Vertex0);
+                    index2 = GetOrCreate32(vertexMap, vertices, face.Vertex2, face.Vertex0, face.Vertex1);
+                }
+                else
+                {
+                    index0 = checked((uint)(i * 3 + 0));
+                    index1 = checked((uint)(i * 3 + 1));
+                    index2 = checked((uint)(i * 3 + 2));
+                    vertices.Add(ConstructVertex(face.Vertex0, face.Vertex1, face.Vertex2));
+                    vertices.Add(ConstructVertex(face.Vertex1, face.Vertex2, face.Vertex0));
+                    vertices.Add(ConstructVertex(face.Vertex2, face.Vertex0, face.Vertex1));
+                }
+
+                // Reverse winding order here.
+                indices[(i * 3) + 0] = index0;
+                indices[(i * 3) + 2] = index1;
+                indices[(i * 3) + 1] = index2;
+            }
+
+            return new ConstructedMesh32(vertices.ToArray(), indices, group.Material);
+        }
+
+        private ushort GetOrCreate16(
             Dictionary<FaceVertex, ushort> vertexMap,
             List<VertexPositionNormalTexture> vertices,
             FaceVertex key,
@@ -81,6 +126,24 @@ namespace VoxelPizza.Client
                 VertexPositionNormalTexture vertex = ConstructVertex(key, adjacent1, adjacent2);
                 vertices.Add(vertex);
                 index = checked((ushort)(vertices.Count - 1));
+                vertexMap.Add(key, index);
+            }
+
+            return index;
+        }
+
+        private uint GetOrCreate32(
+            Dictionary<FaceVertex, uint> vertexMap,
+            List<VertexPositionNormalTexture> vertices,
+            FaceVertex key,
+            FaceVertex adjacent1,
+            FaceVertex adjacent2)
+        {
+            if (!vertexMap.TryGetValue(key, out uint index))
+            {
+                VertexPositionNormalTexture vertex = ConstructVertex(key, adjacent1, adjacent2);
+                vertices.Add(vertex);
+                index = checked((uint)(vertices.Count - 1));
                 vertexMap.Add(key, index);
             }
 
@@ -152,22 +215,22 @@ namespace VoxelPizza.Client
         /// <summary>
         /// An OBJ file construct describing the indices of vertex components.
         /// </summary>
-        public readonly struct FaceVertex : IEquatable<FaceVertex>
+        public struct FaceVertex : IEquatable<FaceVertex>
         {
             /// <summary>
             /// The index of the position component.
             /// </summary>
-            public readonly int PositionIndex;
+            public int PositionIndex;
 
             /// <summary>
             /// The index of the normal component.
             /// </summary>
-            public readonly int NormalIndex;
+            public int NormalIndex;
 
             /// <summary>
             /// The index of the texture coordinate component.
             /// </summary>
-            public readonly int TexCoordIndex;
+            public int TexCoordIndex;
 
             public FaceVertex(int positionIndex, int normalIndex, int texCoordIndex)
             {
@@ -176,19 +239,19 @@ namespace VoxelPizza.Client
                 TexCoordIndex = texCoordIndex;
             }
 
-            public bool Equals(FaceVertex other)
+            public readonly bool Equals(FaceVertex other)
             {
                 return PositionIndex == other.PositionIndex
                     && NormalIndex == other.NormalIndex
                     && TexCoordIndex == other.TexCoordIndex;
             }
 
-            public override bool Equals(object? obj)
+            public override readonly bool Equals(object? obj)
             {
                 return obj is FaceVertex value && Equals(value);
             }
 
-            public override int GetHashCode()
+            public override readonly int GetHashCode()
             {
                 unchecked
                 {
@@ -200,7 +263,7 @@ namespace VoxelPizza.Client
                 }
             }
 
-            public override string ToString()
+            public override readonly string ToString()
             {
                 return string.Format("Pos:{0}, Normal:{1}, TexCoord:{2}", PositionIndex, NormalIndex, TexCoordIndex);
             }
@@ -209,27 +272,27 @@ namespace VoxelPizza.Client
         /// <summary>
         /// An OBJ file construct describing an individual mesh face.
         /// </summary>
-        public readonly struct Face
+        public struct Face
         {
             /// <summary>
             /// The first vertex.
             /// </summary>
-            public readonly FaceVertex Vertex0;
+            public FaceVertex Vertex0;
 
             /// <summary>
             /// The second vertex.
             /// </summary>
-            public readonly FaceVertex Vertex1;
+            public FaceVertex Vertex1;
 
             /// <summary>
             /// The third vertex.
             /// </summary>
-            public readonly FaceVertex Vertex2;
+            public FaceVertex Vertex2;
 
             /// <summary>
             /// The smoothing group. Describes which kind of vertex smoothing should be applied.
             /// </summary>
-            public readonly int SmoothingGroup;
+            public int SmoothingGroup;
 
             public Face(FaceVertex v0, FaceVertex v1, FaceVertex v2, int smoothingGroup = -1)
             {

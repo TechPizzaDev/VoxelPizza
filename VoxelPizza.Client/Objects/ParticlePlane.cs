@@ -64,7 +64,7 @@ namespace VoxelPizza.Client.Objects
             var p = new ObjParser();
             var obj = p.Parse(File.OpenRead("Assets/Models/suzanne.obj"));
 
-            var mesh = obj.GetMesh(obj.MeshGroups[0]);
+            var mesh = obj.GetMesh16(obj.MeshGroups[0]);
             s_quadIndices = mesh.Indices;
             s_quadVertices = mesh.GetVertexPositions();
         }

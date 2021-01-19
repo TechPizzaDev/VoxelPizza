@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 
 namespace VoxelPizza
 {
@@ -33,15 +34,58 @@ namespace VoxelPizza
             return TryParseDouble(s, out result, out _, decimalSeparator);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public static bool TryParseInt(ReadOnlySpan<char> s, out int result)
+        {
+            int r = 0;
+            int sign;
+            int start;
+
+            char c = s[0];
+            if (c == '-')
+            {
+                sign = -1;
+                start = 1;
+            }
+            else if (c > '9' || c < '0')
+            {
+                result = 0;
+                return false;
+            }
+            else
+            {
+                start = 1;
+                r = 10 * r + (c - '0');
+                sign = 1;
+            }
+
+            int i = start;
+            for (; i < s.Length; i++)
+            {
+                c = s[i];
+                if (c > '9' || c < '0')
+                {
+                    result = 0;
+                    return false;
+                }
+
+                r = 10 * r + (c - '0');
+            }
+
+            result = r * sign;
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static bool TryParseDouble(ReadOnlySpan<char> s, out double result, out bool hasFraction, char decimalSeparator = '.')
         {
             hasFraction = false;
 
             double r = 0;
-            char c = s[0];
             int sign;
             int start;
 
+            char c = s[0];
             if (c == '-')
             {
                 sign = -1;

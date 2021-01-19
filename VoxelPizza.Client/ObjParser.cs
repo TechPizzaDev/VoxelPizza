@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace VoxelPizza.Client
 {
@@ -138,7 +139,7 @@ namespace VoxelPizza.Client
             private string? _currentMaterial;
             private int _currentSmoothingGroup;
             private List<ObjFile.Face> _currentGroupFaces = new List<ObjFile.Face>();
-
+            
             private int _currentLine;
             private string? _materialLibName;
 
@@ -309,11 +310,38 @@ namespace VoxelPizza.Client
                 _currentGroupFaces.Add(face);
             }
 
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static void FinalizeFaceVertex(
+                int positionOffset, int normalOffset, int texCoordOffset,
+                ref ObjFile.FaceVertex vertex)
+            {
+                if (vertex.PositionIndex < 0)
+                    vertex.PositionIndex += positionOffset;
+
+                if (vertex.NormalIndex < 0)
+                    vertex.NormalIndex += normalOffset;
+
+                if (vertex.TexCoordIndex < 0)
+                    vertex.TexCoordIndex += texCoordOffset;
+            }
+
             public void FinalizeGroup()
             {
                 if (_currentGroupName != null)
                 {
+                    int positionOffset = _positions.Count + 1;
+                    int normalOffset = _normals.Count + 1;
+                    int texCoordOffset = _texCoords.Count + 1;
+
                     ObjFile.Face[] faces = _currentGroupFaces.ToArray();
+                    for (int i = 0; i < faces.Length; i++)
+                    {
+                        ref ObjFile.Face face = ref faces[i];
+                        FinalizeFaceVertex(positionOffset, normalOffset, texCoordOffset, ref face.Vertex0);
+                        FinalizeFaceVertex(positionOffset, normalOffset, texCoordOffset, ref face.Vertex1);
+                        FinalizeFaceVertex(positionOffset, normalOffset, texCoordOffset, ref face.Vertex2);
+                    }
+                    
                     _groups.Add(new ObjFile.MeshGroup(_currentGroupName, _currentMaterial, faces));
 
                     _currentGroupName = null;
@@ -355,8 +383,8 @@ namespace VoxelPizza.Client
 
             private int ParseInt(ReadOnlySpan<char> intStr, string location)
             {
-                if (FastParse.TryParseDouble(intStr, out double result, out bool hasFraction) && !hasFraction)
-                    return (int)result;
+                if (FastParse.TryParseInt(intStr, out int result))
+                    return result;
 
                 throw CreateParseException(location, new FormatException());
             }

@@ -2,7 +2,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
-using VoxelPizza.Client.Objects;
 
 namespace VoxelPizza.Client
 {

@@ -65,11 +65,11 @@ namespace VoxelPizza.Client
             _updateables.Add(updateable);
         }
 
-        public void Update(float deltaSeconds)
+        public void Update(in FrameTime time)
         {
             foreach (IUpdateable updateable in _updateables)
             {
-                updateable.Update(deltaSeconds);
+                updateable.Update(time);
             }
         }
 
@@ -140,22 +140,22 @@ namespace VoxelPizza.Client
             cl.ClearDepthStencil(depthClear);
             Render(gd, cl, sc, RenderPasses.ShadowMapMid, lightFrustum, lightPos, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
-
-            // Far
-            cl.PushDebugGroup("Shadow Map - Far Cascade");
-            Matrix4x4 viewProj2 = UpdateDirectionalLightMatrices(
-                gd,
-                sc,
-                _midCascadeLimit,
-                _farCascadeLimit,
-                sc.ShadowMapTexture.Width,
-                out lightFrustum);
-            cl.UpdateBuffer(sc.LightViewProjectionBuffer2, 0, ref viewProj2);
-            cl.SetFramebuffer(sc.FarShadowMapFramebuffer);
-            cl.SetFullViewports();
-            cl.ClearDepthStencil(depthClear);
-            Render(gd, cl, sc, RenderPasses.ShadowMapFar, lightFrustum, lightPos, renderQueue, cullableStage, renderableStage, null, false);
-            cl.PopDebugGroup();
+            
+            //// Far
+            //cl.PushDebugGroup("Shadow Map - Far Cascade");
+            //Matrix4x4 viewProj2 = UpdateDirectionalLightMatrices(
+            //    gd,
+            //    sc,
+            //    _midCascadeLimit,
+            //    _farCascadeLimit,
+            //    sc.ShadowMapTexture.Width,
+            //    out lightFrustum);
+            //cl.UpdateBuffer(sc.LightViewProjectionBuffer2, 0, ref viewProj2);
+            //cl.SetFramebuffer(sc.FarShadowMapFramebuffer);
+            //cl.SetFullViewports();
+            //cl.ClearDepthStencil(depthClear);
+            //Render(gd, cl, sc, RenderPasses.ShadowMapFar, lightFrustum, lightPos, renderQueue, cullableStage, renderableStage, null, false);
+            //cl.PopDebugGroup();
 
             // Main scene
             cl.PushDebugGroup("Main Scene Pass");

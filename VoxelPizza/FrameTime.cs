@@ -11,6 +11,7 @@ namespace VoxelPizza
         public bool IsActive { get; }
 
         public float DeltaSeconds => Delta.Ticks * SecondsPerTick;
+        public float TotalSeconds => Total.Ticks * SecondsPerTick;
 
         public FrameTime(TimeSpan total, TimeSpan delta, bool isActive)
         {

@@ -38,6 +38,7 @@ namespace VoxelPizza.Client
         private List<Task> _loadTasks = new List<Task>();
         private ConcurrentQueue<Renderable> _queuedRenderables = new ConcurrentQueue<Renderable>();
         private Dictionary<string, ImageSharpTexture> _textures = new Dictionary<string, ImageSharpTexture>();
+        private ConcurrentBag<TexturedMesh> _ditheredMeshes = new ConcurrentBag<TexturedMesh>();
 
         private event Action<int, int> _resizeHandled;
         private bool _windowResized;
@@ -86,8 +87,8 @@ namespace VoxelPizza.Client
             _scene.AddRenderable(_fsq);
 
 
-            particlePlane = new ParticlePlane(_scene.Camera);
-            _scene.AddRenderable(particlePlane);
+            //particlePlane = new ParticlePlane(_scene.Camera);
+            //_scene.AddRenderable(particlePlane);
 
 
             _loadTasks.Add(Task.Run(() =>
@@ -98,7 +99,11 @@ namespace VoxelPizza.Client
 
             _loadTasks.Add(Task.Run(() =>
             {
-                //AddSponzaAtriumObjects();
+                //string dir = "Models/SponzaAtrium";
+                //string obj = "sponza.obj";
+                //string mtl = "sponza.mtl";
+
+                //AddObjModel(dir, obj, mtl);
             }));
 
             CreateGraphicsDeviceObjects();
@@ -165,12 +170,12 @@ namespace VoxelPizza.Client
             }
             _updateCommands.End();
             GraphicsDevice.SubmitCommands(_updateCommands);
-
-            _scene.Update(time.DeltaSeconds);
+            
+            _scene.Update(time);
 
             DrawMainMenu();
 
-            particlePlane.Update(time);
+            particlePlane?.Update(time);
 
             if (InputTracker.GetKeyDown(Key.F11))
             {
@@ -553,33 +558,33 @@ namespace VoxelPizza.Client
                 Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_dn.png")));
         }
 
-        private void AddSponzaAtriumObjects()
+        private void AddObjModel(string dir, string obj, string mtl)
         {
-            ObjFile atriumFile;
-            using (FileStream objStream = File.OpenRead(AssetHelper.GetPath("Models/SponzaAtrium/sponza.obj")))
-                atriumFile = new ObjParser().Parse(objStream);
+            ObjFile file;
+            using (FileStream objStream = File.OpenRead(AssetHelper.GetPath(Path.Combine(dir, obj))))
+                file = new ObjParser().Parse(objStream);
 
-            MtlFile atriumMtls;
-            using (FileStream mtlStream = File.OpenRead(AssetHelper.GetPath("Models/SponzaAtrium/sponza.mtl")))
-                atriumMtls = new MtlParser().Parse(mtlStream);
+            MtlFile mtls;
+            using (FileStream mtlStream = File.OpenRead(AssetHelper.GetPath(Path.Combine(dir, mtl))))
+                mtls = new MtlParser().Parse(mtlStream);
 
-            foreach (ObjFile.MeshGroup group in atriumFile.MeshGroups)
+            foreach (ObjFile.MeshGroup group in file.MeshGroups)
             {
                 Vector3 scale = new Vector3(0.1f);
-                ConstructedMeshInfo mesh = atriumFile.GetMesh(group);
-                MaterialDefinition materialDef = atriumMtls.Definitions[mesh.MaterialName];
+                ConstructedMesh mesh = file.GetMesh32(group, reduce: true); // TODO: dynamic mesh get
+                MaterialDefinition materialDef = mtls.Definitions[mesh.MaterialName];
                 ImageSharpTexture? overrideTextureData = null;
                 ImageSharpTexture? alphaTexture = null;
                 MaterialPropertyBuffer materialProps = CommonMaterials.Brick;
 
                 if (materialDef.DiffuseTexture != null)
                 {
-                    string texturePath = AssetHelper.GetPath("Models/SponzaAtrium/" + materialDef.DiffuseTexture);
+                    string texturePath = AssetHelper.GetPath(Path.Combine(dir, materialDef.DiffuseTexture));
                     overrideTextureData = LoadTexture(texturePath, true);
                 }
                 if (materialDef.AlphaMap != null)
                 {
-                    string texturePath = AssetHelper.GetPath("Models/SponzaAtrium/" + materialDef.AlphaMap);
+                    string texturePath = AssetHelper.GetPath(Path.Combine(dir, materialDef.AlphaMap));
                     alphaTexture = LoadTexture(texturePath, false);
                 }
 
@@ -592,7 +597,7 @@ namespace VoxelPizza.Client
                     materialProps = CommonMaterials.Brick;
                 }
 
-                AddTexturedMesh(
+                var texturedMesh = AddTexturedMesh(
                     mesh,
                     overrideTextureData,
                     alphaTexture,
@@ -601,6 +606,8 @@ namespace VoxelPizza.Client
                     Quaternion.Identity,
                     scale,
                     group.Name);
+
+                _ditheredMeshes.Add(texturedMesh);
             }
         }
 
@@ -618,8 +625,8 @@ namespace VoxelPizza.Client
             }
         }
 
-        private void AddTexturedMesh(
-            MeshData meshData,
+        private TexturedMesh AddTexturedMesh(
+            ConstructedMesh meshData,
             ImageSharpTexture? texData,
             ImageSharpTexture? alphaTexData,
             MaterialPropertyBuffer materialProps,
@@ -631,6 +638,8 @@ namespace VoxelPizza.Client
             TexturedMesh mesh = new(name, meshData, texData, alphaTexData, materialProps ?? CommonMaterials.Brick);
             mesh.Transform.Set(position, rotation, scale);
             AddRenderable(mesh);
+
+            return mesh;
         }
 
         private void AddRenderable(Renderable renderable)

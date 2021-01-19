@@ -34,6 +34,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Remove="Assets\Shaders\ValueDither.frag" />
+    <Content Remove="Assets\Shaders\ValueDither.vert" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Veldrid" Version="4.9.0-gfca0b9438b" />
     <PackageReference Include="Veldrid.ImageSharp" Version="4.9.0-gfca0b9438b" />
     <PackageReference Include="Veldrid.ImGui" Version="5.72.0" />

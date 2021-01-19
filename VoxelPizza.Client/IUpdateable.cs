@@ -3,6 +3,6 @@ namespace VoxelPizza.Client
 {
     public interface IUpdateable
     {
-        void Update(float deltaSeconds);
+        void Update(in FrameTime time);
     }
 }

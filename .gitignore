@@ -349,3 +349,4 @@ MigrationBackup/
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
 /VoxelPizza.Client/Assets/Models/SponzaAtrium
+/VoxelPizza.Client/Assets/Models/Rungholt

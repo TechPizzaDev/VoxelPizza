@@ -37,8 +37,10 @@ namespace VoxelPizza.Client
         {
             SpecializationConstant[] specializations = GetSpecializations(gd);
 
-            bool fixClipZ = (gd.BackendType == GraphicsBackend.OpenGL || gd.BackendType == GraphicsBackend.OpenGLES)
+            bool fixClipZ =
+                (gd.BackendType == GraphicsBackend.OpenGL || gd.BackendType == GraphicsBackend.OpenGLES)
                 && !gd.IsDepthRangeZeroToOne;
+
             bool invertY = false;
 
             return new CrossCompileOptions(fixClipZ, invertY, specializations);
@@ -54,8 +56,9 @@ namespace VoxelPizza.Client
             specializations.Add(new SpecializationConstant(102, gd.IsDepthRangeZeroToOne));
 
             PixelFormat swapchainFormat = gd.MainSwapchain.Framebuffer.OutputDescription.ColorAttachments[0].Format;
-            bool swapchainIsSrgb = swapchainFormat == PixelFormat.B8_G8_R8_A8_UNorm_SRgb
-                || swapchainFormat == PixelFormat.R8_G8_B8_A8_UNorm_SRgb;
+            bool swapchainIsSrgb =
+                swapchainFormat == PixelFormat.B8_G8_R8_A8_UNorm_SRgb ||
+                swapchainFormat == PixelFormat.R8_G8_B8_A8_UNorm_SRgb;
             specializations.Add(new SpecializationConstant(103, swapchainIsSrgb));
 
             return specializations.ToArray();
@@ -85,11 +88,14 @@ namespace VoxelPizza.Client
         {
             switch (backend)
             {
-                case GraphicsBackend.Direct3D11: return ".hlsl.bytes";
-                case GraphicsBackend.Vulkan: return ".spv";
+                case GraphicsBackend.Direct3D11:
+                    return ".hlsl.bytes";
+                case GraphicsBackend.Vulkan:
+                    return ".spv";
                 case GraphicsBackend.OpenGL:
                     throw new InvalidOperationException("OpenGL and OpenGLES do not support shader bytecode.");
-                default: throw new InvalidOperationException("Invalid Graphics backend: " + backend);
+                default:
+                    throw new InvalidOperationException("Invalid Graphics backend: " + backend);
             }
         }
 
@@ -97,15 +103,18 @@ namespace VoxelPizza.Client
         {
             switch (backend)
             {
-                case GraphicsBackend.Direct3D11: return ".hlsl";
-                case GraphicsBackend.Vulkan: return ".450.glsl";
+                case GraphicsBackend.Direct3D11:
+                    return ".hlsl";
+                case GraphicsBackend.Vulkan:
+                    return ".450.glsl";
                 case GraphicsBackend.OpenGL:
                     return ".330.glsl";
                 case GraphicsBackend.OpenGLES:
                     return ".300.glsles";
                 case GraphicsBackend.Metal:
                     return ".metallib";
-                default: throw new InvalidOperationException("Invalid Graphics backend: " + backend);
+                default:
+                    throw new InvalidOperationException("Invalid Graphics backend: " + backend);
             }
         }
     }

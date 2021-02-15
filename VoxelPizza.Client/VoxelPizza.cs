@@ -9,6 +9,7 @@ using ImGuiNET;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using Veldrid;
+using Veldrid.ImageSharp;
 using Veldrid.Sdl2;
 using Veldrid.Utilities;
 using VoxelPizza.Client.Objects;
@@ -86,28 +87,29 @@ namespace VoxelPizza.Client
             _fsq = new FullScreenQuad();
             _scene.AddRenderable(_fsq);
 
-
             //particlePlane = new ParticlePlane(_scene.Camera);
             //_scene.AddRenderable(particlePlane);
 
-
             _loadTasks.Add(Task.Run(() =>
             {
-                Skybox skybox = LoadDefaultSkybox();
+                Skybox skybox = GetDefaultSkybox();
+                skybox.PreloadTexture(_sc);
                 AddRenderable(skybox);
             }));
 
-            _loadTasks.Add(Task.Run(() =>
-            {
-                //string dir = "Models/SponzaAtrium";
-                //string obj = "sponza.obj";
-                //string mtl = "sponza.mtl";
-
-                //AddObjModel(dir, obj, mtl);
-            }));
+            //_loadTasks.Add(Task.Run(() =>
+            //{
+            //    string dir = "Models/SponzaAtrium";
+            //    string obj = "sponza.obj";
+            //    string mtl = "sponza.mtl";
+            //
+            //    AddObjModel(dir, obj, mtl);
+            //}));
 
             CreateGraphicsDeviceObjects();
             ImGui.StyleColorsClassic();
+
+            _sc.DirectionalLight.AmbientColor = new RgbaFloat(0.1f, 0.1f, 0.1f, 1);
         }
 
         protected override void WindowResized()
@@ -170,12 +172,14 @@ namespace VoxelPizza.Client
             }
             _updateCommands.End();
             GraphicsDevice.SubmitCommands(_updateCommands);
-            
+
             _scene.Update(time);
 
             DrawMainMenu();
 
             particlePlane?.Update(time);
+
+            //_sc.DirectionalLight.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Sin(time.TotalSeconds));
 
             if (InputTracker.GetKeyDown(Key.F11))
             {
@@ -547,15 +551,31 @@ namespace VoxelPizza.Client
             Console.WriteLine($"Refreshing resources {numTimes} times took {sw.Elapsed.TotalSeconds} seconds.");
         }
 
-        private static Skybox LoadDefaultSkybox()
+        private static Skybox GetDefaultSkybox()
         {
-            return new Skybox(
-                Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_ft.png")),
-                Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_bk.png")),
-                Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_lf.png")),
-                Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_rt.png")),
-                Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_up.png")),
-                Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_dn.png")));
+            var skybox = new Skybox((sc) =>
+            {
+                Image<Rgba32> front = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_ft.png"));
+                Image<Rgba32> back = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_bk.png"));
+                Image<Rgba32> left = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_lf.png"));
+                Image<Rgba32> right = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_rt.png"));
+                Image<Rgba32> top = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_up.png"));
+                Image<Rgba32> bottom = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_dn.png"));
+
+                var cubemap = new ImageSharpCubemapTexture(right, left, top, bottom, back, front, false);
+                return cubemap;
+            });
+
+            skybox.TextureLoaded += (sc, cubemap) =>
+            {
+                foreach (Image<Rgba32>[] imageArray in cubemap.CubemapTextures)
+                {
+                    foreach (Image<Rgba32> image in imageArray)
+                        image.Dispose();
+                }
+            };
+
+            return skybox;
         }
 
         private void AddObjModel(string dir, string obj, string mtl)

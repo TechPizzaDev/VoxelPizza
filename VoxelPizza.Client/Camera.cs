@@ -10,7 +10,7 @@ namespace VoxelPizza.Client
     public class Camera : IUpdateable
     {
         private float _fov = 1f;
-        private float _near = 1f;
+        private float _near = 0.1f;
         private float _far = 5000f;
 
         private Matrix4x4 _viewMatrix;

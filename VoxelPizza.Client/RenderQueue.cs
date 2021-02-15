@@ -91,14 +91,14 @@ namespace VoxelPizza.Client
         public struct Enumerator : IEnumerator<Renderable>
         {
             private readonly List<RenderItemIndex> _indices;
-            private readonly List<Renderable> _Renderables;
+            private readonly List<Renderable> _renderables;
             private int _nextItemIndex;
             private Renderable? _currentItem;
 
-            public Enumerator(List<RenderItemIndex> indices, List<Renderable> Renderables)
+            public Enumerator(List<RenderItemIndex> indices, List<Renderable> renderables)
             {
                 _indices = indices;
-                _Renderables = Renderables;
+                _renderables = renderables;
                 _nextItemIndex = 0;
                 _currentItem = null;
             }
@@ -119,8 +119,8 @@ namespace VoxelPizza.Client
                 }
                 else
                 {
-                    var currentIndex = _indices[_nextItemIndex];
-                    _currentItem = _Renderables[currentIndex.ItemIndex];
+                    RenderItemIndex currentIndex = _indices[_nextItemIndex];
+                    _currentItem = _renderables[currentIndex.ItemIndex];
                     _nextItemIndex += 1;
                     return true;
                 }

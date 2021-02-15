@@ -8,13 +8,16 @@ namespace VoxelPizza.Client
     public class DirectionalLight
     {
         private RgbaFloat _color = RgbaFloat.White;
+        private RgbaFloat _ambientColor = RgbaFloat.Black;
         public Transform Transform { get; } = new Transform();
 
         public Vector3 Direction => Transform.Forward;
 
         public event Action<RgbaFloat> ColorChanged;
+        public event Action<RgbaFloat> AmbientColorChanged;
 
         public RgbaFloat Color { get => _color; set { _color = value; ColorChanged?.Invoke(value); } }
+        public RgbaFloat AmbientColor { get => _ambientColor; set { _ambientColor = value; AmbientColorChanged?.Invoke(value); } }
 
         public DirectionalLight()
         {
@@ -22,9 +25,14 @@ namespace VoxelPizza.Client
             Transform.Rotation = Util.FromToRotation(-Vector3.UnitZ, lightDir);
         }
 
-        internal DirectionalLightInfo GetInfo()
+        public DirectionalLightInfo GetInfo()
         {
-            return new DirectionalLightInfo { Direction = Transform.Forward, Color = Color.ToVector4() };
+            return new DirectionalLightInfo
+            {
+                Direction = Transform.Forward,
+                Color = Color.ToVector4(),
+                AmbientColor = AmbientColor.ToVector4()
+            };
         }
     }
 
@@ -34,5 +42,6 @@ namespace VoxelPizza.Client
         public Vector3 Direction;
         private float _padding;
         public Vector4 Color;
+        public Vector4 AmbientColor;
     }
 }

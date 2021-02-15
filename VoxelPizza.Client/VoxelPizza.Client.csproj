@@ -32,19 +32,14 @@
       <Link>Assets\Shaders\%(RecursiveDir)\%(FileName)%(Extension)</Link>
     </Content>
   </ItemGroup>
-
+  
   <ItemGroup>
-    <Content Remove="Assets\Shaders\ValueDither.frag" />
-    <Content Remove="Assets\Shaders\ValueDither.vert" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Veldrid" Version="4.9.0-gfca0b9438b" />
-    <PackageReference Include="Veldrid.ImageSharp" Version="4.9.0-gfca0b9438b" />
+    <PackageReference Include="Veldrid" Version="4.9.0-gffcf1cdb33" />
+    <PackageReference Include="Veldrid.ImageSharp" Version="4.9.0-gffcf1cdb33" />
     <PackageReference Include="Veldrid.ImGui" Version="5.72.0" />
     <PackageReference Include="Veldrid.RenderDoc" Version="1.0.1" />
     <PackageReference Include="Veldrid.SPIRV" Version="1.0.13" />
-    <PackageReference Include="Veldrid.StartupUtilities" Version="4.9.0-gfca0b9438b" />
+    <PackageReference Include="Veldrid.StartupUtilities" Version="4.9.0-gffcf1cdb33" />
     <PackageReference Include="Veldrid.Utilities" Version="4.9.0-gfca0b9438b" />
   </ItemGroup>
 

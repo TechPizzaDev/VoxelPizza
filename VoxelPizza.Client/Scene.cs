@@ -8,20 +8,18 @@ using System.Threading.Tasks;
 using Veldrid;
 using Veldrid.Sdl2;
 using Veldrid.Utilities;
-using VoxelPizza.Client.Objects;
 
 namespace VoxelPizza.Client
 {
     public class Scene
     {
-        private readonly Octree<CullRenderable> _octree
-            = new Octree<CullRenderable>(new BoundingBox(Vector3.One * -50, Vector3.One * 50), 2);
+        private readonly Octree<CullRenderable> _octree = new(new BoundingBox(Vector3.One * -50, Vector3.One * 50), 2);
 
-        private readonly List<Renderable> _freeRenderables = new List<Renderable>();
-        private readonly List<IUpdateable> _updateables = new List<IUpdateable>();
+        private readonly List<GraphicsResource> _graphicsResources = new();
+        private readonly List<Renderable> _freeRenderables = new();
+        private readonly List<IUpdateable> _updateables = new();
 
-        private readonly ConcurrentDictionary<RenderPasses, Func<CullRenderable, bool>> _filters
-            = new ConcurrentDictionary<RenderPasses, Func<CullRenderable, bool>>(new RenderPassesComparer());
+        private readonly ConcurrentDictionary<RenderPasses, Func<CullRenderable, bool>> _filters = new();
 
         private readonly Camera _camera;
 
@@ -40,28 +38,50 @@ namespace VoxelPizza.Client
         float _midCascadeLimit = 300;
         float _farCascadeLimit;
 
+        public ChunkRenderer ChunkRenderer { get; } 
+
         public Scene(GraphicsDevice gd, Sdl2Window window)
         {
             _camera = new Camera(gd, window);
             _farCascadeLimit = _camera.FarDistance;
-            _updateables.Add(_camera);
+            AddUpdateable(_camera);
+
+            ChunkRenderer = new ChunkRenderer(_camera);
+            AddUpdateable(ChunkRenderer);
+            AddGraphicsResource(ChunkRenderer);
         }
 
-        public void AddRenderable(Renderable r)
+        public void AddGraphicsResource(GraphicsResource graphicsResource)
         {
-            if (r is CullRenderable cr)
+            if (graphicsResource == null)
+                throw new ArgumentNullException(nameof(graphicsResource));
+
+            _graphicsResources.Add(graphicsResource);
+        }
+
+        public void AddRenderable(Renderable renderable, bool addAsGraphicsResource = true)
+        {
+            if (renderable == null)
+                throw new ArgumentNullException(nameof(renderable));
+
+            if (renderable is CullRenderable cr)
             {
                 _octree.AddItem(cr.BoundingBox, cr);
             }
             else
             {
-                _freeRenderables.Add(r);
+                _freeRenderables.Add(renderable);
             }
+
+            if (addAsGraphicsResource)
+                AddGraphicsResource(renderable);
         }
 
         public void AddUpdateable(IUpdateable updateable)
         {
-            Debug.Assert(updateable != null);
+            if (updateable == null)
+                throw new ArgumentNullException(nameof(updateable));
+
             _updateables.Add(updateable);
         }
 
@@ -73,7 +93,7 @@ namespace VoxelPizza.Client
             }
         }
 
-        private readonly Task[] _tasks = new Task[4];
+        private readonly Task[] _renderTasks = new Task[4];
 
         public void RenderAllStages(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
@@ -98,15 +118,6 @@ namespace VoxelPizza.Client
             Vector4 nearLimitCS = Vector4.Transform(new Vector3(0, 0, -_nearCascadeLimit), cameraProj);
             Vector4 midLimitCS = Vector4.Transform(new Vector3(0, 0, -_midCascadeLimit), cameraProj);
             Vector4 farLimitCS = Vector4.Transform(new Vector3(0, 0, -_farCascadeLimit), cameraProj);
-
-            cl.UpdateBuffer(sc.DepthLimitsBuffer, 0, new DepthCascadeLimits
-            {
-                NearLimit = nearLimitCS.Z,
-                MidLimit = midLimitCS.Z,
-                FarLimit = farLimitCS.Z
-            });
-
-            cl.UpdateBuffer(sc.LightInfoBuffer, 0, sc.DirectionalLight.GetInfo());
 
             Vector3 lightPos = sc.DirectionalLight.Transform.Position - sc.DirectionalLight.Direction * 1000f;
             // Near
@@ -140,7 +151,7 @@ namespace VoxelPizza.Client
             cl.ClearDepthStencil(depthClear);
             Render(gd, cl, sc, RenderPasses.ShadowMapMid, lightFrustum, lightPos, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
-            
+
             //// Far
             //cl.PushDebugGroup("Shadow Map - Far Cascade");
             //Matrix4x4 viewProj2 = UpdateDirectionalLightMatrices(
@@ -158,7 +169,7 @@ namespace VoxelPizza.Client
             //cl.PopDebugGroup();
 
             // Main scene
-            cl.PushDebugGroup("Main Scene Pass");
+
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
             float fbWidth = sc.MainSceneFramebuffer.Width;
             float fbHeight = sc.MainSceneFramebuffer.Height;
@@ -167,6 +178,12 @@ namespace VoxelPizza.Client
             cl.ClearDepthStencil(depthClear);
             sc.UpdateCameraBuffers(cl); // Re-set because reflection step changed it.
             var cameraFrustum = new BoundingFrustum(_camera.ViewMatrix * _camera.ProjectionMatrix);
+            
+            cl.PushDebugGroup("Chunk Pass");
+            ChunkRenderer.Render(gd, cl, sc);
+            cl.PopDebugGroup();
+
+            cl.PushDebugGroup("Main Scene Pass");
             Render(gd, cl, sc, RenderPasses.Standard, cameraFrustum, _camera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
@@ -196,12 +213,24 @@ namespace VoxelPizza.Client
             cl.PopDebugGroup();
 
             _resourceUpdateCL.Begin();
-            foreach (Renderable renderable in _allPerFrameRenderablesSet)
             {
-                renderable.UpdatePerFrameResources(gd, _resourceUpdateCL, sc);
+                _resourceUpdateCL.UpdateBuffer(sc.DepthLimitsBuffer, 0, new DepthCascadeLimits
+                {
+                    NearLimit = nearLimitCS.Z,
+                    MidLimit = midLimitCS.Z,
+                    FarLimit = farLimitCS.Z
+                });
+
+                _resourceUpdateCL.UpdateBuffer(sc.LightInfoBuffer, 0, sc.DirectionalLight.GetInfo());
+
+                ChunkRenderer.UpdatePerFrameResources(gd, _resourceUpdateCL, sc);
+
+                foreach (Renderable renderable in _allPerFrameRenderablesSet)
+                {
+                    renderable.UpdatePerFrameResources(gd, _resourceUpdateCL, sc);
+                }
             }
             _resourceUpdateCL.End();
-
             gd.SubmitCommands(_resourceUpdateCL);
         }
 
@@ -220,19 +249,8 @@ namespace VoxelPizza.Client
             for (int i = 0; i < cls.Length; i++)
                 cls[i].Begin();
 
-            _resourceUpdateCL.Begin();
-
-            _resourceUpdateCL.UpdateBuffer(sc.DepthLimitsBuffer, 0, new DepthCascadeLimits
-            {
-                NearLimit = nearLimitCS.Z,
-                MidLimit = midLimitCS.Z,
-                FarLimit = farLimitCS.Z
-            });
-
-            _resourceUpdateCL.UpdateBuffer(sc.LightInfoBuffer, 0, sc.DirectionalLight.GetInfo());
-
             _allPerFrameRenderablesSet.Clear();
-            _tasks[0] = Task.Run(() =>
+            _renderTasks[0] = Task.Run(() =>
             {
                 // Near
                 Matrix4x4 viewProj0 = UpdateDirectionalLightMatrices(
@@ -251,7 +269,7 @@ namespace VoxelPizza.Client
                 Render(gd, cls[1], sc, RenderPasses.ShadowMapNear, lightFrustum0, lightPos, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, true);
             });
 
-            _tasks[1] = Task.Run(() =>
+            _renderTasks[1] = Task.Run(() =>
             {
                 // Mid
                 Matrix4x4 viewProj1 = UpdateDirectionalLightMatrices(
@@ -270,7 +288,7 @@ namespace VoxelPizza.Client
                 Render(gd, cls[2], sc, RenderPasses.ShadowMapMid, lightFrustum1, lightPos, _renderQueues[1], _cullableStage[1], _renderableStage[1], null, true);
             });
 
-            _tasks[2] = Task.Run(() =>
+            _renderTasks[2] = Task.Run(() =>
             {
                 // Far
                 Matrix4x4 viewProj2 = UpdateDirectionalLightMatrices(
@@ -289,7 +307,7 @@ namespace VoxelPizza.Client
                 Render(gd, cls[3], sc, RenderPasses.ShadowMapFar, lightFrustum2, lightPos, _renderQueues[2], _cullableStage[2], _renderableStage[2], null, true);
             });
 
-            _tasks[3] = Task.Run(() =>
+            _renderTasks[3] = Task.Run(() =>
             {
                 // Main scene
                 cls[4].SetFramebuffer(sc.MainSceneFramebuffer);
@@ -301,19 +319,15 @@ namespace VoxelPizza.Client
                 cls[4].ClearDepthStencil(depthClear);
                 sc.UpdateCameraBuffers(cls[4]);
                 var cameraFrustum = new BoundingFrustum(_camera.ViewMatrix * _camera.ProjectionMatrix);
+
+                ChunkRenderer.Render(gd, cls[4], sc);
+
                 Render(gd, cls[4], sc, RenderPasses.Standard, cameraFrustum, _camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
                 Render(gd, cls[4], sc, RenderPasses.AlphaBlend, cameraFrustum, _camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
                 Render(gd, cls[4], sc, RenderPasses.Overlay, cameraFrustum, _camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
             });
 
-            Task.WaitAll(_tasks);
-
-            foreach (Renderable renderable in _allPerFrameRenderablesSet)
-            {
-                renderable.UpdatePerFrameResources(gd, _resourceUpdateCL, sc);
-            }
-            _resourceUpdateCL.End();
-            gd.SubmitCommands(_resourceUpdateCL);
+            Task.WaitAll(_renderTasks);
 
             for (int i = 0; i < cls.Length; i++)
             {
@@ -340,7 +354,28 @@ namespace VoxelPizza.Client
             fbHeight = gd.SwapchainFramebuffer.Height;
             cl.SetViewport(0, new Viewport(0, 0, fbWidth, fbHeight, 0, 1));
             cl.SetScissorRect(0, 0, 0, fbWidth, fbHeight);
-            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), _camera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0],null, false);
+            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), _camera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, false);
+
+            _resourceUpdateCL.Begin();
+            {
+                _resourceUpdateCL.UpdateBuffer(sc.DepthLimitsBuffer, 0, new DepthCascadeLimits
+                {
+                    NearLimit = nearLimitCS.Z,
+                    MidLimit = midLimitCS.Z,
+                    FarLimit = farLimitCS.Z
+                });
+
+                _resourceUpdateCL.UpdateBuffer(sc.LightInfoBuffer, 0, sc.DirectionalLight.GetInfo());
+
+                ChunkRenderer.UpdatePerFrameResources(gd, _resourceUpdateCL, sc);
+
+                foreach (Renderable renderable in _allPerFrameRenderablesSet)
+                {
+                    renderable.UpdatePerFrameResources(gd, _resourceUpdateCL, sc);
+                }
+            }
+            _resourceUpdateCL.End();
+            gd.SubmitCommands(_resourceUpdateCL);
         }
 
         private Matrix4x4 UpdateDirectionalLightMatrices(
@@ -441,7 +476,7 @@ namespace VoxelPizza.Client
             RenderQueue renderQueue,
             List<CullRenderable> cullRenderableList,
             List<Renderable> renderableList,
-            Comparer<RenderItemIndex> comparer,
+            Comparer<RenderItemIndex>? comparer,
             bool threaded)
         {
             renderQueue.Clear();
@@ -531,16 +566,8 @@ namespace VoxelPizza.Client
             for (int i = 0; i < _multithreadCls.Length; i++)
                 _multithreadCls[i].Dispose();
 
-            _cullableStage[0].Clear();
-            _octree.GetAllContainedObjects(_cullableStage[0]);
-            foreach (CullRenderable cr in _cullableStage[0])
-            {
-                cr.DestroyDeviceObjects();
-            }
-            foreach (Renderable r in _freeRenderables)
-            {
-                r.DestroyDeviceObjects();
-            }
+            foreach (GraphicsResource resource in _graphicsResources)
+                resource.DestroyDeviceObjects();
 
             _resourceUpdateCL.Dispose();
         }
@@ -551,16 +578,8 @@ namespace VoxelPizza.Client
             for (int i = 0; i < _multithreadCls.Length; i++)
                 _multithreadCls[i] = gd.ResourceFactory.CreateCommandList();
 
-            _cullableStage[0].Clear();
-            _octree.GetAllContainedObjects(_cullableStage[0]);
-            foreach (CullRenderable cr in _cullableStage[0])
-            {
-                cr.CreateDeviceObjects(gd, cl, sc);
-            }
-            foreach (Renderable r in _freeRenderables)
-            {
-                r.CreateDeviceObjects(gd, cl, sc);
-            }
+            foreach (GraphicsResource resource in _graphicsResources)
+                resource.CreateDeviceObjects(gd, cl, sc);
 
             _resourceUpdateCL = gd.ResourceFactory.CreateCommandList();
             _resourceUpdateCL.Name = "Scene Resource Update Command List";
@@ -569,6 +588,7 @@ namespace VoxelPizza.Client
         private class RenderPassesComparer : IEqualityComparer<RenderPasses>
         {
             public bool Equals(RenderPasses x, RenderPasses y) => x == y;
+
             public int GetHashCode(RenderPasses obj) => ((byte)obj).GetHashCode();
         }
     }

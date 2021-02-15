@@ -4,35 +4,46 @@ using System.Numerics;
 using Veldrid.Utilities;
 using Veldrid.ImageSharp;
 using Veldrid;
+using System;
 
 namespace VoxelPizza.Client.Objects
 {
+    public readonly struct SkyboxFaces
+    {
+        public Image<Rgba32> _front { get; }
+        public Image<Rgba32> _back { get; }
+        public Image<Rgba32> _left { get; }
+        public Image<Rgba32> _right { get; }
+        public Image<Rgba32> _top { get; }
+        public Image<Rgba32> _bottom { get; }
+    }
+
     public class Skybox : Renderable
     {
-        private readonly Image<Rgba32> _front;
-        private readonly Image<Rgba32> _back;
-        private readonly Image<Rgba32> _left;
-        private readonly Image<Rgba32> _right;
-        private readonly Image<Rgba32> _top;
-        private readonly Image<Rgba32> _bottom;
+        private Func<SceneContext?, ImageSharpCubemapTexture> _textureFactory;
 
         // Context objects
+        private readonly DisposeCollector _disposeCollector = new DisposeCollector();
         private DeviceBuffer _vb;
         private DeviceBuffer _ib;
         private Pipeline _pipeline;
         private ResourceSet _resourceSet;
-        private readonly DisposeCollector _disposeCollector = new DisposeCollector();
+        private ImageSharpCubemapTexture? _pendingCubemap;
 
-        public Skybox(
-            Image<Rgba32> front, Image<Rgba32> back, Image<Rgba32> left,
-            Image<Rgba32> right, Image<Rgba32> top, Image<Rgba32> bottom)
+        public event Action<SceneContext?, ImageSharpCubemapTexture> TextureLoaded;
+
+        public Skybox(Func<SceneContext?, ImageSharpCubemapTexture> textureFactory)
         {
-            _front = front;
-            _back = back;
-            _left = left;
-            _right = right;
-            _top = top;
-            _bottom = bottom;
+            _textureFactory = textureFactory ?? throw new ArgumentNullException(nameof(textureFactory));
+        }
+
+        public ImageSharpCubemapTexture PreloadTexture(SceneContext? sceneContext)
+        {
+            if (_pendingCubemap == null)
+            {
+                _pendingCubemap = _textureFactory.Invoke(sceneContext);
+            }
+            return _pendingCubemap;
         }
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
@@ -45,10 +56,10 @@ namespace VoxelPizza.Client.Objects
             _ib = factory.CreateBuffer(new BufferDescription(s_indices.SizeInBytes(), BufferUsage.IndexBuffer));
             cl.UpdateBuffer(_ib, 0, s_indices);
 
-            ImageSharpCubemapTexture imageSharpCubemapTexture = new ImageSharpCubemapTexture(_right, _left, _top, _bottom, _back, _front, false);
-
-            Texture textureCube = imageSharpCubemapTexture.CreateDeviceTexture(gd, factory);
-            TextureView textureView = factory.CreateTextureView(new TextureViewDescription(textureCube));
+            ImageSharpCubemapTexture cubemap = PreloadTexture(sc);
+            Texture textureCube = cubemap.CreateDeviceTexture(gd, factory);
+            TextureLoaded?.Invoke(sc, cubemap);
+            _pendingCubemap = null;
 
             VertexLayoutDescription[] vertexLayouts = new VertexLayoutDescription[]
             {
@@ -79,14 +90,10 @@ namespace VoxelPizza.Client.Objects
                 _layout,
                 sc.ProjectionMatrixBuffer,
                 sc.ViewMatrixBuffer,
-                textureView,
+                textureCube,
                 gd.PointSampler));
 
-            _disposeCollector.Add(_vb, _ib, textureCube, textureView, _layout, _pipeline, _resourceSet, vs, fs);
-        }
-
-        public override void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, SceneContext sc)
-        {
+            _disposeCollector.Add(_vb, _ib, textureCube, _layout, _pipeline, _resourceSet, vs, fs);
         }
 
         public override void DestroyDeviceObjects()
@@ -112,6 +119,10 @@ namespace VoxelPizza.Client.Objects
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
         {
             return new RenderOrderKey(ulong.MaxValue);
+        }
+
+        public override void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, SceneContext sc)
+        {
         }
 
         private static readonly VertexPosition[] s_vertices = new VertexPosition[]

@@ -257,16 +257,13 @@ namespace VoxelPizza.Client.Objects
             ResourceLayoutDescription resourceLayoutDescription = new ResourceLayoutDescription(resourceLayoutElementDescriptions);
             ResourceLayout sharedLayout = factory.CreateResourceLayout(resourceLayoutDescription);
 
-            RasterizerStateDescription rasterState = RasterizerStateDescription.Default;
-            rasterState.DepthClipEnabled = false;
-
             GraphicsPipelineDescription pd = new GraphicsPipelineDescription(
                 new BlendStateDescription(
                     RgbaFloat.Black,
                     BlendAttachmentDescription.OverrideBlend,
                     BlendAttachmentDescription.OverrideBlend),
                 gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
-                rasterState,
+                RasterizerStateDescription.Default,
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(
                     new[]

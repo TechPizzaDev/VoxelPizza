@@ -25,8 +25,8 @@ namespace VoxelPizza.Client
         private Scene _scene;
         private SceneContext _sc = new SceneContext();
 
+        private CommandList _chunkCommands;
         private CommandList _frameCommands;
-        private CommandList _updateCommands;
 
         private ImGuiRenderable _imGuiRenderable;
         private FullScreenQuad _fsq;
@@ -53,17 +53,17 @@ namespace VoxelPizza.Client
 
             GraphicsDevice.SyncToVerticalBlank = true;
 
+            _imGuiRenderable = new ImGuiRenderable(Window.Width, Window.Height);
+            _resizeHandled += (w, h) => _imGuiRenderable.WindowResized(w, h);
+
             _scene = new Scene(GraphicsDevice, Window);
             _scene.Camera.Controller = _controllerTracker;
             _sc.SetCurrentScene(_scene);
 
-            _imGuiRenderable = new ImGuiRenderable(Window.Width, Window.Height);
-            _resizeHandled += (w, h) => _imGuiRenderable.WindowResized(w, h);
             _scene.AddRenderable(_imGuiRenderable);
-            _scene.AddUpdateable(_imGuiRenderable);
 
-            _sc.Camera.Position = new Vector3(-120, 25, -4.3f);
-            _sc.Camera.Yaw = -MathF.PI / 2;
+            _sc.Camera.Position = new Vector3(-6, 24f, -0.43f);
+            _sc.Camera.Yaw = MathF.PI * 1.25f;
             _sc.Camera.Pitch = 0;
 
             ShadowmapDrawer texDrawIndexeder = new ShadowmapDrawer(() => Window, () => _sc.NearShadowMapView);
@@ -107,6 +107,7 @@ namespace VoxelPizza.Client
             //}));
 
             CreateGraphicsDeviceObjects();
+
             ImGui.StyleColorsClassic();
 
             _sc.DirectionalLight.AmbientColor = new RgbaFloat(0.1f, 0.1f, 0.1f, 1);
@@ -123,59 +124,46 @@ namespace VoxelPizza.Client
             _newSampleCount = sampleCount;
         }
 
+
+
         protected override void DisposeGraphicsDeviceObjects()
         {
             GraphicsDevice.WaitForIdle();
 
-            _updateCommands.Dispose();
             _frameCommands.Dispose();
             StaticResourceCache.DisposeGraphicsDeviceObjects();
 
             _sc.DisposeGraphicsDeviceObjects();
-            _scene.DisposeGraphicsDeviceObjects();
+            _scene.DestroyGraphicsDeviceObjects();
             CommonMaterials.DisposeGraphicsDeviceObjects();
-
+            
             GraphicsDevice.WaitForIdle();
         }
 
         protected override void CreateGraphicsDeviceObjects()
         {
-            _updateCommands = GraphicsDevice.ResourceFactory.CreateCommandList();
-            _updateCommands.Name = "Update Commands List";
-
             _frameCommands = GraphicsDevice.ResourceFactory.CreateCommandList();
             _frameCommands.Name = "Frame Commands List";
 
-            using CommandList initCL = GraphicsDevice.ResourceFactory.CreateCommandList();
-            initCL.Name = "Recreation Initialization Command List";
-            initCL.Begin();
+            using CommandList cl = GraphicsDevice.ResourceFactory.CreateCommandList();
+            cl.Name = "Recreation Initialization Command List";
+            cl.Begin();
             {
-                _sc.CreateGraphicsDeviceObjects(GraphicsDevice, initCL, _sc);
-                CommonMaterials.CreateGraphicsDeviceObjects(GraphicsDevice, initCL, _sc);
-                _scene.CreateGraphicsDeviceObjects(GraphicsDevice, initCL, _sc);
+                CommonMaterials.CreateGraphicsDeviceObjects(GraphicsDevice, cl, _sc);
+                _sc.CreateGraphicsDeviceObjects(GraphicsDevice, cl, _sc);
+                _scene.CreateGraphicsDeviceObjects(GraphicsDevice, cl, _sc);
             }
-            initCL.End();
-            GraphicsDevice.SubmitCommands(initCL);
+            cl.End();
+            GraphicsDevice.SubmitCommands(cl);
 
             _scene.Camera.UpdateGraphicsBackend(GraphicsDevice, Window);
         }
 
         public override void Update(in FrameTime time)
         {
-            _updateCommands.Begin();
-            {
-                while (_queuedRenderables.TryDequeue(out Renderable? renderable))
-                {
-                    _scene.AddRenderable(renderable);
-                    renderable.CreateDeviceObjects(GraphicsDevice, _updateCommands, _sc);
-                }
-            }
-            _updateCommands.End();
-            GraphicsDevice.SubmitCommands(_updateCommands);
+            _imGuiRenderable.Update(time);
 
             _scene.Update(time);
-
-            DrawMainMenu();
 
             particlePlane?.Update(time);
 
@@ -189,13 +177,13 @@ namespace VoxelPizza.Client
 
         public override void Draw()
         {
-            int width = Window.Width;
-            int height = Window.Height;
 
             if (_windowResized)
             {
                 _windowResized = false;
 
+                int width = Window.Width;
+                int height = Window.Height;
                 GraphicsDevice.ResizeMainWindow((uint)width, (uint)height);
                 _scene.Camera.WindowResized(width, height);
                 _resizeHandled?.Invoke(width, height);
@@ -216,8 +204,32 @@ namespace VoxelPizza.Client
                 CreateGraphicsDeviceObjects();
             }
 
+            DrawMainMenu();
+
             _frameCommands.Begin();
             {
+                float depthClear = GraphicsDevice.IsDepthRangeZeroToOne ? 0f : 1f;
+                _frameCommands.SetFramebuffer(_sc.MainSceneFramebuffer);
+                float fbWidth = _sc.MainSceneFramebuffer.Width;
+                float fbHeight = _sc.MainSceneFramebuffer.Height;
+                _frameCommands.SetViewport(0, new Viewport(0, 0, fbWidth, fbHeight, 0, 1f));
+                _frameCommands.SetFullScissorRects();
+                _frameCommands.ClearColorTarget(0, RgbaFloat.Black);
+                _frameCommands.ClearDepthStencil(depthClear);
+                _sc.UpdateCameraBuffers(_frameCommands);
+            }
+            _frameCommands.End();
+            GraphicsDevice.SubmitCommands(_frameCommands);
+            _scene.ChunkRenderer.Render(GraphicsDevice, _sc);
+
+            _frameCommands.Begin();
+            {
+                while (_queuedRenderables.TryDequeue(out Renderable? renderable))
+                {
+                    _scene.AddRenderable(renderable);
+                    renderable.CreateDeviceObjects(GraphicsDevice, _frameCommands, _sc);
+                }
+
                 CommonMaterials.UpdateAll(_frameCommands);
                 _scene.RenderAllStages(GraphicsDevice, _frameCommands, _sc);
             }
@@ -433,7 +445,7 @@ namespace VoxelPizza.Client
                     {
                         if (RenderDoc.Load(out _renderDoc))
                         {
-                            ChangeGraphicsBackend(GraphicsDevice.BackendType, forceRecreateWindow: true);
+                            ChangeGraphicsBackend(forceRecreateWindow: true, preferredBackend: GraphicsDevice.BackendType);
                         }
                     }
                 }

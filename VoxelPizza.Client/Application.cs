@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Threading;
 using Veldrid;
-using Veldrid.ImageSharp;
 using Veldrid.Sdl2;
 using Veldrid.StartupUtilities;
 
@@ -36,7 +35,7 @@ namespace VoxelPizza.Client
             get => _graphicsDevice;
             private set
             {
-                if(value == null)
+                if (value == null)
                     throw new ArgumentNullException(nameof(value));
 
                 _graphicsDevice = value;
@@ -215,16 +214,27 @@ namespace VoxelPizza.Client
 
         private void DrawAndPresent()
         {
-            TimeAverager.BeginDraw();
-            Draw();
-            TimeAverager.EndDraw();
+            // TODO: try to revive other backends
+            try
+            {
+                TimeAverager.BeginDraw();
+                Draw();
+                TimeAverager.EndDraw();
+            }
+            catch (SharpGen.Runtime.SharpGenException ex) when
+                (ex.Descriptor == Vortice.DXGI.ResultCode.DeviceRemoved ||
+                ex.Descriptor == Vortice.DXGI.ResultCode.DeviceReset)
+            {
+                ChangeGraphicsBackend(true, null);
+                return;
+            }
 
             TimeAverager.BeginPresent();
             Present();
             TimeAverager.EndPresent();
         }
 
-        public void ChangeGraphicsBackend(GraphicsBackend backend, bool forceRecreateWindow)
+        public void ChangeGraphicsBackend(bool forceRecreateWindow, GraphicsBackend? preferredBackend = null)
         {
             GraphicsBackend previousBackend = GraphicsDevice.BackendType;
             bool syncToVBlank = GraphicsDevice.SyncToVerticalBlank;
@@ -253,12 +263,16 @@ namespace VoxelPizza.Client
 
             try
             {
-                GraphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions, backend);
+                if (preferredBackend == null)
+                    preferredBackend = previousBackend;
+
+                GraphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions, preferredBackend.Value);
             }
             catch
             {
-                GraphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions, previousBackend);
+                GraphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions);
             }
+
             CreateGraphicsDeviceObjects();
         }
 
@@ -283,16 +297,16 @@ namespace VoxelPizza.Client
         {
         }
 
-        protected void ChangeGraphicsBackend(GraphicsBackend backend)
+        protected void ChangeGraphicsBackend(GraphicsBackend? preferredBackend = null)
         {
-            ChangeGraphicsBackend(backend, false);
-        }
-
-        protected virtual void DisposeGraphicsDeviceObjects()
-        {
+            ChangeGraphicsBackend(false, preferredBackend);
         }
 
         protected virtual void CreateGraphicsDeviceObjects()
+        {
+        }
+
+        protected virtual void DisposeGraphicsDeviceObjects()
         {
         }
     }

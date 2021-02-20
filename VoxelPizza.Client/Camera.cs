@@ -77,10 +77,10 @@ namespace VoxelPizza.Client
             float deltaSeconds = time.DeltaSeconds;
 
             float sprintFactor = InputTracker.GetKey(Key.ControlLeft)
-                ? 0.5f
+                ? 0.33f
                 : InputTracker.GetKey(Key.ShiftLeft)
-                    ? 10f
-                    : 2.5f;
+                    ? 7.5f
+                    : 1f;
 
             Vector3 motionDir = Vector3.Zero;
             if (InputTracker.GetKey(Key.A))

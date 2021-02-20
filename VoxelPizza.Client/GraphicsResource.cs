@@ -8,6 +8,7 @@ namespace VoxelPizza.Client
         public bool IsDisposed { get; private set; }
 
         public abstract void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc);
+
         public abstract void DestroyDeviceObjects();
 
         protected virtual void Dispose(bool disposing)

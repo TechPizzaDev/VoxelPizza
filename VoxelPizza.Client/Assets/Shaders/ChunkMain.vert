@@ -2,9 +2,9 @@
 
 struct TextureAnimation
 {
-    uint StepType;
-    uint StepCount;
-    float StepRate;
+    uint Type;
+    uint Count;
+    float Rate;
 };
 
 layout(set = 0, binding = 0) uniform ProjectionMatrix
@@ -16,6 +16,11 @@ layout(set = 0, binding = 1) uniform ViewMatrix
 {
     mat4 View;
 };
+layout(set = 0, binding = 2) uniform WorldInfo
+{
+    float GlobalTime;
+    float GlobalTimeFraction;
+};
 
 layout(set = 1, binding = 0) uniform ChunkInfo
 {
@@ -23,21 +28,15 @@ layout(set = 1, binding = 0) uniform ChunkInfo
     mat4 InverseWorld;
 };
 
-layout(location = 0) in vec4 Position;
+layout(location = 0) in vec3 Position;
 layout(location = 1) in uint Normal;
-
-layout(location = 2) in ivec4 Color;
-layout(location = 3) in uint TexAnimation0;
-layout(location = 4) in uint TexRegion0;
-
+layout(location = 2) in uint TexAnimation0;
+layout(location = 3) in uint TexRegion0;
 
 layout(location = 0) out vec3 f_Normal;
-layout(location = 1) out vec4 f_Color;
-
-layout(location = 2) flat out uint f_TexRegion0;
-layout(location = 3) flat out uint f_StepType0;
-layout(location = 4) flat out uint f_StepCount0;
-layout(location = 5) flat out float f_StepRate0;
+layout(location = 1) flat out uint f_TexRegion0_0;
+layout(location = 2) flat out uint f_TexRegion0_1;
+layout(location = 3) out float f_TexFraction_0;
 
 vec3 unpack3x10(uint packed) 
 {
@@ -52,45 +51,34 @@ vec3 unpack3x10(uint packed)
 
 TextureAnimation unpackTexAnim(uint packed)
 {
-    TextureAnimation anim;
-    anim.StepType = packed & 7;
-    anim.StepCount = (packed >> 3) & 4095;
-    anim.StepRate = (packed >> 15) / 4096.0;
+    TextureAnimation anim; 
+    anim.Type = packed & 1;
+    anim.Count = (packed >> 1) & 16383;
+    anim.Rate = (packed >> 15) / 4096.0;
     return anim;
 }
 
 void main()
 {
-    vec4 worldPosition = World * Position;
+    vec4 worldPosition = World * vec4(Position, 1);
     vec4 outPosition = Projection * View * worldPosition;
 
     vec3 normal = unpack3x10(Normal);
     vec4 outNormal = InverseWorld * vec4(normal, 1);
 
-    vec4 outColor = Color / 255.0;
-
     TextureAnimation texAnim0 = unpackTexAnim(TexAnimation0);
+    float step0 = GlobalTime * texAnim0.Rate;
+    float indexF0;
+    float texFract0 = modf(step0 - texAnim0.Type * 0.5f, indexF0);
+    uint indexOffset0 = uint(indexF0);
+    uint indexOffset0_0 = indexOffset0 % texAnim0.Count;
+    uint indexOffset0_1 = (indexOffset0 + texAnim0.Type) % texAnim0.Count;
     
-
     gl_Position = outPosition;
 
     f_Normal = normalize(outNormal.xyz);
-    f_Color = outColor;
-
-    f_TexRegion0 = TexRegion0;
-    f_StepType0 = texAnim0.StepType;
-    f_StepCount0 = texAnim0.StepCount;
-    f_StepRate0 = texAnim0.StepRate;
-
-    f_StepCount0 = 3;
-    f_StepRate0 = 1;
-
-    if(TexAnimation0 == 1)
-    {
-        f_StepType0 = 2;
-    }
-    else
-    {
-        f_StepType0 = 1;
-    }
+    
+    f_TexRegion0_0 = TexRegion0 + indexOffset0_0;
+    f_TexRegion0_1 = TexRegion0 + indexOffset0_1;
+    f_TexFraction_0 = texFract0;
 }

@@ -170,20 +170,15 @@ namespace VoxelPizza.Client
 
             // Main scene
 
+            cl.PushDebugGroup("Main Scene Pass");
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
             float fbWidth = sc.MainSceneFramebuffer.Width;
             float fbHeight = sc.MainSceneFramebuffer.Height;
             cl.SetViewport(0, new Viewport(0, 0, fbWidth, fbHeight, 0, 1f));
             cl.SetFullScissorRects();
-            cl.ClearDepthStencil(depthClear);
             sc.UpdateCameraBuffers(cl); // Re-set because reflection step changed it.
             var cameraFrustum = new BoundingFrustum(_camera.ViewMatrix * _camera.ProjectionMatrix);
-            
-            cl.PushDebugGroup("Chunk Pass");
-            ChunkRenderer.Render(gd, cl, sc);
-            cl.PopDebugGroup();
 
-            cl.PushDebugGroup("Main Scene Pass");
             Render(gd, cl, sc, RenderPasses.Standard, cameraFrustum, _camera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
@@ -315,12 +310,8 @@ namespace VoxelPizza.Client
                 float scHeight = sc.MainSceneFramebuffer.Height;
                 cls[4].SetViewport(0, new Viewport(0, 0, scWidth, scHeight, 0, 1f));
                 cls[4].SetScissorRect(0, 0, 0, (uint)scWidth, (uint)scHeight);
-                cls[4].ClearColorTarget(0, RgbaFloat.Black);
-                cls[4].ClearDepthStencil(depthClear);
                 sc.UpdateCameraBuffers(cls[4]);
                 var cameraFrustum = new BoundingFrustum(_camera.ViewMatrix * _camera.ProjectionMatrix);
-
-                ChunkRenderer.Render(gd, cls[4], sc);
 
                 Render(gd, cls[4], sc, RenderPasses.Standard, cameraFrustum, _camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
                 Render(gd, cls[4], sc, RenderPasses.AlphaBlend, cameraFrustum, _camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
@@ -561,7 +552,7 @@ namespace VoxelPizza.Client
             return cr => (cr.RenderPasses & rp) == rp;
         }
 
-        internal void DisposeGraphicsDeviceObjects()
+        internal void DestroyGraphicsDeviceObjects()
         {
             for (int i = 0; i < _multithreadCls.Length; i++)
                 _multithreadCls[i].Dispose();

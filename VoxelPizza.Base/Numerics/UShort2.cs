@@ -1,11 +1,11 @@
 ﻿namespace VoxelPizza.Client
 {
-    public struct Vector2U16
+    public struct UShort2
     {
         public ushort X;
         public ushort Y;
 
-        public Vector2U16(ushort x, ushort y)
+        public UShort2(ushort x, ushort y)
         {
             X = x;
             Y = y;

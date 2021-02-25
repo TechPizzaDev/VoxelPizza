@@ -17,20 +17,14 @@ namespace VoxelPizza.Client
         private DeviceBuffer? _indexBuffer;
 
         public ChunkRenderer Renderer { get; }
-
-        public int ChunkX { get; }
-        public int ChunkY { get; }
-        public int ChunkZ { get; }
+        public Chunk Chunk { get; }
 
         public uint TriangleCount => _indexBuffer == null ? 0 : (_indexBuffer.SizeInBytes / 4) / 3;
 
-        public ChunkVisual(ChunkRenderer chunkRenderer, int chunkX, int chunkY, int chunkZ)
+        public ChunkVisual(ChunkRenderer chunkRenderer, Chunk chunk)
         {
             Renderer = chunkRenderer ?? throw new ArgumentNullException(nameof(chunkRenderer));
-
-            ChunkX = chunkX;
-            ChunkY = chunkY;
-            ChunkZ = chunkZ;
+            Chunk = chunk ?? throw new ArgumentNullException(nameof(chunk));
         }
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
@@ -44,8 +38,8 @@ namespace VoxelPizza.Client
                 Renderer.ChunkInfoLayout,
                 _worldAndInverseBuffer));
 
-            var go = new Mesher();
-            var mesh = go.Mesh(this);
+            ChunkMesher mesher = new();
+            StoredChunkMesh mesh = mesher.Mesh(Chunk);
 
             if (mesh.Indices.Count != 0)
             {
@@ -62,7 +56,7 @@ namespace VoxelPizza.Client
                 gd.UpdateBuffer(_paintBuffer, 0, paintVertexSpan);
 
                 WorldAndInverse worldAndInverse;
-                worldAndInverse.World = Matrix4x4.CreateTranslation(ChunkX * 16, ChunkY * 16, ChunkZ * 16);
+                worldAndInverse.World = Matrix4x4.CreateTranslation(Chunk.ChunkX * 16, Chunk.ChunkY * 16, Chunk.ChunkZ * 16);
                 worldAndInverse.InverseWorld = VdUtilities.CalculateInverseTranspose(ref worldAndInverse.World);
                 gd.UpdateBuffer(_worldAndInverseBuffer, 0, ref worldAndInverse);
             }

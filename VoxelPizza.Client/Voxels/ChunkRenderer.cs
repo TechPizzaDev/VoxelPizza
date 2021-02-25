@@ -22,9 +22,10 @@ namespace VoxelPizza.Client
         private Pipeline _pipeline;
         private ResourceSet _sharedSet;
 
+        private List<Chunk> _chunks = new();
         private List<ChunkVisual> _visibleChunkBuffer = new();
-        private List<ChunkVisual> _visuals = new List<ChunkVisual>();
-        private ConcurrentQueue<ChunkVisual> _queuedCreations = new();
+        private List<ChunkVisual> _visuals = new();
+        private ConcurrentQueue<ChunkVisual> _queuedVisuals = new();
 
         private WorldInfo _worldInfo;
 
@@ -39,11 +40,16 @@ namespace VoxelPizza.Client
         {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
 
-            int width = 16;
-            int height = 8;
+            StartThread();
+        }
 
+        public void StartThread()
+        {
             Task.Run(() =>
             {
+                int width = 16;
+                int height = 8;
+
                 var list = new List<(int x, int y, int z)>();
 
                 for (int y = 0; y < height; y++)
@@ -79,9 +85,12 @@ namespace VoxelPizza.Client
                 int count = 0;
                 foreach (var (x, y, z) in list)
                 {
-                    var visual = new ChunkVisual(this, x, y, z);
+                    var chunk = new Chunk(x, y, z);
+                    chunk.Generate();
+                    _chunks.Add(chunk);
 
-                    _queuedCreations.Enqueue(visual);
+                    var visual = new ChunkVisual(this, chunk);
+                    _queuedVisuals.Enqueue(visual);
 
                     count++;
                     if (count == 2)
@@ -206,7 +215,7 @@ namespace VoxelPizza.Client
 
             var tmpCommands = commandLists[0];
             tmpCommands.Begin();
-            while (_queuedCreations.TryDequeue(out ChunkVisual? visual))
+            while (_queuedVisuals.TryDequeue(out ChunkVisual? visual))
             {
                 visual.CreateDeviceObjects(gd, tmpCommands, sc);
                 _visuals.Add(visual);

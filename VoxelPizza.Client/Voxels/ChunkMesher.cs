@@ -6,7 +6,7 @@ namespace VoxelPizza.Client
 {
     public class ChunkMesher
     {
-        public StoredChunkMesh Mesh(ChunkVisual visual)
+        public StoredChunkMesh Mesh(Chunk chunk)
         {
             var ind = new ByteStore<uint>(ArrayPool<byte>.Shared);
             var spa = new ByteStore<ChunkSpaceVertex>(ArrayPool<byte>.Shared);
@@ -28,7 +28,7 @@ namespace VoxelPizza.Client
                 TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
             };
 
-            var rng = new Random();
+            uint[,,] blocks = chunk.Blocks;
 
             for (int y = 0; y < 16; y++)
             {
@@ -36,13 +36,13 @@ namespace VoxelPizza.Client
                 {
                     for (int x = 0; x < 16; x++)
                     {
-                        double fac = (visual.ChunkY * 16 + y) / 2048.0;
-                        if (rng.NextDouble() > 0.1 * fac)
+                        uint id = blocks[y, z, x];
+                        if (id == 0)
                             continue;
 
                         var spaGen = new CubeSpaceVertexGenerator(new Vector3(x, y, z));
 
-                        var anim = anims[rng.Next(anims.Length)];
+                        var anim = anims[id - 1];
                         var paiGen = new CubePaintVertexGenerator(anim, 0);
 
                         var spaPro = new CubeVertexProvider<CubeSpaceVertexGenerator, ChunkSpaceVertex>(spaGen, CubeFaces.All);

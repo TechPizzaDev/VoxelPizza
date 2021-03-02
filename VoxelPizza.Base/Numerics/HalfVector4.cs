@@ -55,12 +55,12 @@ namespace VoxelPizza.Numerics
                 && W == other.W;
         }
 
-        public override bool Equals(object? obj)
+        public override readonly bool Equals(object? obj)
         {
             return obj is HalfVector4 other && Equals(other);
         }
 
-        public readonly override int GetHashCode()
+        public override readonly int GetHashCode()
         {
             return HashCode.Combine(X, Y, Z, W);
         }

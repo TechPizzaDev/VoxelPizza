@@ -15,14 +15,6 @@ struct DirectionalLightInfo
     vec4 Color;
 };
 
-struct CameraInfos
-{
-    vec3 CameraPosition_WorldSpace;
-    float _padding1;
-    vec3 CameraLookDirection;
-    float _padding2;
-};
-
 struct PointLightInfo
 {
     vec3 Position;
@@ -50,39 +42,43 @@ struct MaterialPropertiesInfo
     float SpecularPower;
 };
 
-layout(set = 1, binding = 3) uniform DepthLimits
+layout(set = 0, binding = 3) uniform DepthLimits
 {
     DepthCascadeLimits _DepthLimits;
 };
 
-layout(set = 1, binding = 4) uniform LightInfo
+layout(set = 0, binding = 4) uniform LightInfo
 {
     DirectionalLightInfo _LightInfo;
 };
 
-layout(set = 1, binding = 5) uniform CameraInfo
+layout(set = 0, binding = 5) uniform CameraInfo
 {
-    CameraInfos _CameraInfo;
+    mat4 _Projection;
+    mat4 _View;
+    
+    vec4 CameraPosition;
+    vec4 CameraLookDirection;
 };
 
-layout(set = 1, binding = 6) uniform PointLights
+layout(set = 0, binding = 6) uniform PointLights
 {
     PointLightsInfo _PointLights;
 };
 
-layout(set = 2, binding = 1) uniform MaterialProperties
+layout(set = 1, binding = 1) uniform MaterialProperties
 {
     MaterialPropertiesInfo _MaterialProperties;
 };
 
-layout(set = 2, binding = 2) uniform texture2D SurfaceTexture;
-layout(set = 2, binding = 3) uniform sampler RegularSampler;
-layout(set = 2, binding = 4) uniform texture2D AlphaMap;
-layout(set = 2, binding = 5) uniform sampler AlphaMapSampler;
-layout(set = 2, binding = 6) uniform texture2D ShadowMapNear;
-layout(set = 2, binding = 7) uniform texture2D ShadowMapMid;
-layout(set = 2, binding = 8) uniform texture2D ShadowMapFar;
-layout(set = 2, binding = 9) uniform sampler ShadowMapSampler;
+layout(set = 1, binding = 2) uniform texture2D SurfaceTexture;
+layout(set = 1, binding = 3) uniform sampler RegularSampler;
+layout(set = 1, binding = 4) uniform texture2D AlphaMap;
+layout(set = 1, binding = 5) uniform sampler AlphaMapSampler;
+layout(set = 1, binding = 6) uniform texture2D ShadowMapNear;
+layout(set = 1, binding = 7) uniform texture2D ShadowMapMid;
+layout(set = 1, binding = 8) uniform texture2D ShadowMapFar;
+layout(set = 1, binding = 9) uniform sampler ShadowMapSampler;
 
 bool InRange(float val, float min, float max)
 {
@@ -160,7 +156,7 @@ void main()
     }
     float lightIntensity = 0.f;
     vec4 directionalSpecColor = vec4(0, 0, 0, 0);
-    vec3 vertexToEye = normalize(Position_WorldSpace - _CameraInfo.CameraPosition_WorldSpace);
+    vec3 vertexToEye = normalize(Position_WorldSpace - CameraPosition.xyz);
     vec3 lightReflect = normalize(reflect(_LightInfo.Direction, Normal));
     float specularFactor = dot(vertexToEye, lightReflect);
     if (specularFactor > 0)

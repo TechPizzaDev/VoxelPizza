@@ -3,6 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+VoxelPizza.Client/Assets/Shaders/*.spv
+VoxelPizza.Client/Assets/Shaders/*.exe
+
 # User-specific files
 *.rsuser
 *.suo

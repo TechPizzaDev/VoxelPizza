@@ -233,7 +233,8 @@ namespace VoxelPizza.Client.Objects
             DisposeCollectorResourceFactory factory = new(gd.ResourceFactory);
             _disposeCollector = factory.DisposeCollector;
 
-            (Shader vs, Shader fs) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ParticlePlane");
+            (Shader vs, Shader fs, SpecializationConstant[] specs) = 
+                StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ParticlePlane");
 
             VertexLayoutDescription sharedVertexLayout = new VertexLayoutDescription(
                 new VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3));
@@ -273,7 +274,7 @@ namespace VoxelPizza.Client.Objects
                         vertexLayoutPerInstanceDynamic
                     },
                     new[] { vs, fs, },
-                    ShaderHelper.GetSpecializations(gd)),
+                    specs),
                 new ResourceLayout[] { sharedLayout },
                 sc.MainSceneFramebuffer.OutputDescription);
             _pipeline = factory.CreateGraphicsPipeline(ref pd);
@@ -324,7 +325,7 @@ namespace VoxelPizza.Client.Objects
             cl.DrawIndexed((uint)s_quadIndices.Length, (uint)particlesDynamic.Length, 0, 0, 0);
         }
 
-        public override RenderPasses RenderPasses => RenderPasses.Standard;
+        public override RenderPasses RenderPasses => RenderPasses.Opaque;
 
         public override void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {

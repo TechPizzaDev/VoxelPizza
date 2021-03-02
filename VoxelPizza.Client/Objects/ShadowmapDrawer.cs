@@ -62,7 +62,8 @@ namespace VoxelPizza.Client.Objects
                     new VertexElementDescription("TexCoord", VertexElementSemantic.TextureCoordinate,  VertexElementFormat.Float2))
             };
 
-            (Shader vs, Shader fs) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ShadowmapPreviewShader");
+            (Shader vs, Shader fs, SpecializationConstant[] specs) = 
+                StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ShadowmapPreviewShader");
 
             ResourceLayout layout = factory.CreateResourceLayout(new ResourceLayoutDescription(
                 new ResourceLayoutElementDescription("Projection", ResourceKind.UniformBuffer, ShaderStages.Vertex),
@@ -75,10 +76,7 @@ namespace VoxelPizza.Client.Objects
                 new DepthStencilStateDescription(false, true, ComparisonKind.Always),
                 RasterizerStateDescription.Default,
                 PrimitiveTopology.TriangleList,
-                new ShaderSetDescription(
-                    vertexLayouts,
-                    new[] { vs, fs },
-                    ShaderHelper.GetSpecializations(gd)),
+                new ShaderSetDescription(vertexLayouts, new[] { vs, fs }, specs),
                 new ResourceLayout[] { layout },
                 sc.MainSceneFramebuffer.OutputDescription);
 

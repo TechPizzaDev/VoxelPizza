@@ -7,8 +7,6 @@ namespace VoxelPizza.Client
 {
     public class SceneContext
     {
-        public DeviceBuffer ProjectionMatrixBuffer { get; private set; }
-        public DeviceBuffer ViewMatrixBuffer { get; private set; }
         public DeviceBuffer LightInfoBuffer { get; private set; }
         public DeviceBuffer LightViewProjectionBuffer0 { get; internal set; }
         public DeviceBuffer LightViewProjectionBuffer1 { get; internal set; }
@@ -52,8 +50,6 @@ namespace VoxelPizza.Client
         public virtual void CreateGraphicsDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
             ResourceFactory factory = gd.ResourceFactory;
-            ProjectionMatrixBuffer = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-            ViewMatrixBuffer = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
             LightViewProjectionBuffer0 = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
             LightViewProjectionBuffer0.Name = "LightViewProjectionBuffer0";
             LightViewProjectionBuffer1 = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
@@ -93,8 +89,6 @@ namespace VoxelPizza.Client
 
         public virtual void DisposeGraphicsDeviceObjects()
         {
-            ProjectionMatrixBuffer.Dispose();
-            ViewMatrixBuffer.Dispose();
             LightInfoBuffer.Dispose();
             LightViewProjectionBuffer0.Dispose();
             LightViewProjectionBuffer1.Dispose();
@@ -124,10 +118,8 @@ namespace VoxelPizza.Client
             Camera = scene.Camera;
         }
 
-        public unsafe void UpdateCameraBuffers(CommandList cl)
+        public void UpdateCameraBuffers(CommandList cl)
         {
-            cl.UpdateBuffer(ProjectionMatrixBuffer, 0, Camera.ProjectionMatrix);
-            cl.UpdateBuffer(ViewMatrixBuffer, 0, Camera.ViewMatrix);
             cl.UpdateBuffer(CameraInfoBuffer, 0, Camera.GetCameraInfo());
         }
 

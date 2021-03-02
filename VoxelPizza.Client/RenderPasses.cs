@@ -5,7 +5,7 @@ namespace VoxelPizza.Client
     [Flags]
     public enum RenderPasses : int
     {
-        Standard = 1 << 0,
+        Opaque = 1 << 0,
         AlphaBlend = 1 << 1,
         Overlay = 1 << 2,
         ShadowMapNear = 1 << 3,

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Veldrid;
 using Veldrid.ImageSharp;
 
@@ -11,15 +12,11 @@ namespace VoxelPizza.Client
         private static readonly Dictionary<GraphicsPipelineDescription, Pipeline> s_pipelines = new();
         private static readonly Dictionary<ResourceLayoutDescription, ResourceLayout> s_layouts = new();
         private static readonly Dictionary<ResourceSetDescription, ResourceSet> s_resourceSets = new();
-        private static readonly Dictionary<ShaderSetCacheKey, (Shader, Shader)> s_shaderSets = new();
+        private static readonly Dictionary<ShaderSetCacheKey, (Shader, Shader, SpecializationConstant[])> s_shaderSets = new();
         private static readonly Dictionary<ImageSharpTexture, Texture> s_textures = new();
         private static readonly Dictionary<Texture, TextureView> s_textureViews = new();
 
         private static Texture? _pinkTex;
-
-        public static readonly ResourceLayoutDescription ProjViewLayoutDescription = new ResourceLayoutDescription(
-            new ResourceLayoutElementDescription("Projection", ResourceKind.UniformBuffer, ShaderStages.Vertex),
-            new ResourceLayoutElementDescription("View", ResourceKind.UniformBuffer, ShaderStages.Vertex));
 
         public static Pipeline GetPipeline(ResourceFactory factory, ref GraphicsPipelineDescription desc)
         {
@@ -43,20 +40,31 @@ namespace VoxelPizza.Client
             return p;
         }
 
-        public static (Shader vs, Shader fs) GetShaders(
+        public static (Shader vs, Shader fs, SpecializationConstant[] specs) GetShaders(
             GraphicsDevice gd,
             ResourceFactory factory,
-            string name)
+            string vertexShaderName,
+            string fragmentShaderName,
+            ReadOnlySpan<SpecializationConstant> specializations = default)
         {
-            SpecializationConstant[] constants = ShaderHelper.GetSpecializations(gd);
-            ShaderSetCacheKey cacheKey = new ShaderSetCacheKey(name, constants);
-            if (!s_shaderSets.TryGetValue(cacheKey, out (Shader vs, Shader fs) set))
+            ShaderSetCacheKey cacheKey = new(vertexShaderName, fragmentShaderName, specializations);
+
+            if (!s_shaderSets.TryGetValue(cacheKey, out (Shader vs, Shader fs, SpecializationConstant[]) set))
             {
-                set = ShaderHelper.LoadSPIRV(gd, factory, name);
+                set = ShaderHelper.LoadSPIRV(gd, factory, vertexShaderName, fragmentShaderName, specializations);
                 s_shaderSets.Add(cacheKey, set);
             }
 
             return set;
+        }
+
+        public static (Shader vs, Shader fs, SpecializationConstant[] specs) GetShaders(
+            GraphicsDevice gd,
+            ResourceFactory factory,
+            string shaderSetName,
+            ReadOnlySpan<SpecializationConstant> specializations = default)
+        {
+            return GetShaders(gd, factory, shaderSetName, shaderSetName, specializations);
         }
 
         public static void DisposeGraphicsDeviceObjects()
@@ -73,7 +81,7 @@ namespace VoxelPizza.Client
             }
             s_layouts.Clear();
 
-            foreach (KeyValuePair<ShaderSetCacheKey, (Shader, Shader)> kvp in s_shaderSets)
+            foreach (KeyValuePair<ShaderSetCacheKey, (Shader, Shader, SpecializationConstant[])> kvp in s_shaderSets)
             {
                 kvp.Value.Item1.Dispose();
                 kvp.Value.Item2.Dispose();

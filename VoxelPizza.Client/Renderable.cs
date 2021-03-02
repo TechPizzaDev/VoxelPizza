@@ -5,7 +5,7 @@ namespace VoxelPizza.Client
 {
     public abstract class Renderable : GraphicsResource
     {
-        public virtual RenderPasses RenderPasses => RenderPasses.Standard;
+        public virtual RenderPasses RenderPasses => RenderPasses.Opaque;
 
         public abstract RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition);
         public abstract void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass);

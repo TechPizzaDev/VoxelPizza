@@ -34,7 +34,7 @@ namespace VoxelPizza.Client.Objects
 
         private bool _transformDirty = true;
         private DeviceBuffer _worldAndInverseBuffer;
-        
+
         private readonly DisposeCollector _disposeCollector = new DisposeCollector();
 
         private readonly MaterialPropertyBuffer _materialProps;
@@ -42,7 +42,7 @@ namespace VoxelPizza.Client.Objects
         private bool _materialPropsOwned = false;
 
         public MaterialProperties MaterialProperties { get => _materialProps.Properties; set { _materialProps.Properties = value; } }
-        
+
         public Transform Transform => _transform;
 
         public TexturedMesh(
@@ -89,7 +89,7 @@ namespace VoxelPizza.Client.Objects
             { bufferSize += _uniformOffset * 2; }
 
             _worldAndInverseBuffer = disposeFactory.CreateBuffer(new BufferDescription(bufferSize, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-            
+
             if (_materialPropsOwned)
             {
                 _materialProps.CreateDeviceObjects(gd, cl, sc);
@@ -124,7 +124,8 @@ namespace VoxelPizza.Client.Objects
                     new VertexElementDescription("TexCoord", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2))
             };
 
-            (Shader depthVS, Shader depthFS) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ShadowDepth");
+            (Shader depthVS, Shader depthFS, SpecializationConstant[] depthSpecs) =
+                StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ShadowDepth");
 
             ResourceLayout projViewCombinedLayout = StaticResourceCache.GetResourceLayout(
                 gd.ResourceFactory,
@@ -139,10 +140,7 @@ namespace VoxelPizza.Client.Objects
                 gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
                 new RasterizerStateDescription(FaceCullMode.Back, PolygonFillMode.Solid, FrontFace.Clockwise, true, true),
                 PrimitiveTopology.TriangleList,
-                new ShaderSetDescription(
-                    shadowDepthVertexLayouts,
-                    new[] { depthVS, depthFS },
-                    new SpecializationConstant[] { new(100, gd.IsClipSpaceYInverted) }),
+                new ShaderSetDescription(shadowDepthVertexLayouts, new[] { depthVS, depthFS }, depthSpecs),
                 new ResourceLayout[] { projViewCombinedLayout, worldLayout },
                 sc.NearShadowMapFramebuffer.OutputDescription);
             _shadowMapPipeline = StaticResourceCache.GetPipeline(gd.ResourceFactory, ref depthPD);
@@ -157,11 +155,8 @@ namespace VoxelPizza.Client.Objects
                     new VertexElementDescription("TexCoord", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float2))
             };
 
-            (Shader mainVS, Shader mainFS) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ShadowMain");
-            
-            ResourceLayout projViewLayout = StaticResourceCache.GetResourceLayout(
-                gd.ResourceFactory,
-                StaticResourceCache.ProjViewLayoutDescription);
+            (Shader mainVS, Shader mainFS, SpecializationConstant[] mainSpecs) =
+                StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ShadowMain");
 
             ResourceLayout mainSharedLayout = StaticResourceCache.GetResourceLayout(gd.ResourceFactory, new ResourceLayoutDescription(
                 new("LightViewProjection1", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
@@ -192,15 +187,11 @@ namespace VoxelPizza.Client.Objects
                 gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
                 RasterizerStateDescription.Default,
                 PrimitiveTopology.TriangleList,
-                new ShaderSetDescription(mainVertexLayouts, new[] { mainVS, mainFS }, new[] { new SpecializationConstant(100, gd.IsClipSpaceYInverted) }),
-                new ResourceLayout[] { projViewLayout, mainSharedLayout, mainPerObjectLayout },
+                new ShaderSetDescription(mainVertexLayouts, new[] { mainVS, mainFS }, mainSpecs),
+                new ResourceLayout[] { mainSharedLayout, mainPerObjectLayout },
                 sc.MainSceneFramebuffer.OutputDescription);
             _pipeline = StaticResourceCache.GetPipeline(gd.ResourceFactory, ref mainPD);
             _pipeline.Name = "TexturedMesh Main Pipeline";
-
-            _mainProjViewRS = StaticResourceCache.GetResourceSet(gd.ResourceFactory, new ResourceSetDescription(projViewLayout,
-                sc.ProjectionMatrixBuffer,
-                sc.ViewMatrixBuffer));
 
             _mainSharedRS = StaticResourceCache.GetResourceSet(gd.ResourceFactory, new ResourceSetDescription(mainSharedLayout,
                 sc.LightViewProjectionBuffer0,
@@ -283,7 +274,7 @@ namespace VoxelPizza.Client.Objects
                 }
                 else
                 {
-                    return RenderPasses.AllShadowMap | RenderPasses.Standard;
+                    return RenderPasses.AllShadowMap | RenderPasses.Opaque;
                 }
             }
         }
@@ -300,7 +291,7 @@ namespace VoxelPizza.Client.Objects
                 int shadowMapIndex = renderPass == RenderPasses.ShadowMapNear ? 0 : renderPass == RenderPasses.ShadowMapMid ? 1 : 2;
                 RenderShadowMap(cl, sc, shadowMapIndex);
             }
-            else if (renderPass == RenderPasses.Standard || renderPass == RenderPasses.AlphaBlend)
+            else if (renderPass == RenderPasses.Opaque || renderPass == RenderPasses.AlphaBlend)
             {
                 RenderStandard(cl, sc);
             }
@@ -334,10 +325,9 @@ namespace VoxelPizza.Client.Objects
         private void RenderStandard(CommandList cl, SceneContext sc)
         {
             cl.SetPipeline(_pipeline);
-            cl.SetGraphicsResourceSet(0, _mainProjViewRS);
-            cl.SetGraphicsResourceSet(1, _mainSharedRS);
+            cl.SetGraphicsResourceSet(0, _mainSharedRS);
             uint offset = _uniformOffset;
-            cl.SetGraphicsResourceSet(2, _mainPerObjectRS, 1, ref offset);
+            cl.SetGraphicsResourceSet(1, _mainPerObjectRS, 1, ref offset);
 
             cl.SetVertexBuffer(0, _vb);
             cl.SetIndexBuffer(_ib, _meshData.IndexFormat);

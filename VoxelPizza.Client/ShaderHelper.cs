@@ -8,68 +8,102 @@ namespace VoxelPizza.Client
 {
     public static class ShaderHelper
     {
-        public static (Shader vs, Shader fs) LoadSPIRV(
+        public static (Shader vs, Shader fs, SpecializationConstant[] specializations) LoadSPIRV(
             GraphicsDevice gd,
             ResourceFactory factory,
-            string setName)
+            string vertexShaderName,
+            string fragmentShaderName,
+            ReadOnlySpan<SpecializationConstant> specializations)
         {
-            byte[] vsBytes = LoadBytecode(GraphicsBackend.Vulkan, setName, ShaderStages.Vertex);
-            byte[] fsBytes = LoadBytecode(GraphicsBackend.Vulkan, setName, ShaderStages.Fragment);
+            byte[] vsBytes = LoadBytecode(GraphicsBackend.Vulkan, vertexShaderName, ShaderStages.Vertex);
+            byte[] fsBytes = LoadBytecode(GraphicsBackend.Vulkan, fragmentShaderName, ShaderStages.Fragment);
+
             bool debug = false;
 #if DEBUG
             debug = true;
 #endif
+            CrossCompileOptions options = GetOptions(gd, specializations);
             Shader[] shaders = factory.CreateFromSpirv(
                 new ShaderDescription(ShaderStages.Vertex, vsBytes, "main", debug),
                 new ShaderDescription(ShaderStages.Fragment, fsBytes, "main", debug),
-                GetOptions(gd));
+                options);
 
             Shader vs = shaders[0];
             Shader fs = shaders[1];
 
-            vs.Name = setName + "-Vertex";
-            fs.Name = setName + "-Fragment";
+            vs.Name = vertexShaderName + "-Vertex";
+            fs.Name = fragmentShaderName + "-Fragment";
 
-            return (vs, fs);
+            return (vs, fs, options.Specializations);
         }
 
-        private static CrossCompileOptions GetOptions(GraphicsDevice gd)
+        private static CrossCompileOptions GetOptions(
+            GraphicsDevice gd, ReadOnlySpan<SpecializationConstant> specializations)
         {
-            SpecializationConstant[] specializations = GetSpecializations(gd);
+            SpecializationConstant[] specArray = GetExtendedSpecializations(gd, specializations);
 
             bool fixClipZ =
-                (gd.BackendType == GraphicsBackend.OpenGL || gd.BackendType == GraphicsBackend.OpenGLES)
+                (gd.BackendType == GraphicsBackend.OpenGL ||
+                gd.BackendType == GraphicsBackend.OpenGLES)
                 && !gd.IsDepthRangeZeroToOne;
 
             bool invertY = false;
 
-            return new CrossCompileOptions(fixClipZ, invertY, specializations);
+            return new CrossCompileOptions(fixClipZ, invertY, specArray);
         }
 
-        public static SpecializationConstant[] GetSpecializations(GraphicsDevice gd)
+        public static SpecializationConstant[] GetExtendedSpecializations(
+            GraphicsDevice gd, ReadOnlySpan<SpecializationConstant> specializations)
         {
-            bool glOrGles = gd.BackendType == GraphicsBackend.OpenGL || gd.BackendType == GraphicsBackend.OpenGLES;
+            List<SpecializationConstant> specs = new(specializations.Length + 4);
+            HashSet<uint> usedConstants = new(specializations.Length);
 
-            List<SpecializationConstant> specializations = new List<SpecializationConstant>();
-            specializations.Add(new SpecializationConstant(100, gd.IsClipSpaceYInverted));
-            specializations.Add(new SpecializationConstant(101, glOrGles)); // TextureCoordinatesInvertedY
-            specializations.Add(new SpecializationConstant(102, gd.IsDepthRangeZeroToOne));
+            foreach (SpecializationConstant spec in specializations)
+            {
+                if (!usedConstants.Add(spec.ID))
+                {
+                    throw new ArgumentException(
+                        $"Provided constants share the same ID ({spec.ID}).",
+                        nameof(specializations));
+                }
+                specs.Add(spec);
+            }
 
-            PixelFormat swapchainFormat = gd.MainSwapchain.Framebuffer.OutputDescription.ColorAttachments[0].Format;
-            bool swapchainIsSrgb =
-                swapchainFormat == PixelFormat.B8_G8_R8_A8_UNorm_SRgb ||
-                swapchainFormat == PixelFormat.R8_G8_B8_A8_UNorm_SRgb;
-            specializations.Add(new SpecializationConstant(103, swapchainIsSrgb));
+            if (!usedConstants.Contains(100))
+            {
+                specs.Add(new SpecializationConstant(100, gd.IsClipSpaceYInverted));
+            }
 
-            return specializations.ToArray();
+            if (!usedConstants.Contains(101))
+            {
+                bool glOrGles = gd.BackendType == GraphicsBackend.OpenGL || gd.BackendType == GraphicsBackend.OpenGLES;
+                specs.Add(new SpecializationConstant(101, glOrGles)); // TextureCoordinatesInvertedY
+            }
+
+            if (!usedConstants.Contains(102))
+            {
+                specs.Add(new SpecializationConstant(102, gd.IsDepthRangeZeroToOne));
+            }
+
+            if (!usedConstants.Contains(103))
+            {
+                PixelFormat swapchainFormat = gd.MainSwapchain.Framebuffer.OutputDescription.ColorAttachments[0].Format;
+                bool swapchainIsSrgb =
+                    swapchainFormat == PixelFormat.B8_G8_R8_A8_UNorm_SRgb ||
+                    swapchainFormat == PixelFormat.R8_G8_B8_A8_UNorm_SRgb;
+                specs.Add(new SpecializationConstant(103, swapchainIsSrgb));
+            }
+
+            return specs.ToArray();
         }
 
-        public static byte[] LoadBytecode(GraphicsBackend backend, string setName, ShaderStages stage)
+        public static byte[] LoadBytecode(GraphicsBackend backend, string shaderName, ShaderStages stage)
         {
             string stageExt = stage == ShaderStages.Vertex ? "vert" : "frag";
-            string name = setName + "." + stageExt;
+            string name = shaderName + "." + stageExt;
 
-            if (backend == GraphicsBackend.Vulkan || backend == GraphicsBackend.Direct3D11)
+            if (backend == GraphicsBackend.Vulkan ||
+                backend == GraphicsBackend.Direct3D11)
             {
                 string bytecodeExtension = GetBytecodeExtension(backend);
                 string bytecodePath = AssetHelper.GetPath(Path.Combine("Shaders", name + bytecodeExtension));

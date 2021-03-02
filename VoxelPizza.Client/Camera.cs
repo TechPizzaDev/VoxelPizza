@@ -211,17 +211,20 @@ namespace VoxelPizza.Client
 
         public CameraInfo GetCameraInfo() => new CameraInfo
         {
-            CameraPosition_WorldSpace = _position,
-            CameraLookDirection = _lookDirection
+            Projection = _projectionMatrix,
+            View = _viewMatrix,
+            CameraPosition = new Vector4(_position, 0),
+            CameraLookDirection = new Vector4(_lookDirection, 0)
         };
     }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct CameraInfo
     {
-        public Vector3 CameraPosition_WorldSpace;
-        private float _padding1;
-        public Vector3 CameraLookDirection;
-        private float _padding2;
+        public Matrix4x4 Projection;
+        public Matrix4x4 View;
+
+        public Vector4 CameraPosition;
+        public Vector4 CameraLookDirection;
     }
 }

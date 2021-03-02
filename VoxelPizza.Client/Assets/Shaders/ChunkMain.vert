@@ -7,25 +7,23 @@ struct TextureAnimation
     float Rate;
 };
 
-layout(set = 0, binding = 0) uniform ProjectionMatrix
+layout(set = 0, binding = 0) uniform CameraInfo
 {
     mat4 Projection;
+    mat4 View;
+
+    vec4 CameraPosition;
+    vec4 CameraLookDirection;
 };
 
-layout(set = 0, binding = 1) uniform ViewMatrix
-{
-    mat4 View;
-};
-layout(set = 0, binding = 2) uniform WorldInfo
+layout(set = 0, binding = 1) uniform WorldInfo
 {
     float GlobalTime;
-    float GlobalTimeFraction;
 };
 
 layout(set = 1, binding = 0) uniform ChunkInfo
 {
-    mat4 World;
-    mat4 InverseWorld;
+    vec4 Translation;
 };
 
 layout(location = 0) in vec3 Position;
@@ -60,11 +58,17 @@ TextureAnimation unpackTexAnim(uint packed)
 
 void main()
 {
-    vec4 worldPosition = World * vec4(Position, 1);
+    vec4 worldPosition = vec4(Position, 1) + Translation;
     vec4 outPosition = Projection * View * worldPosition;
-
+    
+    mat4 world = mat4(
+        vec4(1, 0, 0, Translation.x),
+        vec4(0, 1, 0, Translation.y),
+        vec4(0, 0, 1, Translation.z),
+        vec4(0, 0, 0, 1));
+    mat4 inverseWorld = inverse(world);
     vec3 normal = unpack3x10(Normal);
-    vec4 outNormal = InverseWorld * vec4(normal, 1);
+    vec4 outNormal = inverseWorld * vec4(normal, 1);
 
     TextureAnimation texAnim0 = unpackTexAnim(TexAnimation0);
     float step0 = GlobalTime * texAnim0.Rate;

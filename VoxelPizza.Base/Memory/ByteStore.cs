@@ -9,38 +9,39 @@ namespace VoxelPizza
     public ref struct ByteStore<T>
         where T : unmanaged
     {
-        private ArrayPool<byte> _arrayPool;
         private Span<T> _buffer;
         private byte[]? _array;
         private int _count;
 
+        public ArrayPool<byte> ArrayPool { get; }
+        public byte[]? Buffer => _array;
         public int Count => _count;
-        public Span<T> Buffer => _buffer;
+
         public Span<T> Span => _buffer.Slice(0, _count);
 
-        public ByteStore(ArrayPool<byte> arrayPool, Span<T> buffer, byte[]? initialArray)
+        public ByteStore(ArrayPool<byte> arrayPool, byte[]? initialArray, Span<T> initialBuffer)
         {
-            _arrayPool = arrayPool ?? throw new ArgumentNullException(nameof(arrayPool));
-            _buffer = buffer;
+            ArrayPool = arrayPool ?? throw new ArgumentNullException(nameof(arrayPool));
             _array = initialArray;
+            _buffer = initialBuffer;
             _count = 0;
         }
 
-        public ByteStore(ArrayPool<byte> arrayPool) : this(arrayPool, default, null)
+        public ByteStore(ArrayPool<byte> arrayPool) : this(arrayPool, null, default)
         {
         }
 
         public void EnsureCapacity(int capacity)
         {
-            Debug.Assert(_arrayPool != null);
+            Debug.Assert(ArrayPool != null);
 
             if (_buffer.Length < capacity)
             {
                 if (_array != null)
-                    _arrayPool.Return(_array);
+                    ArrayPool.Return(_array);
 
                 Span<T> oldBuffer = Span;
-                _array = _arrayPool.Rent((capacity + 4096) * Unsafe.SizeOf<T>());
+                _array = ArrayPool.Rent((capacity + 4096) * Unsafe.SizeOf<T>());
                 _buffer = MemoryMarshal.Cast<byte, T>(_array);
                 oldBuffer.CopyTo(_buffer);
             }
@@ -84,7 +85,7 @@ namespace VoxelPizza
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void AppendRange(T item0, T item1, T item2, T item3, T item4,  T item5)
+        public void AppendRange(T item0, T item1, T item2, T item3, T item4, T item5)
         {
             Span<T> slice = _buffer.Slice(_count, 6);
             _count += 6;
@@ -106,7 +107,7 @@ namespace VoxelPizza
             _buffer = null;
 
             if (_array != null)
-                _arrayPool?.Return(_array);
+                ArrayPool?.Return(_array);
             _array = null;
         }
     }

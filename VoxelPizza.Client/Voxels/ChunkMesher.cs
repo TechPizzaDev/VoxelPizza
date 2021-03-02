@@ -6,11 +6,18 @@ namespace VoxelPizza.Client
 {
     public class ChunkMesher
     {
-        public StoredChunkMesh Mesh(Chunk chunk)
+        public ArrayPool<byte> ArrayPool { get; }
+
+        public ChunkMesher(ArrayPool<byte> arrayPool)
         {
-            var ind = new ByteStore<uint>(ArrayPool<byte>.Shared);
-            var spa = new ByteStore<ChunkSpaceVertex>(ArrayPool<byte>.Shared);
-            var pai = new ByteStore<ChunkPaintVertex>(ArrayPool<byte>.Shared);
+            ArrayPool = arrayPool ?? throw new ArgumentNullException(nameof(arrayPool));
+        }
+
+        public ChunkMeshResult Mesh(Chunk chunk)
+        {
+            var ind = new ByteStore<uint>(ArrayPool);
+            var spa = new ByteStore<ChunkSpaceVertex>(ArrayPool);
+            var pai = new ByteStore<ChunkPaintVertex>(ArrayPool);
 
             var indGen = new CubeIndexGenerator();
             var indPro = new CubeIndexProvider<CubeIndexGenerator, uint>(indGen, CubeFaces.All);
@@ -55,7 +62,7 @@ namespace VoxelPizza.Client
                 }
             }
 
-            return new StoredChunkMesh(ind, spa, pai);
+            return new ChunkMeshResult(ind, spa, pai);
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using VoxelPizza.World;
 
 namespace VoxelPizza.Client
 {
@@ -9,15 +10,15 @@ namespace VoxelPizza.Client
 
         public uint[,,] Blocks;
 
-        public int ChunkX { get; }
-        public int ChunkY { get; }
-        public int ChunkZ { get; }
+        public ChunkPosition Position { get; }
 
-        public Chunk(int chunkX, int chunkY, int chunkZ)
+        public int ChunkX => Position.X;
+        public int ChunkY => Position.Y;
+        public int ChunkZ => Position.Z;
+
+        public Chunk(ChunkPosition position)
         {
-            ChunkX = chunkX;
-            ChunkY = chunkY;
-            ChunkZ = chunkZ;
+            Position = position;
 
             Blocks = new uint[ChunkHeight, ChunkWidth, ChunkWidth];
         }
@@ -26,7 +27,11 @@ namespace VoxelPizza.Client
         {
             uint[,,] blocks = Blocks;
 
-            var rng = new Random(HashCode.Combine(ChunkX, ChunkY, ChunkZ));
+            int seed = 17;
+            seed = seed * 31 + ChunkX;
+            seed = seed * 31 + ChunkY;
+            seed = seed * 31 + ChunkZ;
+            var rng = new Random(seed);
 
             for (int y = 0; y < ChunkHeight; y++)
             {
@@ -34,8 +39,8 @@ namespace VoxelPizza.Client
                 {
                     for (int x = 0; x < ChunkWidth; x++)
                     {
-                        double fac = (ChunkY * 16 + y) / 2048.0;
-                        if (rng.NextDouble() > 0.1 * fac)
+                        double fac = (ChunkY * 16 + y) / 1024.0;
+                        if (rng.NextDouble() > 0.025 * fac)
                             continue;
 
                         blocks[y, z, x] = (uint)rng.Next(9);

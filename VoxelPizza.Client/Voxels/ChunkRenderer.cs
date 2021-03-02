@@ -9,46 +9,72 @@ using System.Threading;
 using System.Threading.Tasks;
 using Veldrid;
 using Veldrid.Utilities;
+using VoxelPizza.Numerics;
+using VoxelPizza.World;
 
 namespace VoxelPizza.Client
 {
-    public class ChunkRenderer : GraphicsResource, IUpdateable
+    public class ChunkRenderer : Renderable, IUpdateable
     {
         private DisposeCollector _disposeCollector;
+        private CommandList _bufferUpdateList;
 
         private DeviceBuffer _worldInfoBuffer;
         private DeviceBuffer _textureAtlasBuffer;
 
         private Pipeline _pipeline;
+        private Pipeline _indirectPipeline;
         private ResourceSet _sharedSet;
 
         private List<Chunk> _chunks = new();
-        private List<ChunkVisual> _visibleChunkBuffer = new();
-        private List<ChunkVisual> _visuals = new();
-        private ConcurrentQueue<ChunkVisual> _queuedVisuals = new();
+
+        private List<ChunkMesh> _visibleMeshBuffer = new();
+        private List<ChunkMesh> _meshes = new();
+        private ConcurrentQueue<ChunkMesh> _queuedMeshes = new();
+
+        private List<ChunkMeshRegion> _visibleRegionBuffer = new();
+        private Dictionary<ChunkRegionPosition, ChunkMeshRegion> _regions = new();
+        private ConcurrentQueue<ChunkMeshRegion> _queuedRegions = new();
 
         private WorldInfo _worldInfo;
 
         private uint _lastTriangleCount;
-        private uint _lastChunkCount;
+        private uint _lastDrawCalls;
 
         public Camera Camera { get; }
+        public Int3 RegionSize { get; }
 
         public ResourceLayout ChunkInfoLayout { get; private set; }
 
-        public ChunkRenderer(Camera camera)
+        public override RenderPasses RenderPasses => RenderPasses.Opaque;
+
+        public ChunkRenderer(Camera camera, Int3 regionSize)
         {
+            if (regionSize.IsNegative())
+                throw new ArgumentOutOfRangeException(nameof(regionSize));
+
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
+            RegionSize = regionSize;
 
             StartThread();
+        }
+
+        public ChunkRegionPosition GetRegionPosition(ChunkPosition chunkPosition)
+        {
+            return new ChunkRegionPosition(
+                chunkPosition.X / RegionSize.X,
+                chunkPosition.Y / RegionSize.Y,
+                chunkPosition.Z / RegionSize.Z);
         }
 
         public void StartThread()
         {
             Task.Run(() =>
             {
-                int width = 16;
-                int height = 8;
+                Thread.Sleep(1000);
+
+                int width = 20;
+                int height = 6;
 
                 var list = new List<(int x, int y, int z)>();
 
@@ -85,12 +111,25 @@ namespace VoxelPizza.Client
                 int count = 0;
                 foreach (var (x, y, z) in list)
                 {
-                    var chunk = new Chunk(x, y, z);
+                    var chunk = new Chunk(new(x, y, z));
                     chunk.Generate();
                     _chunks.Add(chunk);
 
-                    var visual = new ChunkVisual(this, chunk);
-                    _queuedVisuals.Enqueue(visual);
+                    ChunkRegionPosition regionPosition = GetRegionPosition(chunk.Position);
+                    ChunkMeshRegion? region;
+                    lock (_regions)
+                    {
+                        if (!_regions.TryGetValue(regionPosition, out region))
+                        {
+                            region = new ChunkMeshRegion(this, regionPosition, RegionSize);
+                            _regions.Add(regionPosition, region);
+                            _queuedRegions.Enqueue(region);
+                        }
+                    }
+                    region.UpdateChunk(chunk);
+
+                    //var mesh = new ChunkMesh(this, chunk);
+                    //_queuedMeshes.Enqueue(mesh);
 
                     count++;
                     if (count == 2)
@@ -107,12 +146,11 @@ namespace VoxelPizza.Client
             DisposeCollectorResourceFactory factory = new(gd.ResourceFactory);
             _disposeCollector = factory.DisposeCollector;
 
-            (Shader vs, Shader fs) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ChunkMain");
+            _bufferUpdateList = factory.CreateCommandList();
 
             ResourceLayout sharedLayout = factory.CreateResourceLayout(
                 new ResourceLayoutDescription(
-                    new ResourceLayoutElementDescription("ProjectionMatrix", ResourceKind.UniformBuffer, ShaderStages.Vertex),
-                    new ResourceLayoutElementDescription("ViewMatrix", ResourceKind.UniformBuffer, ShaderStages.Vertex),
+                    new ResourceLayoutElementDescription("CameraInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                     new ResourceLayoutElementDescription("WorldInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                     new ResourceLayoutElementDescription("LightInfo", ResourceKind.UniformBuffer, ShaderStages.Fragment),
                     new ResourceLayoutElementDescription("TextureAtlas", ResourceKind.StructuredBufferReadOnly, ShaderStages.Fragment)));
@@ -129,6 +167,14 @@ namespace VoxelPizza.Client
                 new VertexElementDescription("TexAnimation0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1),
                 new VertexElementDescription("TexRegion0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1));
 
+            VertexLayoutDescription worldLayout = new VertexLayoutDescription(
+                new VertexElementDescription("Translation", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3))
+            {
+                InstanceStepRate = 1
+            };
+
+            (Shader mainVs, Shader mainFs, SpecializationConstant[] mainSpecs) =
+                StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ChunkMain");
             _pipeline = factory.CreateGraphicsPipeline(new GraphicsPipelineDescription(
                 BlendStateDescription.SingleOverrideBlend,
                 gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
@@ -136,9 +182,24 @@ namespace VoxelPizza.Client
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(
                     new[] { spaceLayout, paintLayout },
-                    new[] { vs, fs, },
-                    ShaderHelper.GetSpecializations(gd)),
+                    new[] { mainVs, mainFs, },
+                    mainSpecs),
                 new[] { sharedLayout, ChunkInfoLayout },
+                sc.MainSceneFramebuffer.OutputDescription));
+
+            (Shader mainIndirectVs, Shader mainIndirectFs, SpecializationConstant[] mainIndirectSpecs) =
+                StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ChunkIndirectMain", "ChunkMain");
+
+            _indirectPipeline = factory.CreateGraphicsPipeline(new GraphicsPipelineDescription(
+                BlendStateDescription.SingleOverrideBlend,
+                gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
+                RasterizerStateDescription.Default,
+                PrimitiveTopology.TriangleList,
+                new ShaderSetDescription(
+                    new[] { spaceLayout, paintLayout, worldLayout },
+                    new[] { mainIndirectVs, mainIndirectFs, },
+                    mainIndirectSpecs),
+                new[] { sharedLayout },
                 sc.MainSceneFramebuffer.OutputDescription));
 
             _worldInfoBuffer = factory.CreateBuffer(new BufferDescription(
@@ -156,31 +217,31 @@ namespace VoxelPizza.Client
 
             _sharedSet = factory.CreateResourceSet(new ResourceSetDescription(
                 sharedLayout,
-                sc.ProjectionMatrixBuffer,
-                sc.ViewMatrixBuffer,
+                sc.CameraInfoBuffer,
                 _worldInfoBuffer,
                 sc.LightInfoBuffer,
                 _textureAtlasBuffer));
 
-            int cc = 1;
-            _commandLists = new CommandList[cc];
-            _tasks = new Task[cc];
-            _triangleCounts = new uint[cc];
-            _chunkCounts = new uint[cc];
+            foreach (ChunkMesh mesh in _meshes)
+                mesh.CreateDeviceObjects(gd, cl, sc);
 
-            for (int i = 0; i < _commandLists.Length; i++)
+            lock (_regions)
             {
-                _commandLists[i] = factory.CreateCommandList();
+                foreach (ChunkMeshRegion region in _regions.Values)
+                    region.CreateDeviceObjects(gd, cl, sc);
             }
-
-            foreach (ChunkVisual visual in _visuals)
-                visual.CreateDeviceObjects(gd, cl, sc);
         }
 
         public override void DestroyDeviceObjects()
         {
-            foreach (ChunkVisual visual in _visuals)
-                visual.DestroyDeviceObjects();
+            foreach (ChunkMesh mesh in _meshes)
+                mesh.DestroyDeviceObjects();
+
+            lock (_regions)
+            {
+                foreach (ChunkMeshRegion region in _regions.Values)
+                    region.DestroyDeviceObjects();
+            }
 
             _disposeCollector.DisposeAll();
         }
@@ -188,118 +249,139 @@ namespace VoxelPizza.Client
         public void Update(in FrameTime time)
         {
             _worldInfo.GlobalTime = time.TotalSeconds;
-            _worldInfo.GlobalTimeFraction = _worldInfo.GlobalTime - MathF.Floor(_worldInfo.GlobalTime);
 
             ImGuiNET.ImGui.Begin("Stats");
             {
                 ImGuiNET.ImGui.Text("Triangle Count: " + (_lastTriangleCount / 1000) + "k");
-                ImGuiNET.ImGui.Text("Chunk Count: " + _lastChunkCount);
+                ImGuiNET.ImGui.Text("Draw Calls: " + _lastDrawCalls);
+
+                lock (_regions)
+                {
+                    int pending = 0;
+                    int count = 0;
+                    foreach (var reg in _regions.Values)
+                    {
+                        pending += reg.GetPendingChunkCount();
+                        count += reg.GetChunkCount();
+                    }
+                    ImGuiNET.ImGui.Text("Pending Chunks: " + pending);
+                    ImGuiNET.ImGui.Text("Chunks: " + count);
+                }
             }
             ImGuiNET.ImGui.End();
         }
 
-        public void GatherVisibleChunks(List<ChunkVisual> visibleChunks)
+        public void GatherVisibleChunks(List<ChunkMesh> visibleChunks)
         {
-            visibleChunks.AddRange(_visuals);
+            visibleChunks.AddRange(_meshes);
         }
 
-        private CommandList[] _commandLists;
-        private Task?[] _tasks;
-        private uint[] _triangleCounts;
-        private uint[] _chunkCounts;
-
-        public void Render(GraphicsDevice gd, SceneContext sc)
+        public void GatherVisibleRegions(List<ChunkMeshRegion> visibleRegions)
         {
-            var commandLists = _commandLists;
-            gd.UpdateBuffer(_worldInfoBuffer, 0, _worldInfo);
-
-            var tmpCommands = commandLists[0];
-            tmpCommands.Begin();
-            while (_queuedVisuals.TryDequeue(out ChunkVisual? visual))
+            lock (_regions)
             {
-                visual.CreateDeviceObjects(gd, tmpCommands, sc);
-                _visuals.Add(visual);
+                foreach (ChunkMeshRegion region in _regions.Values)
+                    visibleRegions.Add(region);
             }
-            tmpCommands.End();
-            gd.SubmitCommands(tmpCommands);
+        }
 
-            List<ChunkVisual> visibleChunks = _visibleChunkBuffer;
-            visibleChunks.Clear();
-            GatherVisibleChunks(visibleChunks);
+        public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
+        {
+            _bufferUpdateList.Begin();
+            _bufferUpdateList.UpdateBuffer(_worldInfoBuffer, 0, _worldInfo);
+
+            while (_queuedMeshes.TryDequeue(out ChunkMesh? mesh))
+            {
+                mesh.CreateDeviceObjects(gd, cl, sc);
+                _meshes.Add(mesh);
+            }
+
+            while (_queuedRegions.TryDequeue(out ChunkMeshRegion? region))
+            {
+                region.CreateDeviceObjects(gd, cl, sc);
+            }
 
             _lastTriangleCount = 0;
-            _lastChunkCount = 0;
+            _lastDrawCalls = 0;
 
-            int visibleChunkOffset = 0;
-            float fbWidth = sc.MainSceneFramebuffer.Width;
-            float fbHeight = sc.MainSceneFramebuffer.Height;
-            Viewport viewport = new Viewport(0, 0, fbWidth, fbHeight, 0, 1f);
+            RenderMeshes(gd, cl, sc);
+            int bufferUpdates = RenderRegions(gd, cl, _bufferUpdateList, sc);
 
-            int chunksPerTask = (visibleChunks.Count + commandLists.Length) / commandLists.Length;
+            _bufferUpdateList.End();
+            gd.SubmitCommands(_bufferUpdateList);
 
-            for (int i = 0; i < commandLists.Length; i++)
-            {
-                int index = i;
-                _triangleCounts[index] = 0;
-                _chunkCounts[index] = 0;
-
-                int start = visibleChunkOffset;
-                int end = Math.Min(visibleChunks.Count, visibleChunkOffset + chunksPerTask);
-                int count = end - start;
-                if (count == 0)
-                {
-                    _tasks[index] = null;
-                    break;
-                }
-                visibleChunkOffset += count;
-
-                CommandList commands = commandLists[index];
-                commands.Begin();
-                _tasks[index] = Task.Run(() =>
-                {
-                    commands.SetPipeline(_pipeline);
-                    commands.SetGraphicsResourceSet(0, _sharedSet);
-                    commands.SetFramebuffer(sc.MainSceneFramebuffer);
-                    commands.SetViewport(0, ref viewport);
-                    sc.UpdateCameraBuffers(commands);
-
-                    for (int j = start; j < end; j++)
-                    {
-                        ChunkVisual? visual = visibleChunks[j];
-                        visual.Render(gd, commands);
-
-                        uint triCount = visual.TriangleCount;
-                        _triangleCounts[index] += triCount;
-                        if (triCount > 0)
-                            _chunkCounts[index]++;
-                    }
-                });
-            }
-
-            for (int i = 0; i < _tasks.Length; i++)
-            {
-                Task? task = _tasks[i];
-                if (task != null)
-                {
-                    task.Wait();
-                    commandLists[i].End();
-                    _lastTriangleCount += _triangleCounts[i];
-                    _lastChunkCount += _chunkCounts[i];
-                }
-            }
-
-            for (int i = 0; i < commandLists.Length; i++)
-            {
-                CommandList commands = commandLists[i];
-                gd.SubmitCommands(commands);
-            }
-
-            Debug.Assert(visibleChunkOffset == visibleChunks.Count);
+            if (bufferUpdates > 0)
+                gd.WaitForIdle();
         }
 
-        public void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, SceneContext sc)
+        private int RenderRegions(GraphicsDevice gd, CommandList cl, CommandList bufferList, SceneContext sc)
         {
-            ReadOnlySpan<Matrix4x4> projView = stackalloc Matrix4x4[] { Camera.ProjectionMatrix, Camera.ViewMatrix };
+            List<ChunkMeshRegion> visibleRegions = _visibleRegionBuffer;
+            visibleRegions.Clear();
+            GatherVisibleRegions(visibleRegions);
+
+            cl.SetPipeline(_indirectPipeline);
+            cl.SetGraphicsResourceSet(0, _sharedSet);
+            cl.SetFramebuffer(sc.MainSceneFramebuffer);
+
+            int bufferUpdates = 0;
+            int allowedUpdates;
+
+            if (gd.BackendType == GraphicsBackend.OpenGL ||
+                gd.BackendType == GraphicsBackend.OpenGLES)
+            {
+                allowedUpdates = 256 * 5;
+            }
+            else
+            {
+                allowedUpdates = 512 * 5;
+            }
+
+            for (int i = 0; i < visibleRegions.Count; i++)
+            {
+                ChunkMeshRegion region = visibleRegions[i];
+                bufferUpdates += region.Build(gd, bufferList, ref allowedUpdates);
+                region.Render(gd, cl);
+
+                uint triCount = region.TriangleCount;
+                _lastTriangleCount += triCount;
+                if (triCount > 0)
+                    _lastDrawCalls++;
+            }
+
+            return bufferUpdates;
+        }
+
+        private void RenderMeshes(GraphicsDevice gd, CommandList cl, SceneContext sc)
+        {
+            List<ChunkMesh> visibleMeshes = _visibleMeshBuffer;
+            visibleMeshes.Clear();
+            GatherVisibleChunks(visibleMeshes);
+
+            cl.SetPipeline(_pipeline);
+            cl.SetGraphicsResourceSet(0, _sharedSet);
+            cl.SetFramebuffer(sc.MainSceneFramebuffer);
+
+            for (int i = 0; i < visibleMeshes.Count; i++)
+            {
+                ChunkMesh mesh = visibleMeshes[i];
+                mesh.Render(gd, cl);
+
+                uint triCount = mesh.TriangleCount;
+                _lastTriangleCount += triCount;
+                if (triCount > 0)
+                    _lastDrawCalls++;
+            }
+        }
+
+        public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
+        {
+            return new RenderOrderKey(ulong.MaxValue);
+        }
+
+        public override void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, SceneContext sc)
+        {
+
         }
     }
 
@@ -307,16 +389,9 @@ namespace VoxelPizza.Client
     public struct WorldInfo
     {
         public float GlobalTime;
-        public float GlobalTimeFraction;
 
+        private float _padding0;
         private float _padding1;
         private float _padding2;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct WorldAndInverse
-    {
-        public Matrix4x4 World;
-        public Matrix4x4 InverseWorld;
     }
 }

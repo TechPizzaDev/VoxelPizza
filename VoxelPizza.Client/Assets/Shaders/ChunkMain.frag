@@ -8,14 +8,14 @@ struct TextureRegion
     vec3 Emission;
 };
 
-layout(set = 0, binding = 3) uniform LightInfo
+layout(set = 0, binding = 2) uniform LightInfo
 {
     vec3 LightDirection;
     vec4 LightColor;
     vec4 AmbientColor;
 };
 
-layout(set = 0, binding = 4) readonly restrict buffer TextureAtlas
+layout(set = 0, binding = 3) readonly restrict buffer TextureAtlas
 {
     uvec4 TextureRegions[];
 };

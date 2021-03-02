@@ -1,19 +1,28 @@
-﻿namespace VoxelPizza.Client
+﻿using System;
+
+namespace VoxelPizza.Client
 {
-    public ref struct StoredChunkMesh
+    public struct StoredChunkMesh : IDisposable
     {
-        public ByteStore<uint> Indices;
-        public ByteStore<ChunkSpaceVertex> SpaceVertices;
-        public ByteStore<ChunkPaintVertex> PaintVertices;
+        public ByteStorage<uint> Indices;
+        public ByteStorage<ChunkSpaceVertex> SpaceVertices;
+        public ByteStorage<ChunkPaintVertex> PaintVertices;
 
         public StoredChunkMesh(
-            ByteStore<uint> indices,
-            ByteStore<ChunkSpaceVertex> spaceVertices,
-            ByteStore<ChunkPaintVertex> paintVertices)
+            ByteStorage<uint> indices,
+            ByteStorage<ChunkSpaceVertex> spaceVertices,
+            ByteStorage<ChunkPaintVertex> paintVertices)
         {
             Indices = indices;
             SpaceVertices = spaceVertices;
             PaintVertices = paintVertices;
+        }
+
+        public StoredChunkMesh(ChunkMeshResult result) : this(
+            new(result.Indices),
+            new(result.SpaceVertices),
+            new(result.PaintVertices))
+        {
         }
 
         public void Dispose()

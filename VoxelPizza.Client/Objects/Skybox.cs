@@ -67,11 +67,10 @@ namespace VoxelPizza.Client.Objects
                     new VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3))
             };
 
-            (Shader vs, Shader fs) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "Skybox");
+            (Shader vs, Shader fs, SpecializationConstant[] specs) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "Skybox");
 
             _layout = factory.CreateResourceLayout(new ResourceLayoutDescription(
-                new ResourceLayoutElementDescription("Projection", ResourceKind.UniformBuffer, ShaderStages.Vertex),
-                new ResourceLayoutElementDescription("View", ResourceKind.UniformBuffer, ShaderStages.Vertex),
+                new ResourceLayoutElementDescription("CameraInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                 new ResourceLayoutElementDescription("CubeTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("CubeSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
 
@@ -80,7 +79,7 @@ namespace VoxelPizza.Client.Objects
                 gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
                 new RasterizerStateDescription(FaceCullMode.None, PolygonFillMode.Solid, FrontFace.Clockwise, true, true),
                 PrimitiveTopology.TriangleList,
-                new ShaderSetDescription(vertexLayouts, new[] { vs, fs }, ShaderHelper.GetSpecializations(gd)),
+                new ShaderSetDescription(vertexLayouts, new[] { vs, fs }, specs),
                 new ResourceLayout[] { _layout },
                 sc.MainSceneFramebuffer.OutputDescription);
 
@@ -88,8 +87,7 @@ namespace VoxelPizza.Client.Objects
 
             _resourceSet = factory.CreateResourceSet(new ResourceSetDescription(
                 _layout,
-                sc.ProjectionMatrixBuffer,
-                sc.ViewMatrixBuffer,
+                sc.CameraInfoBuffer,
                 textureCube,
                 gd.PointSampler));
 
@@ -114,7 +112,7 @@ namespace VoxelPizza.Client.Objects
             cl.SetViewport(0, new Viewport(0, 0, sc.MainSceneColorTexture.Width, sc.MainSceneColorTexture.Height, 0, 1));
         }
 
-        public override RenderPasses RenderPasses => RenderPasses.Standard;
+        public override RenderPasses RenderPasses => RenderPasses.Opaque;
 
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
         {

@@ -39,12 +39,13 @@ namespace VoxelPizza.Client
         private List<Task> _loadTasks = new List<Task>();
         private ConcurrentQueue<Renderable> _queuedRenderables = new ConcurrentQueue<Renderable>();
         private Dictionary<string, ImageSharpTexture> _textures = new Dictionary<string, ImageSharpTexture>();
-        private ConcurrentBag<TexturedMesh> _ditheredMeshes = new ConcurrentBag<TexturedMesh>();
 
         private event Action<int, int> _resizeHandled;
         private bool _windowResized;
 
         private ParticlePlane particlePlane;
+
+        public ChunkRenderer ChunkRenderer { get; }
 
         public VoxelPizza() : base(preferredBackend: GraphicsBackend.Direct3D11)
         {
@@ -90,6 +91,10 @@ namespace VoxelPizza.Client
             //particlePlane = new ParticlePlane(_scene.Camera);
             //_scene.AddRenderable(particlePlane);
 
+            ChunkRenderer = new ChunkRenderer(_scene.Camera, new Numerics.Int3(4, 4, 4));
+            _scene.AddUpdateable(ChunkRenderer);
+            _scene.AddRenderable(ChunkRenderer);
+
             _loadTasks.Add(Task.Run(() =>
             {
                 Skybox skybox = GetDefaultSkybox();
@@ -105,7 +110,7 @@ namespace VoxelPizza.Client
             //
             //    AddObjModel(dir, obj, mtl);
             //}));
-
+            
             CreateGraphicsDeviceObjects();
 
             ImGui.StyleColorsClassic();
@@ -124,8 +129,6 @@ namespace VoxelPizza.Client
             _newSampleCount = sampleCount;
         }
 
-
-
         protected override void DisposeGraphicsDeviceObjects()
         {
             GraphicsDevice.WaitForIdle();
@@ -136,7 +139,7 @@ namespace VoxelPizza.Client
             _sc.DisposeGraphicsDeviceObjects();
             _scene.DestroyGraphicsDeviceObjects();
             CommonMaterials.DisposeGraphicsDeviceObjects();
-            
+
             GraphicsDevice.WaitForIdle();
         }
 
@@ -177,7 +180,6 @@ namespace VoxelPizza.Client
 
         public override void Draw()
         {
-
             if (_windowResized)
             {
                 _windowResized = false;
@@ -205,22 +207,6 @@ namespace VoxelPizza.Client
             }
 
             DrawMainMenu();
-
-            _frameCommands.Begin();
-            {
-                float depthClear = GraphicsDevice.IsDepthRangeZeroToOne ? 0f : 1f;
-                _frameCommands.SetFramebuffer(_sc.MainSceneFramebuffer);
-                float fbWidth = _sc.MainSceneFramebuffer.Width;
-                float fbHeight = _sc.MainSceneFramebuffer.Height;
-                _frameCommands.SetViewport(0, new Viewport(0, 0, fbWidth, fbHeight, 0, 1f));
-                _frameCommands.SetFullScissorRects();
-                _frameCommands.ClearColorTarget(0, RgbaFloat.Black);
-                _frameCommands.ClearDepthStencil(depthClear);
-                _sc.UpdateCameraBuffers(_frameCommands);
-            }
-            _frameCommands.End();
-            GraphicsDevice.SubmitCommands(_frameCommands);
-            _scene.ChunkRenderer.Render(GraphicsDevice, _sc);
 
             _frameCommands.Begin();
             {
@@ -263,7 +249,7 @@ namespace VoxelPizza.Client
             if (ImGui.BeginPopup(popupName))
             {
                 ImGui.Columns(2);
-                ImGui.Text("Prepare");
+                ImGui.Text("Update");
                 ImGui.Text("Draw");
                 ImGui.Text("Present");
 
@@ -638,8 +624,6 @@ namespace VoxelPizza.Client
                     Quaternion.Identity,
                     scale,
                     group.Name);
-
-                _ditheredMeshes.Add(texturedMesh);
             }
         }
 

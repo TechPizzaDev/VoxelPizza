@@ -225,6 +225,8 @@ namespace VoxelPizza.Client
                 (ex.Descriptor == Vortice.DXGI.ResultCode.DeviceRemoved ||
                 ex.Descriptor == Vortice.DXGI.ResultCode.DeviceReset)
             {
+                Console.WriteLine(ex); // TODO: log proper error
+
                 ChangeGraphicsBackend(true, null);
                 return;
             }
@@ -268,8 +270,10 @@ namespace VoxelPizza.Client
 
                 GraphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions, preferredBackend.Value);
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine(ex); // TODO: log proper error
+
                 GraphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions);
             }
 

@@ -22,6 +22,11 @@ namespace VoxelPizza
 
         public ByteStorage(ByteStore<T> store) : this(store.ArrayPool, store.Buffer, store.Count)
         {
+            if (store.Buffer == null)
+            {
+                Buffer = ArrayPool.Rent(store.ByteCount);
+                store.Span.CopyTo(MemoryMarshal.Cast<byte, T>(Buffer));
+            }
         }
 
         public void Dispose()

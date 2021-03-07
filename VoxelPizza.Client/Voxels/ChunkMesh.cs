@@ -39,7 +39,7 @@ namespace VoxelPizza.Client
                 Renderer.ChunkInfoLayout,
                 _chunkInfoBuffer));
 
-            ChunkMesher mesher = new(ArrayPool<byte>.Shared);
+            ChunkMesher mesher = new(Renderer.ChunkMeshPool);
             ChunkMeshResult mesh = mesher.Mesh(Chunk);
 
             if (mesh.Indices.Count != 0)

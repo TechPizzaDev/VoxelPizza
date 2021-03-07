@@ -1,9 +1,28 @@
 ﻿using System;
 using System.Buffers;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Client
 {
+    public static class SpanCastExtensions
+    {
+        public static Span<TTo> Cast<T, TTo>(this Span<T> from)
+            where T : struct
+            where TTo : struct
+        {
+            return MemoryMarshal.Cast<T, TTo>(from);
+        }
+
+        public static ReadOnlySpan<TTo> Cast<T, TTo>(this ReadOnlySpan<T> from)
+            where T : struct
+            where TTo : struct
+        {
+            return MemoryMarshal.Cast<T, TTo>(from);
+        }
+    }
+
     public class ChunkMesher
     {
         public ArrayPool<byte> ArrayPool { get; }
@@ -13,11 +32,31 @@ namespace VoxelPizza.Client
             ArrayPool = arrayPool ?? throw new ArgumentNullException(nameof(arrayPool));
         }
 
-        public ChunkMeshResult Mesh(Chunk chunk)
+        public ChunkMeshResult Mesh(Chunk chunk, Span<byte> initialBuffer = default)
         {
-            var ind = new ByteStore<uint>(ArrayPool);
-            var spa = new ByteStore<ChunkSpaceVertex>(ArrayPool);
-            var pai = new ByteStore<ChunkPaintVertex>(ArrayPool);
+            int elementByteSum = 
+                sizeof(uint) * 6 
+                + Unsafe.SizeOf<ChunkSpaceVertex>() * 4
+                + Unsafe.SizeOf<ChunkPaintVertex>() * 4;
+            int initialIndexBufferLength = initialBuffer.Length / elementByteSum * 6;
+            int initialVertexBufferLength = initialBuffer.Length / elementByteSum * 4;
+
+            int bufferOffset = 0;
+
+            Span<byte> initialIndexBuffer = initialBuffer.Slice(
+                bufferOffset, initialIndexBufferLength * sizeof(uint));
+            bufferOffset += initialIndexBuffer.Length;
+
+            Span<byte> initialSpaceVertexBuffer = initialBuffer.Slice(
+                bufferOffset, initialVertexBufferLength * Unsafe.SizeOf<ChunkSpaceVertex>());
+            bufferOffset += initialSpaceVertexBuffer.Length;
+
+            Span<byte> initialPaintVertexBuffer = initialBuffer.Slice(
+                bufferOffset, initialVertexBufferLength * Unsafe.SizeOf<ChunkPaintVertex>());
+
+            var ind = new ByteStore<uint>(ArrayPool, null, initialIndexBuffer);
+            var spa = new ByteStore<ChunkSpaceVertex>(ArrayPool, null, initialSpaceVertexBuffer);
+            var pai = new ByteStore<ChunkPaintVertex>(ArrayPool, null, initialPaintVertexBuffer);
 
             var indGen = new CubeIndexGenerator();
             var indPro = new CubeIndexProvider<CubeIndexGenerator, uint>(indGen, CubeFaces.All);

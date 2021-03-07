@@ -8,6 +8,9 @@ namespace VoxelPizza.Client
         public ByteStorage<ChunkSpaceVertex> SpaceVertices;
         public ByteStorage<ChunkPaintVertex> PaintVertices;
 
+        public readonly int IndexCount => Indices.Count;
+        public readonly int VertexCount => SpaceVertices.Count;
+
         public StoredChunkMesh(
             ByteStorage<uint> indices,
             ByteStorage<ChunkSpaceVertex> spaceVertices,

@@ -16,7 +16,10 @@ namespace VoxelPizza
         public ArrayPool<byte> ArrayPool { get; }
         public byte[]? Buffer => _array;
         public int Count => _count;
+        public int Capacity => _buffer.Length;
 
+        public int ByteCount => _count * Unsafe.SizeOf<T>();
+        public int ByteCapacity => _buffer.Length * Unsafe.SizeOf<T>();
         public Span<T> Span => _buffer.Slice(0, _count);
 
         public ByteStore(ArrayPool<byte> arrayPool, byte[]? initialArray, Span<T> initialBuffer)
@@ -27,7 +30,20 @@ namespace VoxelPizza
             _count = 0;
         }
 
-        public ByteStore(ArrayPool<byte> arrayPool) : this(arrayPool, null, default)
+        public ByteStore(ArrayPool<byte> arrayPool, byte[]? initialArray, Span<byte> initialBuffer)
+        {
+            ArrayPool = arrayPool ?? throw new ArgumentNullException(nameof(arrayPool));
+            _array = initialArray;
+            _buffer = MemoryMarshal.Cast<byte, T>(initialBuffer);
+            _count = 0;
+        }
+
+        public ByteStore(ArrayPool<byte> arrayPool) : this(arrayPool, null, Span<T>.Empty)
+        {
+        }
+
+        public ByteStore(ArrayPool<byte> arrayPool, int initialLength) :
+            this(arrayPool, arrayPool.Rent(initialLength * Unsafe.SizeOf<T>()), Span<T>.Empty)
         {
         }
 

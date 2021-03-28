@@ -5,6 +5,7 @@ namespace VoxelPizza.Client
     [Flags]
     public enum CubeFaces
     {
+        None = 0,
         Top = 1 << 0,
         Bottom = 1 << 1,
         Left = 1 << 2,

@@ -33,13 +33,13 @@ namespace VoxelPizza.Client
                 (uint)Unsafe.SizeOf<ChunkInfo>() * (uint)MaxChunkCount, BufferUsage.Staging));
 
             _indexBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<uint>() * 98304, BufferUsage.Staging));
+                (uint)Unsafe.SizeOf<uint>() * 98304 * 16, BufferUsage.Staging));
 
             _spaceVertexBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<ChunkSpaceVertex>() * 65535, BufferUsage.Staging));
+                (uint)Unsafe.SizeOf<ChunkSpaceVertex>() * 65535 * 16, BufferUsage.Staging));
 
             _paintVertexBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<ChunkPaintVertex>() * 65535, BufferUsage.Staging));
+                (uint)Unsafe.SizeOf<ChunkPaintVertex>() * 65535 * 16, BufferUsage.Staging));
         }
 
         public void Upload(

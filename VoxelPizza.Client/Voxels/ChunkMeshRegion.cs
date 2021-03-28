@@ -20,7 +20,7 @@ namespace VoxelPizza.Client
             public ChunkInfo ChunkInfo;
 
             public bool IsDirty;
-            public StoredChunkMesh StoredMesh;
+            public ChunkMeshResult StoredMesh;
 
             public StoredChunk(Chunk chunk)
             {
@@ -28,7 +28,10 @@ namespace VoxelPizza.Client
 
                 ChunkInfo = new ChunkInfo
                 {
-                    Translation = new Vector3(chunk.ChunkX * 16, chunk.ChunkY * 16, chunk.ChunkZ * 16)
+                    Translation = new Vector3(
+                        chunk.X * Chunk.Width,
+                        chunk.Y * Chunk.Height,
+                        chunk.Z * Chunk.Depth)
                 };
             }
         }
@@ -111,11 +114,18 @@ namespace VoxelPizza.Client
 
         public void UpdateChunk(Chunk chunk)
         {
-            ChunkPosition lposition = GetLocalChunkPosition(chunk.Position);
-            ref StoredChunk? storedChunk = ref _chunks[lposition.Y, lposition.Z, lposition.X];
+            ChunkPosition lpos = GetLocalChunkPosition(chunk.Position);
+            ref StoredChunk? storedChunk = ref _chunks[lpos.Y, lpos.Z, lpos.X];
 
             if (storedChunk == null)
                 storedChunk = new StoredChunk(chunk);
+
+            Chunk? frontChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 0, chunk.Z + 1);
+            Chunk? backChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 0, chunk.Z - 1);
+            Chunk? topChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 1, chunk.Z + 0);
+            Chunk? bottomChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y - 1, chunk.Z + 0);
+            Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y + 0, chunk.Z + 0);
+            Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y + 0, chunk.Z + 0);
 
             storedChunk.IsDirty = true;
             Interlocked.Increment(ref _buildRequired);
@@ -159,13 +169,14 @@ namespace VoxelPizza.Client
             return sum;
         }
 
-        public void Build(Span<byte> buildBuffer)
+        public bool Build(ChunkMesher mesher)
         {
             int buildRequired = _buildRequired;
             if (buildRequired <= 0)
-                return;
+                return false;
 
-            ChunkMesher mesher = new(Renderer.ChunkMeshPool);
+            Stopwatch w = new Stopwatch();
+            int c = 0;
 
             for (int y = 0; y < _chunks.GetLength(0); y++)
             {
@@ -177,22 +188,46 @@ namespace VoxelPizza.Client
                         if (storedChunk == null)
                             continue;
 
-                        if (storedChunk.IsDirty)
-                        {
-                            storedChunk.StoredMesh.Dispose();
+                        if (!storedChunk.IsDirty)
+                            continue;
 
-                            ChunkMeshResult result = mesher.Mesh(storedChunk.Chunk, buildBuffer);
-                            storedChunk.StoredMesh = new StoredChunkMesh(result);
+                        storedChunk.StoredMesh.Dispose();
 
-                            storedChunk.IsDirty = false;
+                        w.Start();
 
-                            _uploadRequired = true;
-                        }
+                        Chunk chunk = storedChunk.Chunk;
+                        Chunk? frontChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z + 1);
+                        Chunk? backChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z - 1);
+                        Chunk? topChunk = Renderer.GetChunk(chunk.X, chunk.Y + 1, chunk.Z);
+                        Chunk? bottomChunk = Renderer.GetChunk(chunk.X, chunk.Y - 1, chunk.Z);
+                        Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y, chunk.Z);
+                        Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y, chunk.Z);
+
+                        ChunkMeshResult result = mesher.Mesh(
+                            chunk,
+                            frontChunk,
+                            backChunk,
+                            topChunk,
+                            bottomChunk,
+                            leftChunk,
+                            rightChunk);
+
+                        w.Stop();
+                        c++;
+
+                        storedChunk.StoredMesh = result;
+
+                        storedChunk.IsDirty = false;
+
+                        _uploadRequired = true;
                     }
                 }
             }
 
+            //Console.WriteLine((w.Elapsed.TotalMilliseconds / c).ToString("0.0000") + "ms per mesh");
+
             Interlocked.Add(ref _buildRequired, -buildRequired);
+            return true;
         }
 
         public ChunkStagingMesh? Upload(GraphicsDevice gd, CommandList uploadList, ChunkStagingMeshPool stagingMeshPool)
@@ -255,7 +290,7 @@ namespace VoxelPizza.Client
                 for (; drawIndex < _chunksToUpload.Count; drawIndex++)
                 {
                     StoredChunk storedChunk = _chunksToUpload[(int)drawIndex];
-                    ref StoredChunkMesh mesh = ref storedChunk.StoredMesh;
+                    ref ChunkMeshResult mesh = ref storedChunk.StoredMesh;
 
                     IndirectDrawIndexedArguments indirectArgs = new()
                     {

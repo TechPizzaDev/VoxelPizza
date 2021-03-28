@@ -1,69 +1,58 @@
 ﻿using System;
-using System.Buffers;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Client
 {
-    public static class SpanCastExtensions
-    {
-        public static Span<TTo> Cast<T, TTo>(this Span<T> from)
-            where T : struct
-            where TTo : struct
-        {
-            return MemoryMarshal.Cast<T, TTo>(from);
-        }
-
-        public static ReadOnlySpan<TTo> Cast<T, TTo>(this ReadOnlySpan<T> from)
-            where T : struct
-            where TTo : struct
-        {
-            return MemoryMarshal.Cast<T, TTo>(from);
-        }
-    }
-
     public class ChunkMesher
     {
-        public ArrayPool<byte> ArrayPool { get; }
+        public HeapPool Pool { get; }
 
-        public ChunkMesher(ArrayPool<byte> arrayPool)
+        public ChunkMesher(HeapPool pool)
         {
-            ArrayPool = arrayPool ?? throw new ArgumentNullException(nameof(arrayPool));
+            Pool = pool ?? throw new ArgumentNullException(nameof(pool));
         }
 
-        public ChunkMeshResult Mesh(Chunk chunk, Span<byte> initialBuffer = default)
+        [SkipLocalsInit]
+        public unsafe ChunkMeshResult Mesh(
+            Chunk chunk,
+            Chunk? frontChunk,
+            Chunk? backChunk,
+            Chunk? topChunk,
+            Chunk? bottomChunk,
+            Chunk? leftChunk,
+            Chunk? rightChunk)
         {
-            int elementByteSum = 
-                sizeof(uint) * 6 
-                + Unsafe.SizeOf<ChunkSpaceVertex>() * 4
-                + Unsafe.SizeOf<ChunkPaintVertex>() * 4;
-            int initialIndexBufferLength = initialBuffer.Length / elementByteSum * 6;
-            int initialVertexBufferLength = initialBuffer.Length / elementByteSum * 4;
+            var ind = new ByteStore<uint>(Pool);
+            var spa = new ByteStore<ChunkSpaceVertex>(Pool);
+            var pai = new ByteStore<ChunkPaintVertex>(Pool);
 
-            int bufferOffset = 0;
-
-            Span<byte> initialIndexBuffer = initialBuffer.Slice(
-                bufferOffset, initialIndexBufferLength * sizeof(uint));
-            bufferOffset += initialIndexBuffer.Length;
-
-            Span<byte> initialSpaceVertexBuffer = initialBuffer.Slice(
-                bufferOffset, initialVertexBufferLength * Unsafe.SizeOf<ChunkSpaceVertex>());
-            bufferOffset += initialSpaceVertexBuffer.Length;
-
-            Span<byte> initialPaintVertexBuffer = initialBuffer.Slice(
-                bufferOffset, initialVertexBufferLength * Unsafe.SizeOf<ChunkPaintVertex>());
-
-            var ind = new ByteStore<uint>(ArrayPool, null, initialIndexBuffer);
-            var spa = new ByteStore<ChunkSpaceVertex>(ArrayPool, null, initialSpaceVertexBuffer);
-            var pai = new ByteStore<ChunkPaintVertex>(ArrayPool, null, initialPaintVertexBuffer);
-
-            var indGen = new CubeIndexGenerator();
-            var indPro = new CubeIndexProvider<CubeIndexGenerator, uint>(indGen, CubeFaces.All);
             uint vertexOffset = 0;
+
+            BlockDescription[] descs = new BlockDescription[]
+            {
+                new BlockDescription(CubeFaces.None),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+                new BlockDescription(CubeFaces.All),
+            };
 
             TextureAnimation[] anims = new TextureAnimation[]
             {
+                default,
                 TextureAnimation.Create(TextureAnimationType.Step, 3, 1f),
                 TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1f),
                 TextureAnimation.Create(TextureAnimationType.Step, 2, 1f),
@@ -72,36 +61,213 @@ namespace VoxelPizza.Client
                 TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
                 TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
                 TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
+                TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
+                TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
+                TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
+                TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
+                TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
+                TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
+                TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
+                TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
+            };
+            anims = new TextureAnimation[]
+            {
+                default,
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
+                TextureAnimation.Create(TextureAnimationType.Step, 1, 0f),
             };
 
-            uint[,,] blocks = chunk.Blocks;
+            uint* centerRow = stackalloc uint[Chunk.Width + 2];
+            uint* bottomRow = stackalloc uint[Chunk.Width];
+            uint* topRow = stackalloc uint[Chunk.Width];
+            uint* frontRow = stackalloc uint[Chunk.Width];
+            uint* backRow = stackalloc uint[Chunk.Width];
+            Span<uint> centerSpan = new(centerRow + 1, Chunk.Width);
+            Span<uint> bottomSpan = new(bottomRow, Chunk.Width);
+            Span<uint> topSpan = new(topRow, Chunk.Width);
+            Span<uint> frontSpan = new(frontRow, Chunk.Width);
+            Span<uint> backSpan = new(backRow, Chunk.Width);
 
-            for (int y = 0; y < 16; y++)
+            void GetBlockRow(int y, int z, Span<uint> destination)
             {
-                for (int z = 0; z < 16; z++)
+                if (y == -1)
                 {
-                    for (int x = 0; x < 16; x++)
-                    {
-                        uint id = blocks[y, z, x];
-                        if (id == 0)
-                            continue;
-
-                        var spaGen = new CubeSpaceVertexGenerator(new Vector3(x, y, z));
-
-                        var anim = anims[id - 1];
-                        var paiGen = new CubePaintVertexGenerator(anim, 0);
-
-                        var spaPro = new CubeVertexProvider<CubeSpaceVertexGenerator, ChunkSpaceVertex>(spaGen, CubeFaces.All);
-                        var paiPro = new CubeVertexProvider<CubePaintVertexGenerator, ChunkPaintVertex>(paiGen, spaPro.Faces);
-
-                        spaPro.AppendVertices(ref spa);
-                        paiPro.AppendVertices(ref pai);
-                        indPro.AppendIndices(ref ind, ref vertexOffset);
-                    }
+                    if (bottomChunk == null)
+                        goto Clear;
+                    bottomChunk.GetBlockRow(Chunk.Height - 1, z, destination);
                 }
+                else if (y == Chunk.Height)
+                {
+                    if (topChunk == null)
+                        goto Clear;
+                    topChunk.GetBlockRow(0, z, destination);
+                }
+                else if (z == -1)
+                {
+                    if (backChunk == null)
+                        goto Clear;
+                    backChunk.GetBlockRow(y, Chunk.Depth - 1, destination);
+                }
+                else if (z == Chunk.Depth)
+                {
+                    if (frontChunk == null)
+                        goto Clear;
+                    frontChunk.GetBlockRow(y, 0, destination);
+                }
+                else
+                {
+                    chunk.GetBlockRow(y, z, destination);
+                }
+
+                return;
+
+                Clear:
+                destination.Clear();
             }
 
+            for (int y = 0; y < Chunk.Height; y++)
+            {
+                GetBlockRow(y, -1, backSpan);
+                GetBlockRow(y, 0, centerSpan);
+                centerRow[0] = 0;
+                centerRow[Chunk.Width + 1] = 0;
+
+                for (int z = 0; z < Chunk.Depth; z++)
+                {
+                    if (leftChunk != null)
+                        centerRow[0] = leftChunk.GetBlock(Chunk.Width - 1, y, z);
+                    if (rightChunk != null)
+                        centerRow[Chunk.Width + 1] = rightChunk.GetBlock(0, y, z);
+
+                    GetBlockRow(y - 1, z, bottomSpan);
+                    GetBlockRow(y + 1, z, topSpan);
+                    GetBlockRow(y, z + 1, frontSpan);
+
+                    AppendBody(
+                        ref ind, ref spa, ref pai, ref vertexOffset, y, z,
+                        descs, anims,
+                        centerRow + 1, bottomRow, topRow, frontRow, backRow);
+
+                    centerSpan.CopyTo(backSpan);
+                    frontSpan.CopyTo(centerSpan);
+                }
+            }
             return new ChunkMeshResult(ind, spa, pai);
+        }
+
+        private unsafe void AppendBody(
+            ref ByteStore<uint> ind,
+            ref ByteStore<ChunkSpaceVertex> spa,
+            ref ByteStore<ChunkPaintVertex> pai,
+            ref uint vertexOffset,
+            float y,
+            float z,
+            BlockDescription[] descs,
+            TextureAnimation[] anims,
+            uint* centerRow,
+            uint* bottomRow,
+            uint* topRow,
+            uint* frontRow,
+            uint* backRow)
+        {
+            for (int x = 0; x < Chunk.Width; x++)
+            {
+                uint id = centerRow[x];
+                if (id == 0)
+                    continue;
+
+                ref TextureAnimation anim = ref anims[id];
+
+                CubeFaces faces = CubeFaces.All;
+
+                if ((descs[centerRow[x - 1]].BlockingFaces & CubeFaces.Right) != 0)
+                {
+                    faces &= ~CubeFaces.Left;
+                }
+
+                if ((descs[centerRow[x + 1]].BlockingFaces & CubeFaces.Left) != 0)
+                {
+                    faces &= ~CubeFaces.Right;
+                }
+
+                if ((descs[topRow[x]].BlockingFaces & CubeFaces.Bottom) != 0)
+                {
+                    faces &= ~CubeFaces.Top;
+                }
+
+                if ((descs[bottomRow[x]].BlockingFaces & CubeFaces.Top) != 0)
+                {
+                    faces &= ~CubeFaces.Bottom;
+                }
+
+                if ((descs[frontRow[x]].BlockingFaces & CubeFaces.Back) != 0)
+                {
+                    faces &= ~CubeFaces.Front;
+                }
+
+                if ((descs[backRow[x]].BlockingFaces & CubeFaces.Front) != 0)
+                {
+                    faces &= ~CubeFaces.Back;
+                }
+
+                var spaGen = new CubeSpaceVertexGenerator(new Vector3(x, y, z));
+
+                var paiGen = new CubePaintVertexGenerator(anim, id);
+
+                var spaPro = new CubeVertexProvider<CubeSpaceVertexGenerator, ChunkSpaceVertex>(spaGen, faces);
+                var paiPro = new CubeVertexProvider<CubePaintVertexGenerator, ChunkPaintVertex>(paiGen, faces);
+
+                var indGen = new CubeIndexGenerator();
+                var indPro = new CubeIndexProvider<CubeIndexGenerator, uint>(indGen, faces);
+
+                spaPro.AppendVertices(ref spa);
+                paiPro.AppendVertices(ref pai);
+                indPro.AppendIndices(ref ind, ref vertexOffset);
+            }
+        }
+    }
+
+    public readonly struct BlockDescription
+    {
+        public CubeFaces BlockingFaces { get; }
+
+        public BlockDescription(CubeFaces blockingFaces)
+        {
+            BlockingFaces = blockingFaces;
+        }
+    }
+
+    public struct BlockPosition
+    {
+        public int X;
+        public int Y;
+        public int Z;
+
+        public BlockPosition(int x, int y, int z)
+        {
+            X = x;
+            Y = y;
+            Z = z;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int GetIndex(int x, int y, int z)
+        {
+            return x + Chunk.Width * (y + Chunk.Depth * z);
         }
     }
 }

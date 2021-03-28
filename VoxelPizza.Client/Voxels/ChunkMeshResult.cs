@@ -1,10 +1,13 @@
 ﻿namespace VoxelPizza.Client
 {
-    public ref struct ChunkMeshResult
+    public struct ChunkMeshResult
     {
         public ByteStore<uint> Indices;
         public ByteStore<ChunkSpaceVertex> SpaceVertices;
         public ByteStore<ChunkPaintVertex> PaintVertices;
+
+        public readonly int IndexCount => Indices.Count;
+        public readonly int VertexCount => SpaceVertices.Count;
 
         public ChunkMeshResult(
             ByteStore<uint> indices,

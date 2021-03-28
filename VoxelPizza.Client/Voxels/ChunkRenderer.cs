@@ -24,8 +24,7 @@ namespace VoxelPizza.Client
         private Fence[] _uploadFences;
         private ChunkStagingMeshPool _stagingMeshPool;
         private List<ChunkStagingMesh>[] _uploadSubmittedMeshes;
-        private byte[][] _buildBuffers;
-
+        
         private DeviceBuffer _worldInfoBuffer;
         private DeviceBuffer _textureAtlasBuffer;
 
@@ -33,7 +32,7 @@ namespace VoxelPizza.Client
         private Pipeline _indirectPipeline;
         private ResourceSet _sharedSet;
 
-        private List<Chunk> _chunks = new();
+        private Dictionary<ChunkPosition, Chunk> _chunks = new();
 
         private List<ChunkMesh> _visibleMeshBuffer = new();
         private List<ChunkMesh> _meshes = new();
@@ -50,7 +49,8 @@ namespace VoxelPizza.Client
 
         public Camera Camera { get; }
         public Int3 RegionSize { get; }
-        public ArrayPool<byte> ChunkMeshPool { get; private set; }
+        public HeapPool ChunkMeshPool { get; }
+        public ChunkMesher ChunkMesher { get; }
 
         public ResourceLayout ChunkInfoLayout { get; private set; }
 
@@ -65,18 +65,17 @@ namespace VoxelPizza.Client
 
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             RegionSize = regionSize;
-            ChunkMeshPool = ArrayPool<byte>.Shared;
+            ChunkMeshPool = new HeapPool();
+            ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
             _uploadReady = new bool[4];
             _uploadLists = new CommandList[_uploadReady.Length];
             _uploadFences = new Fence[_uploadReady.Length];
             _uploadSubmittedMeshes = new List<ChunkStagingMesh>[_uploadReady.Length];
-            _buildBuffers = new byte[_uploadReady.Length][];
-
+            
             for (int i = 0; i < _uploadReady.Length; i++)
             {
                 _uploadSubmittedMeshes[i] = new List<ChunkStagingMesh>();
-                _buildBuffers[i] = new byte[1024 * 1024 * 2];
             }
 
             StartThread();
@@ -94,74 +93,131 @@ namespace VoxelPizza.Client
         {
             Task.Run(() =>
             {
-                Thread.Sleep(1000);
-
-                int width = 32;
-                int height = 5;
-
-                var list = new List<(int x, int y, int z)>();
-
-                for (int y = 0; y < height; y++)
+                try
                 {
-                    for (int z = 0; z < width; z++)
+                    //Thread.Sleep(2000);
+
+                    int width = 32;
+                    int height = 6;
+
+                    var list = new List<(int x, int y, int z)>();
+
+                    for (int y = 0; y < height; y++)
                     {
-                        for (int x = 0; x < width; x++)
+                        for (int z = 0; z < width; z++)
                         {
-                            list.Add((x, y, z));
+                            for (int x = 0; x < width; x++)
+                            {
+                                list.Add((x, y, z));
+                            }
+                        }
+                    }
+
+                    list.Sort((a, b) =>
+                    {
+                        int cx = width / 2;
+                        int cy = height / 2;
+                        int cz = width / 2;
+
+                        int ax = (cx - a.x);
+                        int ay = (cy - a.y);
+                        int az = (cz - a.z);
+                        int av = ax * ax + ay * ay + az * az;
+
+                        int bx = (cx - b.x);
+                        int by = (cy - b.y);
+                        int bz = (cz - b.z);
+                        int bv = bx * bx + by * by + bz * bz;
+
+                        return av.CompareTo(bv);
+                    });
+
+                    int count = 0;
+                    foreach (var (x, y, z) in list)
+                    {
+                        var chunk = new Chunk(new(x, y, z));
+                        chunk.Generate();
+
+                        lock (_chunks)
+                            _chunks.Add(chunk.Position, chunk);
+
+                        ChunkRegionPosition regionPosition = GetRegionPosition(chunk.Position);
+                        ChunkMeshRegion? region;
+                        lock (_regions)
+                        {
+                            if (!_regions.TryGetValue(regionPosition, out region))
+                            {
+                                region = new ChunkMeshRegion(this, regionPosition, RegionSize);
+                                _regions.Add(regionPosition, region);
+                                _queuedRegions.Enqueue(region);
+                            }
+                        }
+
+                        //region.UpdateChunk(chunk);
+
+                        //var mesh = new ChunkMesh(this, chunk);
+                        //_queuedMeshes.Enqueue(mesh);
+
+                        count++;
+                        if (count == 1)
+                        {
+                            //Thread.Sleep(1);
+                            count = 0;
+                        }
+                    }
+
+                    for (int y = 0; y < height; y++)
+                    {
+                        for (int z = 0; z < width; z++)
+                        {
+                            for (int x = 0; x < width; x++)
+                            {
+                                var pp = new ChunkPosition(x, y, z);
+                                ChunkRegionPosition regionPosition = GetRegionPosition(pp);
+                                _regions[regionPosition].UpdateChunk(GetChunk(pp));
+                            }
+                        }
+                    }
+
+                    Thread.Sleep(5000);
+                    
+                    Random rng = new Random(1234);
+                    while (true)
+                    {
+                        int x = rng.Next(width);
+                        int z = rng.Next(width);
+                        int y = rng.Next(height);
+                        if (_chunks.TryGetValue(new ChunkPosition(x, y, z), out Chunk? c))
+                        {
+                            c.Blocks[rng.Next(c.Blocks.Length)] = 0;
+                    
+                            ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
+                            _regions[regionPosition].UpdateChunk(c);
+                    
+                            Thread.Sleep(10);
                         }
                     }
                 }
-
-                list.Sort((a, b) =>
+                catch (Exception ex)
                 {
-                    int cx = width / 2;
-                    int cy = height / 2;
-                    int cz = width / 2;
-
-                    int ax = (cx - a.x);
-                    int ay = (cy - a.y);
-                    int az = (cz - a.z);
-                    int av = ax * ax + ay * ay + az * az;
-
-                    int bx = (cx - b.x);
-                    int by = (cy - b.y);
-                    int bz = (cz - b.z);
-                    int bv = bx * bx + by * by + bz * bz;
-
-                    return av.CompareTo(bv);
-                });
-
-                int count = 0;
-                foreach (var (x, y, z) in list)
-                {
-                    var chunk = new Chunk(new(x, y, z));
-                    chunk.Generate();
-                    _chunks.Add(chunk);
-
-                    ChunkRegionPosition regionPosition = GetRegionPosition(chunk.Position);
-                    ChunkMeshRegion? region;
-                    lock (_regions)
-                    {
-                        if (!_regions.TryGetValue(regionPosition, out region))
-                        {
-                            region = new ChunkMeshRegion(this, regionPosition, RegionSize);
-                            _regions.Add(regionPosition, region);
-                            _queuedRegions.Enqueue(region);
-                        }
-                    }
-                    region.UpdateChunk(chunk);
-
-                    //var mesh = new ChunkMesh(this, chunk);
-                    //_queuedMeshes.Enqueue(mesh);
-
-                    count++;
-                    //if (count == 8)
-                    //{
-                    //    Thread.Sleep(1);
-                    //    count = 0;
-                    //}
+                    Console.WriteLine(ex);
                 }
             });
+        }
+
+        public Chunk? GetChunk(ChunkPosition position)
+        {
+            Chunk? chunk;
+            lock (_chunks)
+            {
+                _chunks.TryGetValue(position, out chunk);
+            }
+            return chunk;
+        }
+
+        public Chunk? GetChunk(int x, int y, int z)
+        {
+            return GetChunk(new ChunkPosition(x, y, z));
         }
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
@@ -206,10 +262,19 @@ namespace VoxelPizza.Client
 
             (Shader mainVs, Shader mainFs, SpecializationConstant[] mainSpecs) =
                 StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ChunkMain");
+
+            var rasterizerState = RasterizerStateDescription.Default;
+            //rasterizerState.CullMode = FaceCullMode.None;
+            //rasterizerState.FillMode = PolygonFillMode.Wireframe;
+
+            var depthStencilState = gd.IsDepthRangeZeroToOne
+                ? DepthStencilStateDescription.DepthOnlyGreaterEqual
+                : DepthStencilStateDescription.DepthOnlyLessEqual;
+
             _pipeline = factory.CreateGraphicsPipeline(new GraphicsPipelineDescription(
                 BlendStateDescription.SingleOverrideBlend,
-                gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
-                RasterizerStateDescription.Default,
+                depthStencilState,
+                rasterizerState,
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(
                     new[] { spaceLayout, paintLayout },
@@ -223,8 +288,8 @@ namespace VoxelPizza.Client
 
             _indirectPipeline = factory.CreateGraphicsPipeline(new GraphicsPipelineDescription(
                 BlendStateDescription.SingleOverrideBlend,
-                gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
-                RasterizerStateDescription.Default,
+                depthStencilState,
+                rasterizerState,
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(
                     new[] { spaceLayout, paintLayout, worldLayout },
@@ -238,9 +303,23 @@ namespace VoxelPizza.Client
 
             TextureRegion[] regions = new TextureRegion[]
             {
-                new TextureRegion(0, 255, 100, 100, 0, 0),
-                new TextureRegion(0, 100, 255, 100, 0, 0),
-                new TextureRegion(0, 100, 100, 255, 0, 0),
+                new TextureRegion(0, 000, 0, 0, 0, 0),
+                new TextureRegion(0, 032, 0, 0, 0, 0),
+                new TextureRegion(0, 064, 0, 0, 0, 0),
+                new TextureRegion(0, 096, 0, 0, 0, 0),
+                new TextureRegion(0, 128, 0, 0, 0, 0),
+                new TextureRegion(0, 160, 0, 0, 0, 0),
+                new TextureRegion(0, 192, 0, 0, 0, 0),
+                new TextureRegion(0, 224, 0, 0, 0, 0),
+                new TextureRegion(0, 255, 0, 0, 0, 0),
+                new TextureRegion(0, 032, 0, 032, 0, 0),
+                new TextureRegion(0, 064, 0, 064, 0, 0),
+                new TextureRegion(0, 096, 0, 096, 0, 0),
+                new TextureRegion(0, 128, 0, 128, 0, 0),
+                new TextureRegion(0, 160, 0, 160, 0, 0),
+                new TextureRegion(0, 192, 0, 192, 0, 0),
+                new TextureRegion(0, 224, 0, 224, 0, 0),
+                new TextureRegion(0, 255, 0, 255, 0, 0),
             };
             _textureAtlasBuffer = factory.CreateBuffer(new BufferDescription(
                 regions.SizeInBytes(), BufferUsage.StructuredBufferReadOnly, (uint)Unsafe.SizeOf<TextureRegion>(), true));
@@ -387,12 +466,17 @@ namespace VoxelPizza.Client
 
             bool[] uploadReady = _uploadReady;
             int uploadOffset = 0;
+            int maxBuilds = 4;
 
             for (int i = 0; i < visibleRegions.Count; i++)
             {
                 ChunkMeshRegion region = visibleRegions[i];
 
-                region.Build(_buildBuffers[0]);
+                if (maxBuilds > 0)
+                {
+                    if (region.Build(ChunkMesher))
+                        maxBuilds--;
+                }
 
                 if (region.UploadRequired)
                 {

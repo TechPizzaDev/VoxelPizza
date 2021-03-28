@@ -1,10 +1,8 @@
-﻿using System;
-using System.Linq.Expressions;
-using Veldrid.Sdl2;
+﻿using Veldrid.Sdl2;
 
 namespace VoxelPizza.Client
 {
-    class Program
+    public class Program
     {
         static unsafe void Main(string[] args)
         {

@@ -40,7 +40,7 @@ namespace VoxelPizza.Client
                 _chunkInfoBuffer));
 
             ChunkMesher mesher = new(Renderer.ChunkMeshPool);
-            ChunkMeshResult mesh = mesher.Mesh(Chunk);
+            ChunkMeshResult mesh = mesher.Mesh(Chunk, null, null, null, null, null, null);
 
             if (mesh.Indices.Count != 0)
             {
@@ -56,7 +56,10 @@ namespace VoxelPizza.Client
                 _paintBuffer = factory.CreateBuffer(new BufferDescription((uint)MemoryMarshal.AsBytes(paintVertexSpan).Length, BufferUsage.VertexBuffer));
                 gd.UpdateBuffer(_paintBuffer, 0, paintVertexSpan);
 
-                gd.UpdateBuffer(_chunkInfoBuffer, 0, new Vector4(Chunk.ChunkX, Chunk.ChunkY, Chunk.ChunkZ, 0) * 16);
+                gd.UpdateBuffer(_chunkInfoBuffer, 0, new Vector4(
+                    Chunk.X * Chunk.Width,
+                    Chunk.Y * Chunk.Height,
+                    Chunk.Z * Chunk.Depth, 0));
 
                 TriangleCount = (uint)(mesh.Indices.Count / 3);
             }

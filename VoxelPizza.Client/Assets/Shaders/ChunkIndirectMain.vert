@@ -7,6 +7,14 @@ struct TextureAnimation
     float Rate;
 };
 
+struct TextureRegion
+{
+    uint TexId;
+    vec3 TexColor;
+    vec2 TexCoord;
+    vec3 Emission;
+};
+
 layout(set = 0, binding = 0) uniform CameraInfo
 {
     mat4 Projection;
@@ -21,6 +29,11 @@ layout(set = 0, binding = 1) uniform WorldInfo
     float GlobalTime;
 };
 
+layout(set = 0, binding = 3) readonly restrict buffer TextureAtlas
+{
+    uvec4 TextureRegions[];
+};
+
 layout(location = 0) in vec3 Position;
 layout(location = 1) in uint Normal;
 layout(location = 2) in uint TexAnimation0;
@@ -28,9 +41,11 @@ layout(location = 3) in uint TexRegion0;
 layout(location = 4) in vec3 Translation;
 
 layout(location = 0) out vec3 f_Normal;
-layout(location = 1) flat out uint f_TexRegion0_0;
-layout(location = 2) flat out uint f_TexRegion0_1;
-layout(location = 3) out float f_TexFraction_0;
+layout(location = 1) out vec2 f_TexCoord0_0;
+layout(location = 2) out vec3 f_TexColor0_0;
+layout(location = 3) out vec2 f_TexCoord0_1;
+layout(location = 4) out vec3 f_TexColor0_1;
+layout(location = 5) out float f_TexFraction_0;
 
 vec3 unpack3x10(uint packed) 
 {
@@ -52,6 +67,26 @@ TextureAnimation unpackTexAnim(uint packed)
     return anim;
 }
 
+vec3 unpackUnorm3x8(uint packed)
+{
+    return vec3(packed & 255, (packed >> 8) & 255, (packed >> 16) & 255) / 255.0;
+}
+
+TextureRegion unpackTexRegion(uint index)
+{
+    uvec4 packed = TextureRegions[index];
+    uint textureRgb = packed.x;
+    uint xy = packed.y;
+    uint emissionRgb = packed.z;
+
+    TextureRegion region;
+    region.TexId = textureRgb & 255;
+    region.TexColor = unpackUnorm3x8(textureRgb >> 8).xyz;
+    region.TexCoord = vec2(xy & 65535, xy >> 16); // * AtlasTexelSize;
+    region.Emission = unpackUnorm3x8(emissionRgb);
+    return region;
+}
+
 void main()
 {
     vec4 worldPosition = vec4(Position + Translation, 1);
@@ -65,7 +100,7 @@ void main()
     mat4 inverseWorld = inverse(world);
     vec3 normal = unpack3x10(Normal);
     vec4 outNormal = inverseWorld * vec4(normal, 1);
-
+    
     TextureAnimation texAnim0 = unpackTexAnim(TexAnimation0);
     float step0 = GlobalTime * texAnim0.Rate;
     float indexF0;
@@ -74,11 +109,16 @@ void main()
     uint indexOffset0_0 = indexOffset0 % texAnim0.Count;
     uint indexOffset0_1 = (indexOffset0 + texAnim0.Type) % texAnim0.Count;
     
+    TextureRegion texRegion0_0 = unpackTexRegion(TexRegion0 + indexOffset0_0);
+    TextureRegion texRegion0_1 = unpackTexRegion(TexRegion0 + indexOffset0_1);
+    
     gl_Position = outPosition;
 
     f_Normal = normalize(outNormal.xyz);
     
-    f_TexRegion0_0 = TexRegion0 + indexOffset0_0;
-    f_TexRegion0_1 = TexRegion0 + indexOffset0_1;
+    f_TexCoord0_0 = texRegion0_0.TexCoord;
+    f_TexColor0_0 = texRegion0_0.TexColor;
+    f_TexCoord0_1 = texRegion0_1.TexCoord;
+    f_TexColor0_1 = texRegion0_1.TexColor;
     f_TexFraction_0 = texFract0;
 }

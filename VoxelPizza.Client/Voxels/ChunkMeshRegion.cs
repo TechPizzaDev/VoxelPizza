@@ -305,10 +305,10 @@ namespace VoxelPizza.Client
                     translationMap[drawIndex] = storedChunk.ChunkInfo;
 
                     var indexMapView = new MappedResourceView<uint>(indexMap);
-                    mesh.Indices.Span.CopyTo(indexMapView.AsSpan(indexOffset));
+                    mesh.Indices.CopyTo(indexMapView.AsSpan(indexOffset));
 
-                    mesh.SpaceVertices.Span.CopyTo(spaceVertexMap.AsSpan(vertexOffset));
-                    mesh.PaintVertices.Span.CopyTo(paintVertexMap.AsSpan(vertexOffset));
+                    mesh.SpaceVertices.CopyTo(spaceVertexMap.AsSpan(vertexOffset));
+                    mesh.PaintVertices.CopyTo(paintVertexMap.AsSpan(vertexOffset));
 
                     indexOffset += indirectArgs.IndexCount;
                     vertexOffset += mesh.VertexCount;

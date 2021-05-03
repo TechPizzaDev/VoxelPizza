@@ -22,10 +22,10 @@ void main()
 {
     vec4 color = texture(sampler2D(SourceTexture, SourceSampler), fsin_TexCoords);
 
-    if (!OutputFormatSrgb)
-    {
-        color = vec4(LinearToSrgb(color.rgb), 1);
-    }
+    //if (!OutputFormatSrgb)
+    //{
+    //    color = vec4(LinearToSrgb(color.rgb), 1);
+    //}
 
     OutputColor = color;
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client
@@ -42,6 +43,7 @@ namespace VoxelPizza.Client
         public void Generate()
         {
             uint[] blocks = Blocks;
+            ref uint blockRef = ref blocks[0];
 
             int seed = 17;
             seed = seed * 31 + X;
@@ -49,20 +51,36 @@ namespace VoxelPizza.Client
             seed = seed * 31 + Z;
             var rng = new Random(seed);
 
-            if (false)
+            int chunkX = X * Width;
+            int chunkY = Y * Height;
+            int chunkZ = Z * Width;
+
+            if (true)
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    double fac = (Y * Chunk.Height + y) / 1024.0;
+                    double fac = (Y * Height + y) / 1024.0;
 
                     for (int z = 0; z < Depth; z++)
                     {
                         for (int x = 0; x < Width; x++)
                         {
-                            if (rng.NextDouble() > 0.025 * fac)
-                                continue;
+                            //if (rng.NextDouble() > 0.025 * fac * 4)
+                            //    continue;
 
-                            blocks[BlockPosition.GetIndex(x, z, z)] = (uint)rng.Next(9);
+                            int blockX = chunkX + x;
+                            int blockY = chunkY + y;
+                            int blockZ = chunkZ + z;
+
+                            float sin = 64 * (MathF.Sin(blockX / 16f) + 1) * 0.5f;
+                            float cos = 64 * (MathF.Cos(blockZ / 16f) + 1) * 0.5f; 
+
+                            ref uint block = ref Unsafe.Add(ref blockRef, BlockPosition.GetIndex(x, y, z));
+
+                            if ((sin + cos) * 0.5f >= blockY)
+                                block = (uint)rng.Next(1024) + 1;
+                            else
+                                block = 0;
                         }
                     }
                 }
@@ -85,7 +103,7 @@ namespace VoxelPizza.Client
                     {
                         for (int x = 0; x < Width; x++)
                         {
-                            blocks[BlockPosition.GetIndex(x, y, z)] = (uint)(y + 1);
+                            Unsafe.Add(ref blockRef, BlockPosition.GetIndex(x, z, z)) = (uint)(y + 1);
                         }
                     }
                 }

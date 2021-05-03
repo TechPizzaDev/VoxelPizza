@@ -24,7 +24,7 @@ namespace VoxelPizza.Client
         private Fence[] _uploadFences;
         private ChunkStagingMeshPool _stagingMeshPool;
         private List<ChunkStagingMesh>[] _uploadSubmittedMeshes;
-        
+
         private DeviceBuffer _worldInfoBuffer;
         private DeviceBuffer _textureAtlasBuffer;
 
@@ -65,14 +65,14 @@ namespace VoxelPizza.Client
 
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             RegionSize = regionSize;
-            ChunkMeshPool = new HeapPool();
+            ChunkMeshPool = new HeapPool(1024 * 1024 * 16);
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
             _uploadReady = new bool[4];
             _uploadLists = new CommandList[_uploadReady.Length];
             _uploadFences = new Fence[_uploadReady.Length];
             _uploadSubmittedMeshes = new List<ChunkStagingMesh>[_uploadReady.Length];
-            
+
             for (int i = 0; i < _uploadReady.Length; i++)
             {
                 _uploadSubmittedMeshes[i] = new List<ChunkStagingMesh>();
@@ -97,8 +97,8 @@ namespace VoxelPizza.Client
                 {
                     //Thread.Sleep(2000);
 
-                    int width = 32;
-                    int height = 6;
+                    int width = 24;
+                    int height = 4;
 
                     var list = new List<(int x, int y, int z)>();
 
@@ -179,8 +179,9 @@ namespace VoxelPizza.Client
                         }
                     }
 
+                    return;
                     Thread.Sleep(5000);
-                    
+
                     Random rng = new Random(1234);
                     while (true)
                     {
@@ -190,10 +191,10 @@ namespace VoxelPizza.Client
                         if (_chunks.TryGetValue(new ChunkPosition(x, y, z), out Chunk? c))
                         {
                             c.Blocks[rng.Next(c.Blocks.Length)] = 0;
-                    
+
                             ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
                             _regions[regionPosition].UpdateChunk(c);
-                    
+
                             Thread.Sleep(10);
                         }
                     }
@@ -238,7 +239,7 @@ namespace VoxelPizza.Client
             ResourceLayout sharedLayout = factory.CreateResourceLayout(
                 new ResourceLayoutDescription(
                     new ResourceLayoutElementDescription("CameraInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex),
-                    new ResourceLayoutElementDescription("WorldInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex),
+                    new ResourceLayoutElementDescription("WorldInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
                     new ResourceLayoutElementDescription("LightInfo", ResourceKind.UniformBuffer, ShaderStages.Fragment),
                     new ResourceLayoutElementDescription("TextureAtlas", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex)));
 
@@ -301,26 +302,37 @@ namespace VoxelPizza.Client
             _worldInfoBuffer = factory.CreateBuffer(new BufferDescription(
                 (uint)Unsafe.SizeOf<WorldInfo>(), BufferUsage.UniformBuffer));
 
-            TextureRegion[] regions = new TextureRegion[]
+            Random rng = new Random(1234);
+            Span<byte> rngTmp = stackalloc byte[3];
+
+            TextureRegion[] regions = new TextureRegion[2050];
+            for (int i = 1; i < regions.Length; i++)
             {
-                new TextureRegion(0, 000, 0, 0, 0, 0),
-                new TextureRegion(0, 032, 0, 0, 0, 0),
-                new TextureRegion(0, 064, 0, 0, 0, 0),
-                new TextureRegion(0, 096, 0, 0, 0, 0),
-                new TextureRegion(0, 128, 0, 0, 0, 0),
-                new TextureRegion(0, 160, 0, 0, 0, 0),
-                new TextureRegion(0, 192, 0, 0, 0, 0),
-                new TextureRegion(0, 224, 0, 0, 0, 0),
-                new TextureRegion(0, 255, 0, 0, 0, 0),
-                new TextureRegion(0, 032, 0, 032, 0, 0),
-                new TextureRegion(0, 064, 0, 064, 0, 0),
-                new TextureRegion(0, 096, 0, 096, 0, 0),
-                new TextureRegion(0, 128, 0, 128, 0, 0),
-                new TextureRegion(0, 160, 0, 160, 0, 0),
-                new TextureRegion(0, 192, 0, 192, 0, 0),
-                new TextureRegion(0, 224, 0, 224, 0, 0),
-                new TextureRegion(0, 255, 0, 255, 0, 0),
-            };
+                rng.NextBytes(rngTmp);
+                byte r = rngTmp[0];
+                byte g = rngTmp[1];
+                byte b = rngTmp[2];
+                regions[i] = new TextureRegion(0, r, g, b, 0, 0);
+
+                //new TextureRegion(0, 000, 0, 0, 0, 0),
+                //new TextureRegion(0, 032, 0, 0, 0, 0),
+                //new TextureRegion(0, 064, 0, 0, 0, 0),
+                //new TextureRegion(0, 096, 0, 0, 0, 0),
+                //new TextureRegion(0, 128, 0, 0, 0, 0),
+                //new TextureRegion(0, 160, 0, 0, 0, 0),
+                //new TextureRegion(0, 192, 0, 0, 0, 0),
+                //new TextureRegion(0, 224, 0, 0, 0, 0),
+                //new TextureRegion(0, 255, 0, 0, 0, 0),
+                //new TextureRegion(0, 032, 0, 032, 0, 0),
+                //new TextureRegion(0, 064, 0, 064, 0, 0),
+                //new TextureRegion(0, 096, 0, 096, 0, 0),
+                //new TextureRegion(0, 128, 0, 128, 0, 0),
+                //new TextureRegion(0, 160, 0, 160, 0, 0),
+                //new TextureRegion(0, 192, 0, 192, 0, 0),
+                //new TextureRegion(0, 224, 0, 224, 0, 0),
+                //new TextureRegion(0, 255, 0, 255, 0, 0),
+            }
+
             _textureAtlasBuffer = factory.CreateBuffer(new BufferDescription(
                 regions.SizeInBytes(), BufferUsage.StructuredBufferReadOnly, (uint)Unsafe.SizeOf<TextureRegion>(), true));
             gd.UpdateBuffer(_textureAtlasBuffer, 0, regions);

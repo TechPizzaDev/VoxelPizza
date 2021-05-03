@@ -3,7 +3,7 @@
 namespace VoxelPizza.Client
 {
     [Flags]
-    public enum CubeFaces
+    public enum CubeFaces : byte
     {
         None = 0,
         Top = 1 << 0,

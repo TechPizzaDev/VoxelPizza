@@ -42,17 +42,17 @@ namespace VoxelPizza.Client
             ChunkMesher mesher = new(Renderer.ChunkMeshPool);
             ChunkMeshResult mesh = mesher.Mesh(Chunk, null, null, null, null, null, null);
 
-            if (mesh.Indices.Count != 0)
+            if (mesh.IndexCount != 0)
             {
-                ReadOnlySpan<uint> indicesSpan = mesh.Indices.Span;
+                ReadOnlySpan<uint> indicesSpan = mesh.Indices;
                 _indexBuffer = factory.CreateBuffer(new BufferDescription((uint)MemoryMarshal.AsBytes(indicesSpan).Length, BufferUsage.IndexBuffer));
                 gd.UpdateBuffer(_indexBuffer, 0, indicesSpan);
 
-                ReadOnlySpan<ChunkSpaceVertex> spaceVertexSpan = mesh.SpaceVertices.Span;
+                ReadOnlySpan<ChunkSpaceVertex> spaceVertexSpan = mesh.SpaceVertices;
                 _spaceBuffer = factory.CreateBuffer(new BufferDescription((uint)MemoryMarshal.AsBytes(spaceVertexSpan).Length, BufferUsage.VertexBuffer));
                 gd.UpdateBuffer(_spaceBuffer, 0, spaceVertexSpan);
 
-                ReadOnlySpan<ChunkPaintVertex> paintVertexSpan = mesh.PaintVertices.Span;
+                ReadOnlySpan<ChunkPaintVertex> paintVertexSpan = mesh.PaintVertices;
                 _paintBuffer = factory.CreateBuffer(new BufferDescription((uint)MemoryMarshal.AsBytes(paintVertexSpan).Length, BufferUsage.VertexBuffer));
                 gd.UpdateBuffer(_paintBuffer, 0, paintVertexSpan);
 
@@ -61,7 +61,7 @@ namespace VoxelPizza.Client
                     Chunk.Y * Chunk.Height,
                     Chunk.Z * Chunk.Depth, 0));
 
-                TriangleCount = (uint)(mesh.Indices.Count / 3);
+                TriangleCount = (uint)(mesh.IndexCount / 3);
             }
 
             mesh.Dispose();

@@ -47,7 +47,7 @@ namespace VoxelPizza.Client
 
         public ChunkRenderer ChunkRenderer { get; }
 
-        public VoxelPizza() : base(preferredBackend: GraphicsBackend.Direct3D11)
+        public VoxelPizza() : base(preferredBackend: GraphicsBackend.Vulkan)
         {
             Sdl2Native.SDL_Init(SDLInitFlags.GameController);
             Sdl2ControllerTracker.CreateDefault(out _controllerTracker);

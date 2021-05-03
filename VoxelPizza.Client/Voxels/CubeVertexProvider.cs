@@ -19,7 +19,7 @@ namespace VoxelPizza.Client
 
         public void AppendVertices(ref ByteStore<T> store)
         {
-            store.PrepareCapacity(Generator.MaxVerticesPerBlock);
+            store.PrepareCapacityFor(Generator.MaxVerticesPerBlock);
 
             if ((Faces & CubeFaces.Top) != 0)
                 Generator.AppendTop(ref store);

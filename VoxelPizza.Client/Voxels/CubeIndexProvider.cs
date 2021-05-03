@@ -19,7 +19,7 @@ namespace VoxelPizza.Client
 
         public void AppendIndices(ref ByteStore<T> store, ref uint vertexOffset)
         {
-            store.PrepareCapacity(Generator.MaxIndicesPerBlock);
+            store.PrepareCapacityFor(Generator.MaxIndicesPerBlock);
 
             if ((Faces & CubeFaces.Top) != 0)
                 Generator.AppendTop(ref store, ref vertexOffset);

@@ -1,5 +1,10 @@
 #version 450
 
+layout(set = 0, binding = 1) uniform WorldInfo
+{
+    float GlobalTime;
+};
+
 layout(set = 0, binding = 2) uniform LightInfo
 {
     vec3 LightDirection;

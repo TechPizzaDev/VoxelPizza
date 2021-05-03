@@ -23,7 +23,8 @@ namespace VoxelPizza.Client.Objects
                 new ResourceLayoutElementDescription("SourceTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("SourceSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
 
-            (Shader vs, Shader fs, SpecializationConstant[] specs) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "FullScreenQuad");
+            (Shader vs, Shader fs, SpecializationConstant[] specs) = StaticResourceCache.GetShaders(
+                gd, gd.ResourceFactory, "FullScreenQuad");
 
             GraphicsPipelineDescription pd = new(
                 new BlendStateDescription(

@@ -6,11 +6,52 @@ namespace VoxelPizza.Client
 {
     public class ChunkMesher
     {
+        private BlockEliminaryDescription[] descs;
+        private TextureAnimation[] anims;
+        private MeshProvider?[] meshProviders;
+
         public HeapPool Pool { get; }
 
         public ChunkMesher(HeapPool pool)
         {
             Pool = pool ?? throw new ArgumentNullException(nameof(pool));
+
+
+            descs = new BlockEliminaryDescription[1025];
+            anims = new TextureAnimation[descs.Length];
+            meshProviders = new MeshProvider?[descs.Length];
+
+            Random rng = new Random(1234);
+            for (int i = 1; i < descs.Length; i++)
+            {
+                descs[i] = new(CubeFaces.All, BlockVisualFeatures.CullableSides);
+                meshProviders[i] = new CubeMeshProvider() { anims = anims };
+
+                int stepCount = i < 1016 ? 8 : 2;
+                var type = i % 2 == 0 ? TextureAnimationType.MixStep : TextureAnimationType.Step;
+                anims[i] = TextureAnimation.Create(type, stepCount, (rng.NextSingle() + 1) * 2f);
+            }
+
+            //TextureAnimation[] anims = new TextureAnimation[]
+            //{
+            //default,
+            //TextureAnimation.Create(TextureAnimationType.Step, 3, 1f),
+            //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1f),
+            //TextureAnimation.Create(TextureAnimationType.Step, 2, 1f),
+            //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1f),
+            //TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
+            //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
+            //};
         }
 
         [SkipLocalsInit]
@@ -35,42 +76,6 @@ namespace VoxelPizza.Client
                     ref spaceVertexStore,
                     ref paintVertexStore,
                     0);
-
-                BlockEliminaryDescription[] descs = new BlockEliminaryDescription[1025];
-                TextureAnimation[] anims = new TextureAnimation[descs.Length];
-                MeshProvider?[] meshProviders = new MeshProvider?[descs.Length];
-
-                Random rng = new Random(1234);
-                for (int i = 1; i < descs.Length; i++)
-                {
-                    descs[i] = new(CubeFaces.All, BlockVisualFeatures.CullableSides);
-                    meshProviders[i] = new CubeMeshProvider() { anims = anims };
-
-                    int stepCount = i < 1016 ? 8 : 2;
-                    var type = i % 2 == 0 ? TextureAnimationType.MixStep : TextureAnimationType.Step;
-                    anims[i] = TextureAnimation.Create(type, stepCount, (rng.NextSingle() + 1) * 2f);
-                }
-
-                //TextureAnimation[] anims = new TextureAnimation[]
-                //{
-                //default,
-                //TextureAnimation.Create(TextureAnimationType.Step, 3, 1f),
-                //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1f),
-                //TextureAnimation.Create(TextureAnimationType.Step, 2, 1f),
-                //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1f),
-                //TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
-                //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
-                //};
 
                 uint* centerRow = stackalloc uint[Chunk.Width + 2];
                 uint* bottomRow = stackalloc uint[Chunk.Width];
@@ -142,6 +147,7 @@ namespace VoxelPizza.Client
                             descs, meshProviders,
                             centerRow + 1, bottomRow, topRow, frontRow, backRow);
 
+                        // Copy back existing data to reduce getting it from the chunk.
                         centerSpan.CopyTo(backSpan);
                         frontSpan.CopyTo(centerSpan);
                     }
@@ -169,22 +175,25 @@ namespace VoxelPizza.Client
             uint* frontRow,
             uint* backRow)
         {
+            uint* centerRowL = centerRow - 1;
+            uint* centerRowR = centerRow + 1;
+
             ref BlockEliminaryDescription descs = ref eliminaryDescriptions[0];
 
             for (int x = 0; x < Chunk.Width; x++)
             {
                 uint centerId = centerRow[x];
+
                 MeshProvider? meshProvider = meshProviders[centerId];
                 if (meshProvider == null)
                     continue;
 
-                Vector3 position = new(x, y, z);
                 BlockVisualFeatures features = Unsafe.Add(ref descs, (int)centerId).Features;
 
                 if ((features & BlockVisualFeatures.CullableAny) != 0)
                 {
-                    uint leftId = centerRow[x - 1];
-                    uint rightId = centerRow[x + 1];
+                    uint leftId = centerRowL[x];
+                    uint rightId = centerRowR[x];
                     uint bottomId = bottomRow[x];
                     uint topId = topRow[x];
                     uint frontId = frontRow[x];
@@ -198,10 +207,16 @@ namespace VoxelPizza.Client
                     faces &= ~(Unsafe.Add(ref descs, (int)frontId).OppositeBlockingFaces & CubeFaces.Front);
                     faces &= ~(Unsafe.Add(ref descs, (int)backId).OppositeBlockingFaces & CubeFaces.Back);
 
-                    Unsafe.As<CullableMeshProvider>(meshProvider).Provide(ref state, centerId, position, faces);
+                    var cullableProvider = Unsafe.As<CullableMeshProvider>(meshProvider);
+                    if (!cullableProvider.IsEmpty(faces))
+                    {
+                        Vector3 position = new(x, y, z);
+                        cullableProvider.Provide(ref state, centerId, position, faces);
+                    }
                 }
                 else
                 {
+                    Vector3 position = new(x, y, z);
                     meshProvider.Provide(ref state, centerId, position);
                 }
             }

@@ -12,6 +12,11 @@ namespace VoxelPizza.Client
             Provide(ref meshState, blockId, position, CubeFaces.All);
         }
 
+        public virtual bool IsEmpty(CubeFaces faces)
+        {
+            return faces == CubeFaces.None;
+        }
+
         public abstract void Provide(
             ref MeshState meshState,
             uint blockId,

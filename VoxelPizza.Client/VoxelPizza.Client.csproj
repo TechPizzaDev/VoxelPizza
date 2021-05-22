@@ -25,13 +25,13 @@
   </ItemGroup>
   
   <ItemGroup>
-    <PackageReference Include="Veldrid" Version="4.9.0-gffcf1cdb33" />
-    <PackageReference Include="Veldrid.ImageSharp" Version="4.9.0-gffcf1cdb33" />
-    <PackageReference Include="Veldrid.ImGui" Version="5.72.0" />
-    <PackageReference Include="Veldrid.RenderDoc" Version="1.0.1" />
+    <PackageReference Include="Veldrid" Version="4.9.0-gbe8e5a15f4" />
+    <PackageReference Include="Veldrid.ImageSharp" Version="4.9.0-gbe8e5a15f4" />
+    <PackageReference Include="Veldrid.ImGui" Version="5.72.0-gbe8e5a15f4" />
+    <PackageReference Include="Veldrid.RenderDoc" Version="1.0.1-gbe8e5a15f4" />
     <PackageReference Include="Veldrid.SPIRV" Version="1.0.14" />
-    <PackageReference Include="Veldrid.StartupUtilities" Version="4.9.0-gffcf1cdb33" />
-    <PackageReference Include="Veldrid.Utilities" Version="4.9.0-gfca0b9438b" />
+    <PackageReference Include="Veldrid.StartupUtilities" Version="4.9.0-gbe8e5a15f4" />
+    <PackageReference Include="Veldrid.Utilities" Version="4.9.0-g04d2d9fc8e" />
   </ItemGroup>
 
   <ItemGroup>

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Client
 {
-    public ref struct MeshState
+    public ref struct ChunkMeshOutput
     {
         private Span<ByteStore<uint>> _indices;
         private Span<ByteStore<ChunkSpaceVertex>> _spaceVertices;
@@ -15,7 +15,7 @@ namespace VoxelPizza.Client
         public ref ByteStore<ChunkSpaceVertex> SpaceVertices => ref MemoryMarshal.GetReference(_spaceVertices);
         public ref ByteStore<ChunkPaintVertex> PaintVertices => ref MemoryMarshal.GetReference(_paintVertices);
 
-        public MeshState(
+        public ChunkMeshOutput(
             ref ByteStore<uint> indices,
             ref ByteStore<ChunkSpaceVertex> spaceVertices,
             ref ByteStore<ChunkPaintVertex> paintVertices,

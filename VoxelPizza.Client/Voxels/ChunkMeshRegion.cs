@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Runtime;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using Veldrid;
 using VoxelPizza.Numerics;
@@ -56,7 +57,7 @@ namespace VoxelPizza.Client
         public int VertexCount { get; private set; }
 
         public bool BuildRequired => _buildRequired > 0;
-        public bool UploadRequired => _uploadRequired;
+        public bool IsUploadRequired => _uploadRequired;
 
         public int RegionX => Position.X;
         public int RegionY => Position.Y;
@@ -193,8 +194,6 @@ namespace VoxelPizza.Client
 
                         storedChunk.StoredMesh.Dispose();
 
-                        w.Start();
-
                         Chunk chunk = storedChunk.Chunk;
                         Chunk? frontChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z + 1);
                         Chunk? backChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z - 1);
@@ -202,6 +201,8 @@ namespace VoxelPizza.Client
                         Chunk? bottomChunk = Renderer.GetChunk(chunk.X, chunk.Y - 1, chunk.Z);
                         Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y, chunk.Z);
                         Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y, chunk.Z);
+
+                        w.Start();
 
                         ChunkMeshResult result = mesher.Mesh(
                             chunk,
@@ -224,7 +225,8 @@ namespace VoxelPizza.Client
                 }
             }
 
-            //Console.WriteLine((w.Elapsed.TotalMilliseconds / c).ToString("0.0000") + "ms per mesh");
+            //if (c != 0)
+            //    Console.WriteLine((w.Elapsed.TotalMilliseconds / c).ToString("0.0000") + "ms per mesh");
 
             Interlocked.Add(ref _buildRequired, -buildRequired);
             return true;
@@ -265,6 +267,20 @@ namespace VoxelPizza.Client
                 return null;
             }
 
+            int indexBytesRequired = 0;
+            int spaceBytesRequired = 0;
+            int paintBytesRequired = 0;
+
+            for (int i = 0; i < _chunksToUpload.Count; i++)
+            {
+                StoredChunk storedChunk = _chunksToUpload[(int)i];
+                ref ChunkMeshResult mesh = ref storedChunk.StoredMesh;
+
+                indexBytesRequired += mesh.IndexCount * sizeof(uint);
+                spaceBytesRequired += mesh.VertexCount * Unsafe.SizeOf<ChunkSpaceVertex>();
+                paintBytesRequired += mesh.VertexCount * Unsafe.SizeOf<ChunkPaintVertex>();
+            }
+
             if (!stagingMeshPool.TryRent(
                 out ChunkStagingMesh? stagingMesh,
                 _chunksToUpload.Count))
@@ -273,7 +289,7 @@ namespace VoxelPizza.Client
                 return null;
             }
 
-            uint drawIndex = 0;
+            uint drawIndex;
             uint indexOffset = 0;
             int vertexOffset = 0;
 
@@ -281,13 +297,13 @@ namespace VoxelPizza.Client
             {
                 stagingMesh.Map(
                     gd,
-                    out var indirectMap,
-                    out var translationMap,
-                    out var indexMap,
-                    out var spaceVertexMap,
-                    out var paintVertexMap);
+                    out MappedResourceView<IndirectDrawIndexedArguments> indirectMap,
+                    out MappedResourceView<ChunkInfo> translationMap,
+                    out MappedResource indexMap,
+                    out MappedResourceView<ChunkSpaceVertex> spaceVertexMap,
+                    out MappedResourceView<ChunkPaintVertex> paintVertexMap);
 
-                for (; drawIndex < _chunksToUpload.Count; drawIndex++)
+                for (drawIndex = 0; drawIndex < _chunksToUpload.Count; drawIndex++)
                 {
                     StoredChunk storedChunk = _chunksToUpload[(int)drawIndex];
                     ref ChunkMeshResult mesh = ref storedChunk.StoredMesh;
@@ -306,7 +322,7 @@ namespace VoxelPizza.Client
 
                     var indexMapView = new MappedResourceView<uint>(indexMap);
                     mesh.Indices.CopyTo(indexMapView.AsSpan(indexOffset));
-
+                    
                     mesh.SpaceVertices.CopyTo(spaceVertexMap.AsSpan(vertexOffset));
                     mesh.PaintVertices.CopyTo(paintVertexMap.AsSpan(vertexOffset));
 

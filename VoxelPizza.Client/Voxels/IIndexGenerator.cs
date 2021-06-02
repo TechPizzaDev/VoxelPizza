@@ -3,6 +3,12 @@
     public interface IIndexGenerator<T>
         where T : unmanaged
     {
-        void AppendIndices(ref ByteStore<T> store, ref uint vertexOffset);
+        /// <summary>
+        /// The maximum amount of indices generated per contract.
+        /// </summary>
+        int MaxIndices { get; }
+
+        void AppendFirst(ref ByteStore<T> store, ref uint vertexOffset);
+        void AppendLast(ref ByteStore<T> store, ref uint vertexOffset);
     }
 }

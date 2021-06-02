@@ -120,7 +120,7 @@ namespace VoxelPizza
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Span<T> GetAppendRange(int count)
+        public Span<T> GetAppendSpan(int count)
         {
             Span<T> slice = new(_head, count);
             _head += count;
@@ -134,25 +134,11 @@ namespace VoxelPizza
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void AppendRange(T item0, T item1, T item2, T item3)
+        public T* GetAppendPtr(int count)
         {
-            _head[0] = item0;
-            _head[1] = item1;
-            _head[2] = item2;
-            _head[3] = item3;
-            _head += 4;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void AppendRange(T item0, T item1, T item2, T item3, T item4, T item5)
-        {
-            _head[0] = item0;
-            _head[1] = item1;
-            _head[2] = item2;
-            _head[3] = item3;
-            _head[4] = item4;
-            _head[5] = item5;
-            _head += 6;
+            T* r = _head;
+            _head += count;
+            return r;
         }
 
         public void Clear()

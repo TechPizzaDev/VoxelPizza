@@ -5,26 +5,21 @@ namespace VoxelPizza.Client
 {
     public struct ChunkSpaceVertex
     {
-        public Vector3 Position;
+        public float X;
+        public float Y;
+        public float Z;
         public uint Normal;
 
-        public ChunkSpaceVertex(Vector3 position, uint normal)
+        public ChunkSpaceVertex(float x, float y, float z, uint normal)
         {
-            Position = position;
+            X = x;
+            Y = y;
+            Z = z;
             Normal = normal;
         }
 
-        public ChunkSpaceVertex(Vector4 position, uint normal)
-        {
-            Position = Unsafe.As<Vector4, Vector3>(ref position);
-            Normal = normal;
-        }
-
-        public ChunkSpaceVertex(Vector3 position, Vector3 normal) : this(position, PackNormal(normal))
-        {
-        }
-
-        public ChunkSpaceVertex(Vector4 position, Vector4 normal) : this(position, PackNormal(normal))
+        public ChunkSpaceVertex(Vector3 position, Vector3 normal) :
+            this(position.X, position.Y, position.Z, PackNormal(normal))
         {
         }
 

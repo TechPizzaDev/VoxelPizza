@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace VoxelPizza
@@ -8,7 +8,7 @@ namespace VoxelPizza
     {
         public class Segment
         {
-            private ConcurrentStack<IntPtr> _pooled = new();
+            private Stack<IntPtr> _pooled = new();
 
             public int BlockSize { get; }
 
@@ -19,21 +19,29 @@ namespace VoxelPizza
 
             public IntPtr Rent()
             {
-                if (_pooled.TryPop(out IntPtr pooled))
+                lock (_pooled)
                 {
-                    return pooled;
+                    if (_pooled.TryPop(out IntPtr pooled))
+                    {
+                        return pooled;
+                    }
                 }
+
                 //Console.WriteLine("allocating " + BlockSize);
                 return Marshal.AllocHGlobal(BlockSize);
             }
 
             public void Free(IntPtr buffer)
             {
-                if (_pooled.Count < 8)
+                lock (_pooled)
                 {
-                    _pooled.Push(buffer);
-                    return;
+                    if (_pooled.Count < 32)
+                    {
+                        _pooled.Push(buffer);
+                        return;
+                    }
                 }
+
                 Console.WriteLine("freeing " + BlockSize);
                 Marshal.FreeHGlobal(buffer);
             }

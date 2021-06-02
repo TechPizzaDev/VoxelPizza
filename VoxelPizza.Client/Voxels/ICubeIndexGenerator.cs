@@ -1,10 +1,8 @@
 ﻿namespace VoxelPizza.Client
 {
-    public interface ICubeIndexGenerator<T>
+    public interface ICubeIndexGenerator<T> : IIndexGenerator<T>
        where T : unmanaged
     {
-        int MaxIndicesPerBlock { get; }
-
         void AppendTop(ref ByteStore<T> store, ref uint vertexOffset);
         void AppendBottom(ref ByteStore<T> store, ref uint vertexOffset);
         void AppendLeft(ref ByteStore<T> store, ref uint vertexOffset);

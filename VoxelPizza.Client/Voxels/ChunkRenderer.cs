@@ -15,9 +15,13 @@ using VoxelPizza.World;
 
 namespace VoxelPizza.Client
 {
+    // TODO: separate commonly updated chunks into singular mesh instances
+
     public class ChunkRenderer : Renderable, IUpdateable
     {
         private DisposeCollector _disposeCollector;
+        private string _graphicsDeviceName;
+        private string _graphicsBackendName;
 
         private bool[] _uploadReady;
         private CommandList[] _uploadLists;
@@ -33,6 +37,7 @@ namespace VoxelPizza.Client
         private ResourceSet _sharedSet;
 
         private Dictionary<ChunkPosition, Chunk> _chunks = new();
+        private AutoResetEvent frameEvent = new(false);
 
         private List<ChunkMesh> _visibleMeshBuffer = new();
         private List<ChunkMesh> _meshes = new();
@@ -97,14 +102,15 @@ namespace VoxelPizza.Client
                 {
                     //Thread.Sleep(2000);
 
-                    int width = 24;
-                    int height = 4;
+                    int width = 4;
+                    int depth = width;
+                    int height = 3;
 
                     var list = new List<(int x, int y, int z)>();
 
                     for (int y = 0; y < height; y++)
                     {
-                        for (int z = 0; z < width; z++)
+                        for (int z = 0; z < depth; z++)
                         {
                             for (int x = 0; x < width; x++)
                             {
@@ -117,7 +123,7 @@ namespace VoxelPizza.Client
                     {
                         int cx = width / 2;
                         int cy = height / 2;
-                        int cz = width / 2;
+                        int cz = depth / 2;
 
                         int ax = (cx - a.x);
                         int ay = (cy - a.y);
@@ -168,25 +174,64 @@ namespace VoxelPizza.Client
 
                     for (int y = 0; y < height; y++)
                     {
-                        for (int z = 0; z < width; z++)
+                        for (int z = 0; z < depth; z++)
                         {
                             for (int x = 0; x < width; x++)
                             {
                                 var pp = new ChunkPosition(x, y, z);
                                 ChunkRegionPosition regionPosition = GetRegionPosition(pp);
-                                _regions[regionPosition].UpdateChunk(GetChunk(pp));
+                                Chunk chunk = GetChunk(pp);
+                                _regions[regionPosition].UpdateChunk(chunk);
                             }
                         }
                     }
 
+                    //return;
+
+                    Random rng = new Random(1234);
+                    for (int i = 0; i < (64 * 1024) / (width * height * depth); i++)
+                    {
+                        for (int y = 0; y < height; y++)
+                        {
+                            for (int z = 0; z < depth; z++)
+                            {
+                                for (int x = 0; x < width; x++)
+                                {
+                                    int xd = rng.Next(2);
+                                    int max = xd == 0 ? 512 : 128;
+                                    if (_chunks.TryGetValue(new ChunkPosition(x, y, z), out Chunk? c))
+                                    {
+                                        uint[] blocks = c.Blocks;
+                                        for (int b = 0; b < blocks.Length; b++)
+                                        {
+                                            blocks[b] = (uint)rng.Next(max);
+                                        }
+                                        //blocks.AsSpan().Clear();
+
+                                        ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
+                                        _regions[regionPosition].UpdateChunk(c);
+                                    }
+                                }
+                            }
+                        }
+
+                        frameEvent.WaitOne();
+                        frameEvent.WaitOne();
+                        //frameEvent.WaitOne();
+                        //frameEvent.WaitOne();
+                    }
+
+                    frameEvent.WaitOne();
+                    Thread.Sleep(1000);
+                    Environment.Exit(0);
+
                     return;
                     Thread.Sleep(5000);
 
-                    Random rng = new Random(1234);
                     while (true)
                     {
                         int x = rng.Next(width);
-                        int z = rng.Next(width);
+                        int z = rng.Next(depth);
                         int y = rng.Next(height);
                         if (_chunks.TryGetValue(new ChunkPosition(x, y, z), out Chunk? c))
                         {
@@ -223,6 +268,9 @@ namespace VoxelPizza.Client
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
+            _graphicsDeviceName = gd.DeviceName;
+            _graphicsBackendName = gd.BackendType.ToString();
+
             DisposeCollectorResourceFactory factory = new(gd.ResourceFactory);
             _disposeCollector = factory.DisposeCollector;
 
@@ -372,7 +420,7 @@ namespace VoxelPizza.Client
         {
             _worldInfo.GlobalTime = time.TotalSeconds;
 
-            ImGuiNET.ImGui.Begin("Stats");
+            ImGuiNET.ImGui.Begin("ChunkRenderer");
             {
                 ImGuiNET.ImGui.Text("Triangle Count: " + (_lastTriangleCount / 1000) + "k");
                 ImGuiNET.ImGui.Text("Draw Calls: " + _lastDrawCalls);
@@ -389,6 +437,11 @@ namespace VoxelPizza.Client
                     ImGuiNET.ImGui.Text("Pending Chunks: " + pending);
                     ImGuiNET.ImGui.Text("Chunks: " + count);
                 }
+
+                ImGuiNET.ImGui.NewLine();
+
+                ImGuiNET.ImGui.Text(_graphicsBackendName);
+                ImGuiNET.ImGui.Text(_graphicsDeviceName);
             }
             ImGuiNET.ImGui.End();
         }
@@ -464,6 +517,8 @@ namespace VoxelPizza.Client
                     _uploadReady[i] = false;
                 }
             }
+
+            frameEvent.Set();
         }
 
         private void RenderRegions(GraphicsDevice gd, CommandList cl, SceneContext sc)
@@ -490,11 +545,12 @@ namespace VoxelPizza.Client
                         maxBuilds--;
                 }
 
-                if (region.UploadRequired)
+                if (region.IsUploadRequired)
                 {
                     for (int j = 0; j < uploadReady.Length; j++)
                     {
                         int uploadIndex = (j + uploadOffset) % uploadReady.Length;
+
                         if (uploadReady[uploadIndex])
                         {
                             ChunkStagingMesh? stagingMesh = region.Upload(gd, _uploadLists[uploadIndex], _stagingMeshPool);
@@ -516,7 +572,14 @@ namespace VoxelPizza.Client
                 if (triCount > 0)
                     _lastDrawCalls++;
             }
+
+            long ss = (long)(ChunkStagingMesh.totalbytesum / (1024.0 * 1024.0 * 20)) * 20;
+            if (lastbytesum != ss)
+                Console.WriteLine(ss);
+            lastbytesum = ss;
         }
+
+        long lastbytesum = 0;
 
         private void RenderMeshes(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {

@@ -30,16 +30,16 @@ namespace VoxelPizza.Client
                 (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>() * (uint)MaxChunkCount, BufferUsage.Staging));
 
             _translationBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<ChunkInfo>() * (uint)MaxChunkCount, BufferUsage.Staging));
+                (uint)Unsafe.SizeOf<ChunkInfo>() * (uint)MaxChunkCount, BufferUsage.VertexBuffer | BufferUsage.Dynamic));
 
             _indexBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<uint>() * 98304 * 16, BufferUsage.Staging));
+                (uint)Unsafe.SizeOf<uint>() * 98304 * 2, BufferUsage.IndexBuffer | BufferUsage.Dynamic));
 
             _spaceVertexBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<ChunkSpaceVertex>() * 65535 * 16, BufferUsage.Staging));
+                (uint)Unsafe.SizeOf<ChunkSpaceVertex>() * 65535 * 2, BufferUsage.VertexBuffer | BufferUsage.Dynamic));
 
             _paintVertexBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<ChunkPaintVertex>() * 65535 * 16, BufferUsage.Staging));
+                (uint)Unsafe.SizeOf<ChunkPaintVertex>() * 65535 * 2, BufferUsage.VertexBuffer | BufferUsage.Dynamic));
         }
 
         public void Upload(
@@ -51,66 +51,60 @@ namespace VoxelPizza.Client
             ref DeviceBuffer spaceVertexBuffer,
             ref DeviceBuffer paintVertexBuffer)
         {
+            if (IndexCount == 0)
+                return;
+
             uint indirectSizeInBytes = (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>() * (uint)MaxChunkCount;
             if (indirectBuffer == null || indirectBuffer.SizeInBytes < indirectSizeInBytes)
             {
                 indirectBuffer?.Dispose();
-
-                if (indirectSizeInBytes != 0)
+                indirectBuffer = factory.CreateBuffer(new BufferDescription()
                 {
-                    indirectBuffer = factory.CreateBuffer(new BufferDescription()
-                    {
-                        SizeInBytes = indirectSizeInBytes,
-                        Usage = BufferUsage.IndirectBuffer,
-                    });
-                }
+                    SizeInBytes = indirectSizeInBytes,
+                    Usage = BufferUsage.IndirectBuffer,
+                });
             }
 
             uint translationSizeInBytes = (uint)Unsafe.SizeOf<ChunkInfo>() * (uint)MaxChunkCount;
             if (translationBuffer == null || translationBuffer.SizeInBytes < translationSizeInBytes)
             {
                 translationBuffer?.Dispose();
-
-                if (translationSizeInBytes != 0)
+                translationBuffer = factory.CreateBuffer(new BufferDescription()
                 {
-                    translationBuffer = factory.CreateBuffer(new BufferDescription()
-                    {
-                        SizeInBytes = translationSizeInBytes,
-                        Usage = BufferUsage.VertexBuffer,
-                    });
-                }
+                    SizeInBytes = translationSizeInBytes,
+                    Usage = BufferUsage.VertexBuffer,
+                });
             }
 
+            // TODO: smart checks for reallocations and
+            //       separate commonly updated chunks into singular mesh instances
 
             uint indexSizeInBytes = (uint)IndexCount * sizeof(uint);
-            if (indexBuffer == null || indexBuffer.SizeInBytes < indexSizeInBytes)
+            //if (indexBuffer == null || indexBuffer.SizeInBytes < indexSizeInBytes)
             {
                 indexBuffer?.Dispose();
-
-                if (indexSizeInBytes != 0)
+                indexBuffer = factory.CreateBuffer(new BufferDescription()
                 {
-                    indexBuffer = factory.CreateBuffer(new BufferDescription()
-                    {
-                        SizeInBytes = indexSizeInBytes,
-                        Usage = BufferUsage.IndexBuffer,
-                    });
-                }
+                    SizeInBytes = indexSizeInBytes,
+                    Usage = BufferUsage.IndexBuffer,
+                });
             }
 
             uint spaceVertexSizeInBytes = (uint)(VertexCount * Unsafe.SizeOf<ChunkSpaceVertex>());
-            uint paintVertexSizeInBytes = (uint)(VertexCount * Unsafe.SizeOf<ChunkPaintVertex>());
-
-            if (spaceVertexBuffer == null || spaceVertexBuffer.SizeInBytes < spaceVertexSizeInBytes)
+            //if (spaceVertexBuffer == null || spaceVertexBuffer.SizeInBytes < spaceVertexSizeInBytes)
             {
                 spaceVertexBuffer?.Dispose();
-                paintVertexBuffer?.Dispose();
-
                 spaceVertexBuffer = factory.CreateBuffer(new BufferDescription()
                 {
                     SizeInBytes = spaceVertexSizeInBytes,
                     Usage = BufferUsage.VertexBuffer,
                 });
+            }
 
+            uint paintVertexSizeInBytes = (uint)(VertexCount * Unsafe.SizeOf<ChunkPaintVertex>());
+            //if (paintVertexBuffer == null || paintVertexBuffer.SizeInBytes < paintVertexSizeInBytes)
+            {
+                paintVertexBuffer?.Dispose();
                 paintVertexBuffer = factory.CreateBuffer(new BufferDescription()
                 {
                     SizeInBytes = paintVertexSizeInBytes,
@@ -123,7 +117,12 @@ namespace VoxelPizza.Client
             commandList.CopyBuffer(_indexBuffer, 0, indexBuffer, 0, indexSizeInBytes);
             commandList.CopyBuffer(_spaceVertexBuffer, 0, spaceVertexBuffer, 0, spaceVertexSizeInBytes);
             commandList.CopyBuffer(_paintVertexBuffer, 0, paintVertexBuffer, 0, paintVertexSizeInBytes);
+
+            long bytesum = indirectSizeInBytes + translationSizeInBytes + indexSizeInBytes + spaceVertexSizeInBytes + paintVertexSizeInBytes;
+            totalbytesum += bytesum;
         }
+
+        public static long totalbytesum = 0;
 
         public void Map(
             GraphicsDevice graphicsDevice,

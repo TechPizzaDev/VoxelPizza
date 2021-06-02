@@ -1,20 +1,31 @@
-﻿namespace VoxelPizza.Client
-{
-    public struct CubeIndexGenerator : ICubeIndexGenerator<uint>
-    {
-        public int MaxIndicesPerBlock => 6 * 6;
+﻿using System.Runtime.CompilerServices;
 
+namespace VoxelPizza.Client
+{
+    public unsafe readonly struct CubeIndexGenerator : ICubeIndexGenerator<uint>
+    {
+        public int MaxIndices => 6 * 6;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AppendQuad(ref ByteStore<uint> store, ref uint vertexOffset)
         {
-            store.AppendRange(
-                vertexOffset,
-                vertexOffset + 1,
-                vertexOffset + 2,
-                vertexOffset,
-                vertexOffset + 2,
-                vertexOffset + 3);
+            uint* ptr = store.GetAppendPtr(6);
+            ptr[0] = vertexOffset;
+            ptr[1] = vertexOffset + 1;
+            ptr[2] = vertexOffset + 2;
+            ptr[3] = vertexOffset;
+            ptr[4] = vertexOffset + 2;
+            ptr[5] = vertexOffset + 3;
 
             vertexOffset += 4;
+        }
+
+        public void AppendLast(ref ByteStore<uint> store, ref uint vertexOffset)
+        {
+        }
+
+        public void AppendFirst(ref ByteStore<uint> store, ref uint vertexOffset)
+        {
         }
 
         public void AppendBack(ref ByteStore<uint> store, ref uint vertexOffset)

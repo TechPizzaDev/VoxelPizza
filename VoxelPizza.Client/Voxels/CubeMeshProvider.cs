@@ -1,67 +1,72 @@
-﻿using System.Numerics;
-
+﻿
 namespace VoxelPizza.Client
 {
-    public class CubeMeshProvider : CullableMeshProvider
+    public class CubeMeshProvider : FaceDependentMeshProvider
     {
         // TODO: fix this temporary mess
         public TextureAnimation[] anims;
 
-        public override void Provide(
-            ref MeshState meshState,
-            uint blockId,
-            Vector3 position,
+        public override void GenerateFull(
+            ref ChunkMeshOutput meshOutput,
+            ref ChunkMesherState mesherState,
             CubeFaces faces)
         {
             var indGen = new CubeIndexGenerator();
-            var spaGen = new CubeSpaceVertexGenerator(position);
-            var paiGen = new CubePaintVertexGenerator(anims[(uint)blockId], blockId * 2);
+            var spaGen = new CubeSpaceVertexGenerator(mesherState.X, mesherState.Y, mesherState.Z);
 
-            meshState.Indices.PrepareCapacityFor(indGen.MaxIndicesPerBlock);
-            meshState.SpaceVertices.PrepareCapacityFor(spaGen.MaxVerticesPerBlock);
-            meshState.PaintVertices.PrepareCapacityFor(paiGen.MaxVerticesPerBlock);
+            uint blockId = mesherState.CenterId;
+            var paiGen = new CubePaintVertexGenerator(anims[blockId], blockId * 2);
 
-            if ((faces & CubeFaces.Top) != 0)
-            {
-                indGen.AppendTop(ref meshState.Indices, ref meshState.VertexOffset);
-                spaGen.AppendTop(ref meshState.SpaceVertices);
-                paiGen.AppendTop(ref meshState.PaintVertices);
-            }
+            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+                .GenerateFullFrom(ref meshOutput, faces, ref indGen, ref spaGen, ref paiGen);
+        }
 
-            if ((faces & CubeFaces.Bottom) != 0)
-            {
-                indGen.AppendBottom(ref meshState.Indices, ref meshState.VertexOffset);
-                spaGen.AppendBottom(ref meshState.SpaceVertices);
-                paiGen.AppendBottom(ref meshState.PaintVertices);
-            }
+        public override void GenerateIndices(
+            ref ChunkMeshOutput meshOutput,
+            ref ChunkMesherState mesherState,
+            CubeFaces faces)
+        {
+            var indGen = new CubeIndexGenerator();
 
-            if ((faces & CubeFaces.Left) != 0)
-            {
-                indGen.AppendLeft(ref meshState.Indices, ref meshState.VertexOffset);
-                spaGen.AppendLeft(ref meshState.SpaceVertices);
-                paiGen.AppendLeft(ref meshState.PaintVertices);
-            }
+            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+                .GenerateIndicesFrom(ref meshOutput, faces, ref indGen);
+        }
 
-            if ((faces & CubeFaces.Right) != 0)
-            {
-                indGen.AppendRight(ref meshState.Indices, ref meshState.VertexOffset);
-                spaGen.AppendRight(ref meshState.SpaceVertices);
-                paiGen.AppendRight(ref meshState.PaintVertices);
-            }
+        public override void GenerateSpace(
+            ref ChunkMeshOutput meshOutput,
+            ref ChunkMesherState mesherState,
+            CubeFaces faces)
+        {
+            var spaGen = new CubeSpaceVertexGenerator(mesherState.X, mesherState.Y, mesherState.Z);
 
-            if ((faces & CubeFaces.Front) != 0)
-            {
-                indGen.AppendFront(ref meshState.Indices, ref meshState.VertexOffset);
-                spaGen.AppendFront(ref meshState.SpaceVertices);
-                paiGen.AppendFront(ref meshState.PaintVertices);
-            }
+            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+                .GenerateSpaceFrom(ref meshOutput, faces, ref spaGen);
+        }
 
-            if ((faces & CubeFaces.Back) != 0)
-            {
-                indGen.AppendBack(ref meshState.Indices, ref meshState.VertexOffset);
-                spaGen.AppendBack(ref meshState.SpaceVertices);
-                paiGen.AppendBack(ref meshState.PaintVertices);
-            }
+        public override void GeneratePaint(
+            ref ChunkMeshOutput meshOutput,
+            ref ChunkMesherState mesherState,
+            CubeFaces faces)
+        {
+            uint blockId = mesherState.CenterId;
+            var paiGen = new CubePaintVertexGenerator(anims[blockId], blockId * 2);
+
+            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+                .GeneratePaintFrom(ref meshOutput, faces, ref paiGen);
+        }
+
+        public override void GenerateSpacePaint(
+            ref ChunkMeshOutput meshOutput,
+            ref ChunkMesherState mesherState,
+            CubeFaces faces)
+        {
+            var spaGen = new CubeSpaceVertexGenerator(mesherState.X, mesherState.Y, mesherState.Z);
+
+            uint blockId = mesherState.CenterId;
+            var paiGen = new CubePaintVertexGenerator(anims[blockId], blockId * 2);
+
+            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+                .GenerateSpacePaintFrom(ref meshOutput, faces, ref spaGen, ref paiGen);
         }
     }
 }

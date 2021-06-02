@@ -6,25 +6,34 @@ namespace VoxelPizza.Client
     public enum BlockVisualFeatures : byte
     {
         None = 0,
+        
+        /// <summary>
+        /// The meshing requests nearest neighbors.
+        /// </summary>
+        NeighborNear = 1 << 0,
+
+        NeighborFar = 1 << 1,
 
         /// <summary>
-        /// The block can cull individual sides.
+        /// The meshing requests 3x3 of neighbor blocks around the center.
         /// </summary>
-        CullableSides = 1 << 0,
+        NeighborCorners = 1 << 2,
+
+        NeighborAll = NeighborNear | NeighborFar | NeighborCorners,
 
         /// <summary>
-        /// The block can be either fully visible or fully culled.
+        /// The mesher acts based on the nearest neighboring faces.
         /// </summary>
-        CullableVisibility = 1 << 1,
-
+        FaceDependent = 1 << 3 | NeighborNear,
+        
         /// <summary>
-        /// The block can be culled.
+        /// Determines whether meshing should be skipped early when lacking any exposed faces.
         /// </summary>
-        CullableAny = CullableSides | CullableVisibility,
+        SkipIfObstructed = 1 << 4 | FaceDependent,
 
         /// <summary>
         /// The block emits light.
         /// </summary>
-        LightEmitter = 1 << 2,
+        LightEmitter = 1 << 5,
     }
 }

@@ -1,30 +1,34 @@
 ﻿using System;
+using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Client
 {
-    public class ChunkMesher
+    public partial class ChunkMesher
     {
-        private BlockEliminaryDescription[] descs;
+        private BlockVisualFeatures[] visualFeatures;
+        private CubeFaces[] oppositeBlockingFaces;
         private TextureAnimation[] anims;
         private MeshProvider?[] meshProviders;
 
         public HeapPool Pool { get; }
 
-        public ChunkMesher(HeapPool pool)
+        public unsafe ChunkMesher(HeapPool pool)
         {
             Pool = pool ?? throw new ArgumentNullException(nameof(pool));
 
-
-            descs = new BlockEliminaryDescription[1025];
-            anims = new TextureAnimation[descs.Length];
-            meshProviders = new MeshProvider?[descs.Length];
+            visualFeatures = new BlockVisualFeatures[1025];
+            oppositeBlockingFaces = new CubeFaces[visualFeatures.Length];
+            anims = new TextureAnimation[visualFeatures.Length];
+            meshProviders = new MeshProvider?[visualFeatures.Length];
 
             Random rng = new Random(1234);
-            for (int i = 1; i < descs.Length; i++)
+            for (int i = 1; i < visualFeatures.Length; i++)
             {
-                descs[i] = new(CubeFaces.All, BlockVisualFeatures.CullableSides);
+                visualFeatures[i] = BlockVisualFeatures.FaceDependent | BlockVisualFeatures.SkipIfObstructed;
+                oppositeBlockingFaces[i] = CubeFaces.All.Opposite();
                 meshProviders[i] = new CubeMeshProvider() { anims = anims };
 
                 int stepCount = i < 1016 ? 8 : 2;
@@ -54,6 +58,53 @@ namespace VoxelPizza.Client
             //};
         }
 
+        private static void GetBlockRow(
+            nint y,
+            nint z,
+            ref uint destination,
+            Chunk chunk,
+            Chunk? frontChunk,
+            Chunk? backChunk,
+            Chunk? topChunk,
+            Chunk? bottomChunk)
+        {
+            if (y == -1)
+            {
+                if (bottomChunk == null)
+                    goto Clear;
+                bottomChunk.GetBlockRowUnsafe(Chunk.Height - 1, z, ref destination);
+            }
+            else if (y == Chunk.Height)
+            {
+                if (topChunk == null)
+                    goto Clear;
+                topChunk.GetBlockRowUnsafe(0, z, ref destination);
+            }
+            else if (z == -1)
+            {
+                if (backChunk == null)
+                    goto Clear;
+                backChunk.GetBlockRowUnsafe(y, Chunk.Depth - 1, ref destination);
+            }
+            else if (z == Chunk.Depth)
+            {
+                if (frontChunk == null)
+                    goto Clear;
+                frontChunk.GetBlockRowUnsafe(y, 0, ref destination);
+            }
+            else
+            {
+                chunk.GetBlockRowUnsafe(y, z, ref destination);
+            }
+            return;
+
+            Clear:
+            Unsafe.InitBlockUnaligned(
+                startAddress: ref Unsafe.As<uint, byte>(ref destination),
+                value: 0,
+                byteCount: sizeof(uint) * Chunk.Width);
+        }
+
         [SkipLocalsInit]
         public unsafe ChunkMeshResult Mesh(
             Chunk chunk,
@@ -64,6 +115,9 @@ namespace VoxelPizza.Client
             Chunk? leftChunk,
             Chunk? rightChunk)
         {
+            // TODO: chunk/draw layers (seperate mesh provider arrays per layer)?
+            //       e.g. this could allow for vertices (including custom) for a "gas" or "fluid" layer 
+
             int storePrepareCapacity = 1024;
             var indexStore = new ByteStore<uint>(Pool, storePrepareCapacity * 6);
             var spaceVertexStore = new ByteStore<ChunkSpaceVertex>(Pool, storePrepareCapacity * 4);
@@ -71,85 +125,77 @@ namespace VoxelPizza.Client
 
             try
             {
-                MeshState meshState = new(
+                ChunkMeshOutput meshOutput = new(
                     ref indexStore,
                     ref spaceVertexStore,
                     ref paintVertexStore,
                     0);
 
-                uint* centerRow = stackalloc uint[Chunk.Width + 2];
-                uint* bottomRow = stackalloc uint[Chunk.Width];
-                uint* topRow = stackalloc uint[Chunk.Width];
-                uint* frontRow = stackalloc uint[Chunk.Width];
-                uint* backRow = stackalloc uint[Chunk.Width];
-                Span<uint> centerSpan = new(centerRow + 1, Chunk.Width);
-                Span<uint> bottomSpan = new(bottomRow, Chunk.Width);
-                Span<uint> topSpan = new(topRow, Chunk.Width);
-                Span<uint> frontSpan = new(frontRow, Chunk.Width);
-                Span<uint> backSpan = new(backRow, Chunk.Width);
+                //uint maxBlockIdExclusive = (uint)meshProviders.Length;
 
-                void GetBlockRow(int y, int z, Span<uint> destination)
+                const int rowBufferLength = (Chunk.Width + 2) * 5;
+                uint* rowBuffer = stackalloc uint[rowBufferLength];
+
+                Span<uint> leftSideRowBuffer = stackalloc uint[Chunk.Depth];
+                if (leftChunk == null)
+                    leftSideRowBuffer.Clear();
+
+                Span<uint> rightSideRowBuffer = stackalloc uint[Chunk.Depth];
+                if (rightChunk == null)
+                    rightSideRowBuffer.Clear();
+
+                ChunkMesherState mesherState = new(
+                    visualFeatures,
+                    oppositeBlockingFaces,
+                    meshProviders,
+                    new Span<uint>(rowBuffer, rowBufferLength));
+
+                ref uint centerSideLeft = ref mesherState.CenterRowL;
+                ref uint centerSideRight = ref Unsafe.Add(ref centerSideLeft, Chunk.Width + 1);
+                ref uint leftSideRow = ref MemoryMarshal.GetReference(leftSideRowBuffer);
+                ref uint rightSideRow = ref MemoryMarshal.GetReference(rightSideRowBuffer);
+
+                ref uint centerRow = ref mesherState.CenterRow;
+                ref uint bottomRow = ref mesherState.BottomRow;
+                ref uint topRow = ref mesherState.TopRow;
+                ref uint frontRow = ref mesherState.FrontRow;
+                ref uint backRow = ref mesherState.BackRow;
+
+                for (nint y = 0; y < Chunk.Height; y++)
                 {
-                    if (y == -1)
-                    {
-                        if (bottomChunk == null)
-                            goto Clear;
-                        bottomChunk.GetBlockRow(Chunk.Height - 1, z, destination);
-                    }
-                    else if (y == Chunk.Height)
-                    {
-                        if (topChunk == null)
-                            goto Clear;
-                        topChunk.GetBlockRow(0, z, destination);
-                    }
-                    else if (z == -1)
-                    {
-                        if (backChunk == null)
-                            goto Clear;
-                        backChunk.GetBlockRow(y, Chunk.Depth - 1, destination);
-                    }
-                    else if (z == Chunk.Depth)
-                    {
-                        if (frontChunk == null)
-                            goto Clear;
-                        frontChunk.GetBlockRow(y, 0, destination);
-                    }
-                    else
-                    {
-                        chunk.GetBlockRow(y, z, destination);
-                    }
-                    return;
+                    GetBlockRow(y, -1, ref backRow, chunk, frontChunk, backChunk, topChunk, bottomChunk);
+                    GetBlockRow(y, 0, ref centerRow, chunk, frontChunk, backChunk, topChunk, bottomChunk);
 
-                    Clear:
-                    destination.Clear();
-                }
+                    if (leftChunk != null)
+                        leftChunk.GetBlockSideRowUnsafe(y, Chunk.Width - 1, ref leftSideRow);
 
-                for (int y = 0; y < Chunk.Height; y++)
-                {
-                    GetBlockRow(y, -1, backSpan);
-                    GetBlockRow(y, 0, centerSpan);
-                    centerRow[0] = 0;
-                    centerRow[Chunk.Width + 1] = 0;
+                    if (rightChunk != null)
+                        rightChunk.GetBlockSideRowUnsafe(0, y, ref rightSideRow);
 
-                    for (int z = 0; z < Chunk.Depth; z++)
+                    for (nint z = 0; z < Chunk.Depth; z++)
                     {
-                        if (leftChunk != null)
-                            centerRow[0] = leftChunk.GetBlock(Chunk.Width - 1, y, z);
-                        if (rightChunk != null)
-                            centerRow[Chunk.Width + 1] = rightChunk.GetBlock(0, y, z);
+                        centerSideLeft = Unsafe.Add(ref leftSideRow, z);
+                        centerSideRight = Unsafe.Add(ref rightSideRow, z);
 
-                        GetBlockRow(y - 1, z, bottomSpan);
-                        GetBlockRow(y + 1, z, topSpan);
-                        GetBlockRow(y, z + 1, frontSpan);
+                        GetBlockRow(y - 1, z, ref bottomRow, chunk, frontChunk, backChunk, topChunk, bottomChunk);
+                        GetBlockRow(y + 1, z, ref topRow, chunk, frontChunk, backChunk, topChunk, bottomChunk);
+                        GetBlockRow(y, z + 1, ref frontRow, chunk, frontChunk, backChunk, topChunk, bottomChunk);
 
-                        AppendBody(
-                            ref meshState, y, z,
-                            descs, meshProviders,
-                            centerRow + 1, bottomRow, topRow, frontRow, backRow);
+                        mesherState.Y = y;
+                        mesherState.Z = z;
 
-                        // Copy back existing data to reduce getting it from the chunk.
-                        centerSpan.CopyTo(backSpan);
-                        frontSpan.CopyTo(centerSpan);
+                        MeshRow(ref meshOutput, ref mesherState);
+
+                        // Swap loaded rows to reduce access to chunks.
+                        Unsafe.CopyBlockUnaligned(
+                            destination: ref Unsafe.As<uint, byte>(ref backRow),
+                            source: ref Unsafe.As<uint, byte>(ref centerRow),
+                            byteCount: sizeof(uint) * Chunk.Width);
+
+                        Unsafe.CopyBlockUnaligned(
+                            destination: ref Unsafe.As<uint, byte>(ref centerRow),
+                            source: ref Unsafe.As<uint, byte>(ref frontRow),
+                            byteCount: sizeof(uint) * Chunk.Width);
                     }
                 }
 
@@ -163,62 +209,69 @@ namespace VoxelPizza.Client
             }
         }
 
-        private unsafe void AppendBody(
-            ref MeshState state,
-            float y,
-            float z,
-            BlockEliminaryDescription[] eliminaryDescriptions,
-            MeshProvider?[] meshProviders,
-            uint* centerRow,
-            uint* bottomRow,
-            uint* topRow,
-            uint* frontRow,
-            uint* backRow)
+        [SkipLocalsInit]
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        private static unsafe void MeshRow(
+            ref ChunkMeshOutput meshOutput,
+            ref ChunkMesherState mesherState)
         {
-            uint* centerRowL = centerRow - 1;
-            uint* centerRowR = centerRow + 1;
+            ref MeshProvider? meshProviders = ref MemoryMarshal.GetReference(mesherState.MeshProviders);
+            ref BlockVisualFeatures visualFeatures = ref MemoryMarshal.GetReference(mesherState.VisualFeatures);
+            ref CubeFaces oppositeBlockingFaces = ref MemoryMarshal.GetReference(mesherState.OppositeBlockingFaces);
 
-            ref BlockEliminaryDescription descs = ref eliminaryDescriptions[0];
+            ref uint coreRow = ref mesherState.CenterRow;
+            ref uint coreRowL = ref mesherState.CenterRowL;
+            ref uint coreRowR = ref mesherState.CenterRowR;
+            ref uint bottomRow = ref mesherState.BottomRow;
+            ref uint topRow = ref mesherState.TopRow;
+            ref uint frontRow = ref mesherState.FrontRow;
+            ref uint backRow = ref mesherState.BackRow;
 
-            for (int x = 0; x < Chunk.Width; x++)
+            for (nint x = 0; x < Chunk.Width; x++)
             {
-                uint centerId = centerRow[x];
+                nint coreId = (nint)Unsafe.Add(ref coreRow, x);
 
-                MeshProvider? meshProvider = meshProviders[centerId];
+                MeshProvider? meshProvider = Unsafe.Add(ref meshProviders, coreId);
                 if (meshProvider == null)
+                {
                     continue;
+                }
 
-                BlockVisualFeatures features = Unsafe.Add(ref descs, (int)centerId).Features;
+                uint features = (uint)Unsafe.Add(ref visualFeatures, coreId);
 
-                if ((features & BlockVisualFeatures.CullableAny) != 0)
+                if ((features & (uint)BlockVisualFeatures.FaceDependent) == (uint)BlockVisualFeatures.FaceDependent)
                 {
-                    uint leftId = centerRowL[x];
-                    uint rightId = centerRowR[x];
-                    uint bottomId = bottomRow[x];
-                    uint topId = topRow[x];
-                    uint frontId = frontRow[x];
-                    uint backId = backRow[x];
+                    uint faces = (uint)CubeFaces.All;
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref coreRowL, x)) & CubeFaces.Left);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref coreRowR, x)) & CubeFaces.Right);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref bottomRow, x)) & CubeFaces.Bottom);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref topRow, x)) & CubeFaces.Top);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref frontRow, x)) & CubeFaces.Front);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref backRow, x)) & CubeFaces.Back);
 
-                    CubeFaces faces = CubeFaces.All;
-                    faces &= ~(Unsafe.Add(ref descs, (int)leftId).OppositeBlockingFaces & CubeFaces.Left);
-                    faces &= ~(Unsafe.Add(ref descs, (int)rightId).OppositeBlockingFaces & CubeFaces.Right);
-                    faces &= ~(Unsafe.Add(ref descs, (int)bottomId).OppositeBlockingFaces & CubeFaces.Bottom);
-                    faces &= ~(Unsafe.Add(ref descs, (int)topId).OppositeBlockingFaces & CubeFaces.Top);
-                    faces &= ~(Unsafe.Add(ref descs, (int)frontId).OppositeBlockingFaces & CubeFaces.Front);
-                    faces &= ~(Unsafe.Add(ref descs, (int)backId).OppositeBlockingFaces & CubeFaces.Back);
-
-                    var cullableProvider = Unsafe.As<CullableMeshProvider>(meshProvider);
-                    if (!cullableProvider.IsEmpty(faces))
+                    if ((features & (uint)BlockVisualFeatures.SkipIfObstructed) == (uint)BlockVisualFeatures.SkipIfObstructed)
                     {
-                        Vector3 position = new(x, y, z);
-                        cullableProvider.Provide(ref state, centerId, position, faces);
+                        if (faces == (uint)CubeFaces.None)
+                        {
+                            continue;
+                        }
                     }
+
+                    mesherState.X = x;
+
+                    Unsafe.As<FaceDependentMeshProvider>(meshProvider).GenerateFull(
+                        ref meshOutput,
+                        ref mesherState,
+                        (CubeFaces)faces);
+
+                    continue;
                 }
-                else
-                {
-                    Vector3 position = new(x, y, z);
-                    meshProvider.Provide(ref state, centerId, position);
-                }
+
+                mesherState.X = x;
+
+                meshProvider.GenerateFull(
+                    ref meshOutput,
+                    ref mesherState);
             }
         }
     }

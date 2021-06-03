@@ -142,7 +142,7 @@ namespace VoxelPizza.Client
                     });
 
                     int count = 0;
-                    //foreach (var (x, y, z) in list)
+                    foreach (var (x, y, z) in list)
                     {
                         var chunk = new Chunk(new(x, y, z));
 

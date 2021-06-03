@@ -6,7 +6,7 @@ namespace VoxelPizza.Client
 {
     public class ChunkStagingMesh : IDisposable
     {
-        public int MaxChunkCount { get; }
+        public uint MaxChunkCount { get; }
 
         public int DrawCount { get; set; }
         public int IndexCount { get; set; }
@@ -18,19 +18,17 @@ namespace VoxelPizza.Client
         public DeviceBuffer _spaceVertexBuffer;
         public DeviceBuffer _paintVertexBuffer;
 
-        public ChunkStagingMesh(ResourceFactory factory, int maxChunkCount)
+        public ChunkStagingMesh(ResourceFactory factory, uint maxChunkCount)
         {
             if (factory == null)
                 throw new ArgumentNullException(nameof(factory));
-            if (maxChunkCount < 0)
-                throw new ArgumentOutOfRangeException(nameof(maxChunkCount));
             MaxChunkCount = maxChunkCount;
 
             _indirectBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>() * (uint)MaxChunkCount, BufferUsage.Staging));
+                (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>() * MaxChunkCount, BufferUsage.Staging));
 
             _translationBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<ChunkInfo>() * (uint)MaxChunkCount, BufferUsage.VertexBuffer | BufferUsage.Dynamic));
+                (uint)Unsafe.SizeOf<ChunkInfo>() * MaxChunkCount, BufferUsage.VertexBuffer | BufferUsage.Dynamic));
 
             _indexBuffer = factory.CreateBuffer(new BufferDescription(
                 (uint)Unsafe.SizeOf<uint>() * 98304 * 2, BufferUsage.IndexBuffer | BufferUsage.Dynamic));

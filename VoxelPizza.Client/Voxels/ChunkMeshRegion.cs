@@ -50,7 +50,7 @@ namespace VoxelPizza.Client
 
         public ChunkRenderer Renderer { get; }
         public ChunkRegionPosition Position { get; }
-        public Int3 Size { get; }
+        public UInt3 Size { get; }
 
         public int DrawCount { get; private set; }
         public int IndexCount { get; private set; }
@@ -62,13 +62,10 @@ namespace VoxelPizza.Client
         public int RegionX => Position.X;
         public int RegionY => Position.Y;
         public int RegionZ => Position.Z;
-        public int Volume => Size.X * Size.Y * Size.Z;
+        public uint Volume => Size.X * Size.Y * Size.Z;
 
-        public ChunkMeshRegion(ChunkRenderer chunkRenderer, ChunkRegionPosition position, Int3 size)
+        public ChunkMeshRegion(ChunkRenderer chunkRenderer, ChunkRegionPosition position, UInt3 size)
         {
-            if (size.IsNegative())
-                throw new ArgumentOutOfRangeException(nameof(size));
-
             Renderer = chunkRenderer ?? throw new ArgumentNullException(nameof(chunkRenderer));
             Position = position;
             Size = size;
@@ -76,8 +73,6 @@ namespace VoxelPizza.Client
             _chunks = new StoredChunk[size.Y, size.Z, size.X];
             _chunksToUpload = new();
         }
-
-        // int regionX, int regionY, int regionZ new ChunkRegionPosition(regionX, regionY, regionZ)
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
@@ -101,9 +96,9 @@ namespace VoxelPizza.Client
         public ChunkPosition GetLocalChunkPosition(ChunkPosition position)
         {
             return new ChunkPosition(
-                position.X % Size.X,
-                position.Y % Size.Y,
-                position.Z % Size.Z);
+                (int)((uint)position.X % Size.X),
+                (int)((uint)position.Y % Size.Y),
+                (int)((uint)position.Z % Size.Z));
         }
 
         public Chunk? GetChunk(ChunkPosition position)

@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.X86;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client
@@ -31,7 +29,7 @@ namespace VoxelPizza.Client
         public void GetBlockRowUnsafe(nint y, nint z, ref uint destination)
         {
             ref uint blocksBase = ref MemoryMarshal.GetArrayDataReference(Blocks);
-            ref ulong blocks = ref Unsafe.As<uint, ulong>(ref Unsafe.Add(ref blocksBase, Width * (y + Depth * z)));
+            ref ulong blocks = ref Unsafe.As<uint, ulong>(ref Unsafe.Add(ref blocksBase, BlockPosition.GetIndex(0, y, z)));
             ref ulong dst = ref Unsafe.As<uint, ulong>(ref destination);
 
             Unsafe.Add(ref dst, 0) = Unsafe.Add(ref blocks, 0);
@@ -68,7 +66,17 @@ namespace VoxelPizza.Client
 
         public void GetBlockLayer(int y, Span<uint> destination)
         {
-            Blocks.AsSpan(Width * (y + Depth), Width * Depth).CopyTo(destination);
+            Blocks.AsSpan(BlockPosition.GetIndex(0, y, 0), Width * Depth).CopyTo(destination);
+        }
+
+        public void SetBlockLayer(int y, ReadOnlySpan<uint> source)
+        {
+            source.Slice(0, Width * Depth).CopyTo(Blocks.AsSpan(BlockPosition.GetIndex(0, y, 0), Width * Depth));
+        }
+
+        public void SetBlockLayer(int y, uint source)
+        {
+            Blocks.AsSpan(BlockPosition.GetIndex(0, y, 0), Width * Depth).Fill(source);
         }
 
         public uint GetBlock(int x, int y, int z)

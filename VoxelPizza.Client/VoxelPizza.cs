@@ -13,6 +13,7 @@ using Veldrid.ImageSharp;
 using Veldrid.Sdl2;
 using Veldrid.Utilities;
 using VoxelPizza.Client.Objects;
+using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Client
 {
@@ -91,7 +92,7 @@ namespace VoxelPizza.Client
             //particlePlane = new ParticlePlane(_scene.Camera);
             //_scene.AddRenderable(particlePlane);
 
-            ChunkRenderer = new ChunkRenderer(_scene.Camera, new Numerics.Int3(4, 3, 4));
+            ChunkRenderer = new ChunkRenderer(_scene.Camera, new UInt3(4, 3, 4));
             _scene.AddUpdateable(ChunkRenderer);
             _scene.AddRenderable(ChunkRenderer);
             

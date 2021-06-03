@@ -53,21 +53,18 @@ namespace VoxelPizza.Client
         private int _lastDrawCalls;
 
         public Camera Camera { get; }
-        public Int3 RegionSize { get; }
+        public UInt3 RegionSize { get; }
         public HeapPool ChunkMeshPool { get; }
         public ChunkMesher ChunkMesher { get; }
 
         public ResourceLayout ChunkInfoLayout { get; private set; }
 
-        public int RegionVolume => RegionSize.X * RegionSize.Y * RegionSize.Z;
+        public uint RegionVolume => RegionSize.X * RegionSize.Y * RegionSize.Z;
 
         public override RenderPasses RenderPasses => RenderPasses.Opaque;
 
-        public ChunkRenderer(Camera camera, Int3 regionSize)
+        public ChunkRenderer(Camera camera, UInt3 regionSize)
         {
-            if (regionSize.IsNegative())
-                throw new ArgumentOutOfRangeException(nameof(regionSize));
-
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             RegionSize = regionSize;
             ChunkMeshPool = new HeapPool(1024 * 1024 * 16);
@@ -86,12 +83,18 @@ namespace VoxelPizza.Client
             StartThread();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int DivideRoundDown(int a, int b)
+        {
+            return (a / b) + ((a % b) >> 31);
+        }
+
         public ChunkRegionPosition GetRegionPosition(ChunkPosition chunkPosition)
         {
             return new ChunkRegionPosition(
-                chunkPosition.X / RegionSize.X,
-                chunkPosition.Y / RegionSize.Y,
-                chunkPosition.Z / RegionSize.Z);
+                DivideRoundDown(chunkPosition.X, (int)RegionSize.X),
+                DivideRoundDown(chunkPosition.Y, (int)RegionSize.Y),
+                DivideRoundDown(chunkPosition.Z, (int)RegionSize.Z));
         }
 
         public void StartThread()
@@ -104,11 +107,11 @@ namespace VoxelPizza.Client
 
                     int width = 24;
                     int depth = width;
-                    int height = 3;
+                    int height = 4;
 
                     var list = new List<(int x, int y, int z)>();
 
-                    for (int y = 0; y < height; y++)
+                    for (int y = -1; y < height; y++)
                     {
                         for (int z = 0; z < depth; z++)
                         {
@@ -139,10 +142,14 @@ namespace VoxelPizza.Client
                     });
 
                     int count = 0;
-                    foreach (var (x, y, z) in list)
+                    //foreach (var (x, y, z) in list)
                     {
                         var chunk = new Chunk(new(x, y, z));
-                        chunk.Generate();
+
+                        if (y < 0)
+                            chunk.SetBlockLayer(15, 1);
+                        else
+                            chunk.Generate();
 
                         lock (_chunks)
                             _chunks.Add(chunk.Position, chunk);
@@ -174,9 +181,9 @@ namespace VoxelPizza.Client
 
                     for (int y = 0; y < height; y++)
                     {
-                        for (int z = 0; z < depth; z++)
+                        for (int z = 1; z < depth - 1; z++)
                         {
-                            for (int x = 0; x < width; x++)
+                            for (int x = 1; x < width - 1; x++)
                             {
                                 var pp = new ChunkPosition(x, y, z);
                                 ChunkRegionPosition regionPosition = GetRegionPosition(pp);

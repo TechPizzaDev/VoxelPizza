@@ -10,9 +10,9 @@ namespace VoxelPizza.Client
         private ConcurrentStack<ChunkStagingMesh> _pool;
 
         public ResourceFactory Factory { get; }
-        public int MaxChunksPerMesh { get; }
+        public uint MaxChunksPerMesh { get; }
 
-        public ChunkStagingMeshPool(ResourceFactory factory, int maxChunksPerMesh)
+        public ChunkStagingMeshPool(ResourceFactory factory, uint maxChunksPerMesh)
         {
             if (maxChunksPerMesh < 0)
                 throw new ArgumentOutOfRangeException(nameof(maxChunksPerMesh));

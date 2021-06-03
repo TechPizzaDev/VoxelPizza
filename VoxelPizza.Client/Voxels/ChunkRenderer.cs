@@ -102,7 +102,7 @@ namespace VoxelPizza.Client
                 {
                     //Thread.Sleep(2000);
 
-                    int width = 4;
+                    int width = 24;
                     int depth = width;
                     int height = 3;
 
@@ -186,7 +186,7 @@ namespace VoxelPizza.Client
                         }
                     }
 
-                    //return;
+                    return;
 
                     Random rng = new Random(1234);
                     for (int i = 0; i < (64 * 1024) / (width * height * depth); i++)

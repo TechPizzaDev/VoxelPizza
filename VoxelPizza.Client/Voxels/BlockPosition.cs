@@ -20,5 +20,11 @@ namespace VoxelPizza.Client
         {
             return x + Chunk.Width * (y + Chunk.Depth * z);
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static nint GetIndex(nint x, nint y, nint z)
+        {
+            return x + Chunk.Width * (y + Chunk.Depth * z);
+        }
     }
 }

@@ -48,22 +48,22 @@ namespace VoxelPizza.Client
         {
             ref uint blocks = ref MemoryMarshal.GetArrayDataReference(Blocks);
 
-            Unsafe.Add(ref destination, 0) = Unsafe.Add(ref blocks, Width * (y + Depth * 0) + x);
-            Unsafe.Add(ref destination, 1) = Unsafe.Add(ref blocks, Width * (y + Depth * 1) + x);
-            Unsafe.Add(ref destination, 2) = Unsafe.Add(ref blocks, Width * (y + Depth * 2) + x);
-            Unsafe.Add(ref destination, 3) = Unsafe.Add(ref blocks, Width * (y + Depth * 3) + x);
-            Unsafe.Add(ref destination, 4) = Unsafe.Add(ref blocks, Width * (y + Depth * 4) + x);
-            Unsafe.Add(ref destination, 5) = Unsafe.Add(ref blocks, Width * (y + Depth * 5) + x);
-            Unsafe.Add(ref destination, 6) = Unsafe.Add(ref blocks, Width * (y + Depth * 6) + x);
-            Unsafe.Add(ref destination, 7) = Unsafe.Add(ref blocks, Width * (y + Depth * 7) + x);
-            Unsafe.Add(ref destination, 8) = Unsafe.Add(ref blocks, Width * (y + Depth * 8) + x);
-            Unsafe.Add(ref destination, 9) = Unsafe.Add(ref blocks, Width * (y + Depth * 9) + x);
-            Unsafe.Add(ref destination, 10) = Unsafe.Add(ref blocks, Width * (y + Depth * 10) + x);
-            Unsafe.Add(ref destination, 11) = Unsafe.Add(ref blocks, Width * (y + Depth * 11) + x);
-            Unsafe.Add(ref destination, 12) = Unsafe.Add(ref blocks, Width * (y + Depth * 12) + x);
-            Unsafe.Add(ref destination, 13) = Unsafe.Add(ref blocks, Width * (y + Depth * 13) + x);
-            Unsafe.Add(ref destination, 14) = Unsafe.Add(ref blocks, Width * (y + Depth * 14) + x);
-            Unsafe.Add(ref destination, 15) = Unsafe.Add(ref blocks, Width * (y + Depth * 15) + x);
+            Unsafe.Add(ref destination, 0) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 0));
+            Unsafe.Add(ref destination, 1) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 1));
+            Unsafe.Add(ref destination, 2) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 2));
+            Unsafe.Add(ref destination, 3) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 3));
+            Unsafe.Add(ref destination, 4) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 4));
+            Unsafe.Add(ref destination, 5) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 5));
+            Unsafe.Add(ref destination, 6) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 6));
+            Unsafe.Add(ref destination, 7) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 7));
+            Unsafe.Add(ref destination, 8) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 8));
+            Unsafe.Add(ref destination, 9) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 9));
+            Unsafe.Add(ref destination, 10) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 10));
+            Unsafe.Add(ref destination, 11) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 11));
+            Unsafe.Add(ref destination, 12) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 12));
+            Unsafe.Add(ref destination, 13) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 13));
+            Unsafe.Add(ref destination, 14) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 14));
+            Unsafe.Add(ref destination, 15) = Unsafe.Add(ref blocks, BlockPosition.GetIndex(x, y, 15));
         }
 
         public void GetBlockLayer(int y, Span<uint> destination)

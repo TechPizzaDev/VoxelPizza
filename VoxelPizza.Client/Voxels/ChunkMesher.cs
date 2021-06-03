@@ -170,7 +170,7 @@ namespace VoxelPizza.Client
                         leftChunk.GetBlockSideRowUnsafe(y, Chunk.Width - 1, ref leftSideRow);
 
                     if (rightChunk != null)
-                        rightChunk.GetBlockSideRowUnsafe(0, y, ref rightSideRow);
+                        rightChunk.GetBlockSideRowUnsafe(y, 0, ref rightSideRow);
 
                     for (nint z = 0; z < Chunk.Depth; z++)
                     {

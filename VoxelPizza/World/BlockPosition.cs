@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.World
 {
     public struct BlockPosition
     {

@@ -1,15 +1,17 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using VoxelPizza.World;
+using VoxelPizza.Numerics;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.World
 {
     public class Chunk
     {
         public const int Width = 16;
         public const int Depth = 16;
         public const int Height = 16;
+
+        public static Size3 Size => new(Width, Height, Depth);
 
         public uint[] Blocks;
 

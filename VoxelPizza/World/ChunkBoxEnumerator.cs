@@ -1,26 +1,11 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
-    public struct ChunkBox
-    {
-        public ChunkPosition Chunk { get; }
-        public BlockPosition OuterOrigin { get; }
-        public BlockPosition InnerOrigin { get; }
-        public Size3 Size { get; }
-
-        public ChunkBox(ChunkPosition chunk, BlockPosition outerOrigin, BlockPosition innerOrigin, Size3 size)
-        {
-            Chunk = chunk;
-            OuterOrigin = outerOrigin;
-            InnerOrigin = innerOrigin;
-            Size = size;
-        }
-    }
-
     public struct ChunkBoxEnumerator : IEnumerator<ChunkBox>
     {
         private int processedY;
@@ -42,30 +27,40 @@ namespace VoxelPizza.World
         public Size3 Size { get; }
         public BlockPosition Max { get; }
 
-        public ChunkPosition CurrentChunk => new(chunkX, chunkY, chunkZ);
+        public readonly ChunkPosition CurrentChunk => new(chunkX, chunkY, chunkZ);
 
-        public ChunkBox Current
+        public readonly BlockPosition CurrentInnerOrigin => new(
+            (int)((uint)blockX % Chunk.Width),
+            (int)((uint)blockY % Chunk.Height),
+            (int)((uint)blockZ % Chunk.Depth));
+
+        public readonly BlockPosition CurrentOuterOrigin => new(
+            blockX - Origin.X,
+            blockY - Origin.Y,
+            blockZ - Origin.Z);
+
+        public readonly Size3 CurrentSize
+        {
+            get
+            {
+                Debug.Assert(width >= 0 && height >= 0 && depth >= 0);
+                return new Size3((uint)width, (uint)height, (uint)depth);
+            }
+        }
+
+        public readonly ChunkBox Current
         {
             get
             {
                 ChunkPosition chunk = CurrentChunk;
-                Size3 size = new((uint)width, (uint)height, (uint)depth);
-
-                BlockPosition innerOrigin = new(
-                    (int)((uint)blockX % Chunk.Width),
-                    (int)((uint)blockY % Chunk.Depth),
-                    (int)((uint)blockZ % Chunk.Height));
-
-                BlockPosition outerOrigin = new(
-                    (blockX - Origin.X),
-                    (blockY - Origin.Y),
-                    (blockZ - Origin.Z));
-
+                BlockPosition innerOrigin = CurrentInnerOrigin;
+                BlockPosition outerOrigin = CurrentOuterOrigin;
+                Size3 size = CurrentSize;
                 return new ChunkBox(chunk, outerOrigin, innerOrigin, size);
             }
         }
 
-        object IEnumerator.Current => Current;
+        readonly object IEnumerator.Current => Current;
 
         public ChunkBoxEnumerator(BlockPosition origin, Size3 size) : this()
         {
@@ -77,7 +72,7 @@ namespace VoxelPizza.World
             UpdateZ();
         }
 
-        public ChunkBoxEnumerator GetEnumerator()
+        public readonly ChunkBoxEnumerator GetEnumerator()
         {
             return this;
         }

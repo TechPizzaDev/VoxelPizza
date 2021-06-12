@@ -16,5 +16,10 @@ namespace VoxelPizza.Client
 
             Data = new uint[OuterSize.Volume];
         }
+
+        public static nint GetIndexBase(nint depth, nint width, nint y, nint z)
+        {
+            return (y * depth + z) * width;
+        }
     }
 }

@@ -19,6 +19,11 @@ namespace VoxelPizza.Client
 
     public class ChunkRenderer : Renderable, IUpdateable
     {
+        /// <summary>
+        /// The amount of blocks that are fetched around a chunk for meshing.
+        /// </summary>
+        public const int FetchBlockMargin = 2;
+
         private DisposeCollector _disposeCollector;
         private string _graphicsDeviceName;
         private string _graphicsBackendName;
@@ -643,7 +648,7 @@ namespace VoxelPizza.Client
 
                 if (_chunks.TryGetValue(chunkBox.Chunk, out Chunk? chunk))
                 {
-                    int innerOriginX = chunkBox.InnerOrigin.X;
+                    nint innerOriginX = chunkBox.InnerOrigin.X;
                     nint innerOriginY = chunkBox.InnerOrigin.Y;
                     nint innerOriginZ = chunkBox.InnerOrigin.Z;
 
@@ -651,7 +656,7 @@ namespace VoxelPizza.Client
                     {
                         for (nint z = 0; z < innerSizeD; z++)
                         {
-                            nint outerBaseIndex = Chunk.GetIndexBase(
+                            nint outerBaseIndex = BlockMemory.GetIndexBase(
                                 outerSizeD,
                                 outerSizeW,
                                 y + outerOriginY,
@@ -675,7 +680,7 @@ namespace VoxelPizza.Client
                     {
                         for (nint z = 0; z < innerSizeD; z++)
                         {
-                            nint outerBaseIndex = Chunk.GetIndexBase(
+                            nint outerBaseIndex = BlockMemory.GetIndexBase(
                                 outerSizeD,
                                 outerSizeW,
                                 y + outerOriginY,
@@ -706,8 +711,14 @@ namespace VoxelPizza.Client
 
         public Size3 GetBlockMemoryOuterSize()
         {
+            const int doubleMargin = FetchBlockMargin * 2;
+
             Size3 innerSize = GetBlockMemoryInnerSize();
-            return new Size3(innerSize.W + 4, innerSize.H + 4, innerSize.D + 4);
+
+            return new Size3(
+                innerSize.W + doubleMargin,
+                innerSize.H + doubleMargin,
+                innerSize.D + doubleMargin);
         }
     }
 

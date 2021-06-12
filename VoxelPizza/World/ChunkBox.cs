@@ -2,7 +2,7 @@
 
 namespace VoxelPizza.World
 {
-    public struct ChunkBox
+    public readonly struct ChunkBox
     {
         public ChunkPosition Chunk { get; }
         public BlockPosition OuterOrigin { get; }

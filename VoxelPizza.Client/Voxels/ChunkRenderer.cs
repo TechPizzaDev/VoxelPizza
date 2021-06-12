@@ -637,6 +637,9 @@ namespace VoxelPizza.Client
                 nint outerOriginZ = chunkBox.OuterOrigin.Z;
                 nint outerSizeD = (nint)outerSize.D;
                 nint outerSizeW = (nint)outerSize.W;
+                nint innerSizeH = (nint)chunkBox.Size.H;
+                nint innerSizeD = (nint)chunkBox.Size.D;
+                uint innerSizeW = chunkBox.Size.W;
 
                 if (_chunks.TryGetValue(chunkBox.Chunk, out Chunk? chunk))
                 {
@@ -644,9 +647,9 @@ namespace VoxelPizza.Client
                     nint innerOriginY = chunkBox.InnerOrigin.Y;
                     nint innerOriginZ = chunkBox.InnerOrigin.Z;
 
-                    for (nint y = 0; y < chunkBox.Size.H; y++)
+                    for (nint y = 0; y < innerSizeH; y++)
                     {
-                        for (nint z = 0; z < chunkBox.Size.D; z++)
+                        for (nint z = 0; z < innerSizeD; z++)
                         {
                             nint outerBaseIndex = Chunk.GetIndexBase(
                                 outerSizeD,
@@ -662,15 +665,15 @@ namespace VoxelPizza.Client
                                 y + innerOriginY,
                                 z + innerOriginZ,
                                 ref destination,
-                                chunkBox.Size.W);
+                                innerSizeW);
                         }
                     }
                 }
                 else
                 {
-                    for (nint y = 0; y < chunkBox.Size.H; y++)
+                    for (nint y = 0; y < innerSizeH; y++)
                     {
-                        for (nint z = 0; z < chunkBox.Size.D; z++)
+                        for (nint z = 0; z < innerSizeD; z++)
                         {
                             nint outerBaseIndex = Chunk.GetIndexBase(
                                 outerSizeD,
@@ -682,7 +685,7 @@ namespace VoxelPizza.Client
                             Unsafe.InitBlockUnaligned(
                                 ref Unsafe.As<uint, byte>(ref memory.Data[outerBaseIndex]),
                                 0,
-                                chunkBox.Size.W * sizeof(uint));
+                                innerSizeW * sizeof(uint));
                         }
                     }
                 }

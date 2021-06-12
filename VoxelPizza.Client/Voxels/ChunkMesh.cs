@@ -5,6 +5,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Veldrid;
 using Veldrid.Utilities;
+using VoxelPizza.Numerics;
+using VoxelPizza.World;
 
 namespace VoxelPizza.Client
 {
@@ -39,8 +41,12 @@ namespace VoxelPizza.Client
                 Renderer.ChunkInfoLayout,
                 _chunkInfoBuffer));
 
-            ChunkMesher mesher = new(Renderer.ChunkMeshPool);
-            ChunkMeshResult mesh = mesher.Mesh(Chunk, null, null, null, null, null, null);
+            BlockMemory blockMemory = Renderer.FetchBlockMemory(
+                Chunk.Position.ToBlock(),
+                Renderer.GetBlockMemoryInnerSize(),
+                Renderer.GetBlockMemoryOuterSize());
+
+            ChunkMeshResult mesh = Renderer.ChunkMesher.Mesh(blockMemory);
 
             if (mesh.IndexCount != 0)
             {

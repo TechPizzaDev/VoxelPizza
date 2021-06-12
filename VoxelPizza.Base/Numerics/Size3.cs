@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
 
 namespace VoxelPizza.Numerics
 {
+    [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
     public struct Size3 : IEquatable<Size3>
     {
         public uint W;
@@ -36,9 +38,19 @@ namespace VoxelPizza.Numerics
             return obj is Size3 other && Equals(other);
         }
 
-        public override readonly int GetHashCode()
+        public readonly override int GetHashCode()
         {
             return HashCode.Combine(W, H, D);
+        }
+
+        public readonly override string ToString()
+        {
+            return $"W:{W} H:{H} D:{D}";
+        }
+
+        private readonly string GetDebuggerDisplay()
+        {
+            return ToString();
         }
     }
 }

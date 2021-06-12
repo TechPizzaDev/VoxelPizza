@@ -14,9 +14,9 @@ namespace VoxelPizza.Client
             var indGen = new CubeIndexGenerator();
             var spaGen = new CubeSpaceVertexGenerator(mesherState.X, mesherState.Y, mesherState.Z);
 
-            uint blockId = mesherState.CenterId;
+            uint blockId = mesherState.CoreId;
             var paiGen = new CubePaintVertexGenerator(anims[blockId], blockId * 2);
-
+            
             CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GenerateFullFrom(ref meshOutput, faces, ref indGen, ref spaGen, ref paiGen);
         }
@@ -27,7 +27,7 @@ namespace VoxelPizza.Client
             CubeFaces faces)
         {
             var indGen = new CubeIndexGenerator();
-
+            
             CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GenerateIndicesFrom(ref meshOutput, faces, ref indGen);
         }
@@ -48,7 +48,7 @@ namespace VoxelPizza.Client
             ref ChunkMesherState mesherState,
             CubeFaces faces)
         {
-            uint blockId = mesherState.CenterId;
+            uint blockId = mesherState.CoreId;
             var paiGen = new CubePaintVertexGenerator(anims[blockId], blockId * 2);
 
             CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
@@ -62,7 +62,7 @@ namespace VoxelPizza.Client
         {
             var spaGen = new CubeSpaceVertexGenerator(mesherState.X, mesherState.Y, mesherState.Z);
 
-            uint blockId = mesherState.CenterId;
+            uint blockId = mesherState.CoreId;
             var paiGen = new CubePaintVertexGenerator(anims[blockId], blockId * 2);
 
             CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>

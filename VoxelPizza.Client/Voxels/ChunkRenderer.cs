@@ -83,18 +83,12 @@ namespace VoxelPizza.Client
             StartThread();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int DivideRoundDown(int a, int b)
-        {
-            return (a / b) + ((a % b) >> 31);
-        }
-
         public ChunkRegionPosition GetRegionPosition(ChunkPosition chunkPosition)
         {
             return new ChunkRegionPosition(
-                DivideRoundDown(chunkPosition.X, (int)RegionSize.X),
-                DivideRoundDown(chunkPosition.Y, (int)RegionSize.Y),
-                DivideRoundDown(chunkPosition.Z, (int)RegionSize.Z));
+                IntMath.DivideRoundDown(chunkPosition.X, (int)RegionSize.X),
+                IntMath.DivideRoundDown(chunkPosition.Y, (int)RegionSize.Y),
+                IntMath.DivideRoundDown(chunkPosition.Z, (int)RegionSize.Z));
         }
 
         public void StartThread()
@@ -105,7 +99,7 @@ namespace VoxelPizza.Client
                 {
                     //Thread.Sleep(2000);
 
-                    int width = 24;
+                    int width = 20;
                     int depth = width;
                     int height = 4;
 
@@ -179,15 +173,16 @@ namespace VoxelPizza.Client
                         }
                     }
 
+                    int off = 1;
                     for (int y = 0; y < height; y++)
                     {
-                        for (int z = 1; z < depth - 1; z++)
+                        for (int z = off; z < depth - off; z++)
                         {
-                            for (int x = 1; x < width - 1; x++)
+                            for (int x = off; x < width - off; x++)
                             {
                                 var pp = new ChunkPosition(x, y, z);
                                 ChunkRegionPosition regionPosition = GetRegionPosition(pp);
-                                Chunk chunk = GetChunk(pp);
+                                Chunk? chunk = GetChunk(pp);
                                 _regions[regionPosition].UpdateChunk(chunk);
                             }
                         }
@@ -510,7 +505,7 @@ namespace VoxelPizza.Client
             _lastTriangleCount = 0;
             _lastDrawCalls = 0;
 
-            RenderMeshes(gd, cl, sc);
+            //RenderMeshes(gd, cl, sc);
             RenderRegions(gd, cl, sc);
 
             for (int i = 0; i < _uploadLists.Length; i++)
@@ -619,6 +614,97 @@ namespace VoxelPizza.Client
         public override void UpdatePerFrameResources(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
 
+        }
+
+        public unsafe void FetchBlockMemory(BlockMemory memory, BlockPosition origin)
+        {
+            Size3 outerSize = memory.OuterSize;
+            Size3 innerSize = memory.InnerSize;
+            uint xOffset = (outerSize.W - innerSize.W) / 2;
+            uint yOffset = (outerSize.H - innerSize.H) / 2;
+            uint zOffset = (outerSize.D - innerSize.D) / 2;
+
+            BlockPosition blockOffset = new(
+                origin.X - (int)xOffset,
+                origin.Y - (int)yOffset,
+                origin.Z - (int)zOffset);
+            WorldBox fetchBox = new(blockOffset, outerSize);
+
+            foreach (ChunkBox chunkBox in fetchBox.EnumerateChunkBoxes())
+            {
+                nint outerOriginX = chunkBox.OuterOrigin.X;
+                nint outerOriginY = chunkBox.OuterOrigin.Y;
+                nint outerOriginZ = chunkBox.OuterOrigin.Z;
+                nint outerSizeD = (nint)outerSize.D;
+                nint outerSizeW = (nint)outerSize.W;
+
+                if (_chunks.TryGetValue(chunkBox.Chunk, out Chunk? chunk))
+                {
+                    int innerOriginX = chunkBox.InnerOrigin.X;
+                    nint innerOriginY = chunkBox.InnerOrigin.Y;
+                    nint innerOriginZ = chunkBox.InnerOrigin.Z;
+
+                    for (nint y = 0; y < chunkBox.Size.H; y++)
+                    {
+                        for (nint z = 0; z < chunkBox.Size.D; z++)
+                        {
+                            nint outerBaseIndex = Chunk.GetIndexBase(
+                                outerSizeD,
+                                outerSizeW,
+                                y + outerOriginY,
+                                z + outerOriginZ)
+                                + outerOriginX;
+
+                            ref uint destination = ref memory.Data[outerBaseIndex];
+
+                            chunk.GetBlockRowUnsafe(
+                                innerOriginX,
+                                y + innerOriginY,
+                                z + innerOriginZ,
+                                ref destination,
+                                chunkBox.Size.W);
+                        }
+                    }
+                }
+                else
+                {
+                    for (nint y = 0; y < chunkBox.Size.H; y++)
+                    {
+                        for (nint z = 0; z < chunkBox.Size.D; z++)
+                        {
+                            nint outerBaseIndex = Chunk.GetIndexBase(
+                                outerSizeD,
+                                outerSizeW,
+                                y + outerOriginY,
+                                z + outerOriginZ)
+                                + outerOriginX;
+
+                            Unsafe.InitBlockUnaligned(
+                                ref Unsafe.As<uint, byte>(ref memory.Data[outerBaseIndex]),
+                                0,
+                                chunkBox.Size.W * sizeof(uint));
+                        }
+                    }
+                }
+            }
+        }
+
+        public BlockMemory FetchBlockMemory(BlockPosition origin, Size3 innerSize, Size3 outerSize)
+        {
+            BlockMemory memory = new(innerSize, outerSize);
+            FetchBlockMemory(memory, origin);
+            return memory;
+        }
+
+        public Size3 GetBlockMemoryInnerSize()
+        {
+            return Chunk.Size;
+        }
+
+        public Size3 GetBlockMemoryOuterSize()
+        {
+            Size3 innerSize = GetBlockMemoryInnerSize();
+            return new Size3(innerSize.W + 4, innerSize.H + 4, innerSize.D + 4);
         }
     }
 

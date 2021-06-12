@@ -116,12 +116,12 @@ namespace VoxelPizza.Client
             if (storedChunk == null)
                 storedChunk = new StoredChunk(chunk);
 
-            Chunk? frontChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 0, chunk.Z + 1);
-            Chunk? backChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 0, chunk.Z - 1);
-            Chunk? topChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 1, chunk.Z + 0);
-            Chunk? bottomChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y - 1, chunk.Z + 0);
-            Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y + 0, chunk.Z + 0);
-            Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y + 0, chunk.Z + 0);
+            //Chunk? frontChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 0, chunk.Z + 1);
+            //Chunk? backChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 0, chunk.Z - 1);
+            //Chunk? topChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 1, chunk.Z + 0);
+            //Chunk? bottomChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y - 1, chunk.Z + 0);
+            //Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y + 0, chunk.Z + 0);
+            //Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y + 0, chunk.Z + 0);
 
             storedChunk.IsDirty = true;
             Interlocked.Increment(ref _buildRequired);
@@ -171,6 +171,7 @@ namespace VoxelPizza.Client
             if (buildRequired <= 0)
                 return false;
 
+            BlockMemory? blockMemory = null;
             Stopwatch w = new Stopwatch();
             int c = 0;
 
@@ -189,24 +190,26 @@ namespace VoxelPizza.Client
 
                         storedChunk.StoredMesh.Dispose();
 
-                        Chunk chunk = storedChunk.Chunk;
-                        Chunk? frontChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z + 1);
-                        Chunk? backChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z - 1);
-                        Chunk? topChunk = Renderer.GetChunk(chunk.X, chunk.Y + 1, chunk.Z);
-                        Chunk? bottomChunk = Renderer.GetChunk(chunk.X, chunk.Y - 1, chunk.Z);
-                        Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y, chunk.Z);
-                        Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y, chunk.Z);
+                        //Chunk chunk = storedChunk.Chunk;
+                        //Chunk? frontChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z + 1);
+                        //Chunk? backChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z - 1);
+                        //Chunk? topChunk = Renderer.GetChunk(chunk.X, chunk.Y + 1, chunk.Z);
+                        //Chunk? bottomChunk = Renderer.GetChunk(chunk.X, chunk.Y - 1, chunk.Z);
+                        //Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y, chunk.Z);
+                        //Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y, chunk.Z);
+
+                        if (blockMemory == null)
+                        {
+                            blockMemory = new BlockMemory(
+                                Renderer.GetBlockMemoryInnerSize(), 
+                                Renderer.GetBlockMemoryOuterSize());
+                        }
+
+                        Renderer.FetchBlockMemory(blockMemory, storedChunk.Chunk.Position.ToBlock());
 
                         w.Start();
 
-                        ChunkMeshResult result = mesher.Mesh(
-                            chunk,
-                            frontChunk,
-                            backChunk,
-                            topChunk,
-                            bottomChunk,
-                            leftChunk,
-                            rightChunk);
+                        ChunkMeshResult result = mesher.Mesh(blockMemory);
 
                         w.Stop();
                         c++;
@@ -317,7 +320,7 @@ namespace VoxelPizza.Client
 
                     var indexMapView = new MappedResourceView<uint>(indexMap);
                     mesh.Indices.CopyTo(indexMapView.AsSpan(indexOffset));
-                    
+
                     mesh.SpaceVertices.CopyTo(spaceVertexMap.AsSpan(vertexOffset));
                     mesh.PaintVertices.CopyTo(paintVertexMap.AsSpan(vertexOffset));
 

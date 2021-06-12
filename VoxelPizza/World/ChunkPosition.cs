@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
 
 namespace VoxelPizza.World
 {
+    [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
     public struct ChunkPosition : IEquatable<ChunkPosition>
     {
         public int X;
@@ -35,6 +37,16 @@ namespace VoxelPizza.World
         public readonly override int GetHashCode()
         {
             return HashCode.Combine(X, Y, Z);
+        }
+
+        public readonly override string ToString()
+        {
+            return $"X:{X} Y:{Y} Z:{Z}";
+        }
+
+        private readonly string GetDebuggerDisplay()
+        {
+            return ToString();
         }
     }
 }

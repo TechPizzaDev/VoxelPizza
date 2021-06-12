@@ -1,8 +1,10 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Diagnostics;
 
 namespace VoxelPizza.World
 {
-    public struct BlockPosition
+    [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
+    public struct BlockPosition : IEquatable<BlockPosition>
     {
         public int X;
         public int Y;
@@ -15,16 +17,39 @@ namespace VoxelPizza.World
             Z = z;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int GetIndex(int x, int y, int z)
+        public readonly ChunkPosition ToChunk()
         {
-            return (y * Chunk.Depth + z) * Chunk.Width + x;
+            return new ChunkPosition(
+                Chunk.BlockToChunkX(X),
+                Chunk.BlockToChunkY(Y),
+                Chunk.BlockToChunkZ(Z));
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static nint GetIndex(nint x, nint y, nint z)
+        public readonly bool Equals(BlockPosition other)
         {
-            return (y * Chunk.Depth + z) * Chunk.Width + x;
+            return X == other.X
+                && Y == other.Y
+                && Z == other.Z;
+        }
+
+        public readonly override bool Equals(object? obj)
+        {
+            return obj is BlockPosition other && Equals(other);
+        }
+
+        public readonly override int GetHashCode()
+        {
+            return HashCode.Combine(X, Y, Z);
+        }
+
+        public readonly override string ToString()
+        {
+            return $"X:{X} Y:{Y} Z:{Z}";
+        }
+
+        private readonly string GetDebuggerDisplay()
+        {
+            return ToString();
         }
     }
 }

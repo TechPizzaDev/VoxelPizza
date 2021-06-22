@@ -1,4 +1,6 @@
-﻿
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
 namespace VoxelPizza.Client
 {
     public class CubeMeshProvider : FaceDependentMeshProvider
@@ -15,7 +17,9 @@ namespace VoxelPizza.Client
             var spaGen = new CubeSpaceVertexGenerator(mesherState.X, mesherState.Y, mesherState.Z);
 
             uint blockId = mesherState.CoreId;
-            var paiGen = new CubePaintVertexGenerator(anims[blockId], blockId * 2);
+            var paiGen = new CubePaintVertexGenerator(
+                Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(anims), (nint)blockId), 
+                blockId * 2);
             
             CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GenerateFullFrom(ref meshOutput, faces, ref indGen, ref spaGen, ref paiGen);

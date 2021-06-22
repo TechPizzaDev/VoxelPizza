@@ -1,6 +1,4 @@
 ﻿using System;
-using System.IO;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using VoxelPizza.Numerics;
@@ -102,9 +100,10 @@ namespace VoxelPizza.Client
 
                 for (nint y = 0; y < mesherState.InnerSizeH; y++)
                 {
+                    mesherState.Y = y;
+
                     for (nint z = 0; z < mesherState.InnerSizeD; z++)
                     {
-                        mesherState.Y = y;
                         mesherState.Z = z;
 
                         mesherState.Index = Chunk.GetIndexBase(

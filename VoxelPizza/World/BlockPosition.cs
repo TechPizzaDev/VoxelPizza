@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Numerics;
 
 namespace VoxelPizza.World
 {
@@ -50,6 +51,11 @@ namespace VoxelPizza.World
         private readonly string GetDebuggerDisplay()
         {
             return ToString();
+        }
+
+        public static implicit operator Vector3(BlockPosition position)
+        {
+            return new Vector3(position.X, position.Y, position.Z);
         }
     }
 }

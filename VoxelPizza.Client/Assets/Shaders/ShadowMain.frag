@@ -52,11 +52,11 @@ layout(set = 0, binding = 4) uniform LightInfo
     DirectionalLightInfo _LightInfo;
 };
 
-layout(set = 0, binding = 5) uniform CameraInfo
+layout(set = 1, binding = 0) uniform CameraInfo
 {
-    mat4 _Projection;
-    mat4 _View;
-    
+    mat4 Projection;
+    mat4 View;
+
     vec4 CameraPosition;
     vec4 CameraLookDirection;
 };
@@ -66,7 +66,7 @@ layout(set = 0, binding = 6) uniform PointLights
     PointLightsInfo _PointLights;
 };
 
-layout(set = 1, binding = 1) uniform MaterialProperties
+layout(set = 2, binding = 1) uniform MaterialProperties
 {
     MaterialPropertiesInfo _MaterialProperties;
 };

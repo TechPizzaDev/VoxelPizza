@@ -21,6 +21,8 @@ namespace VoxelPizza.World
         public int Y => Position.Y;
         public int Z => Position.Z;
 
+        public WorldBox Box => new(Position.ToBlock(), Size);
+
         public Chunk(ChunkPosition position)
         {
             Position = position;

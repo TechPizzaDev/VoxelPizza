@@ -4,8 +4,6 @@ using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
-    // TODO: separate commonly updated chunks into singular mesh instances
-
     [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
     public readonly struct WorldBox
     {

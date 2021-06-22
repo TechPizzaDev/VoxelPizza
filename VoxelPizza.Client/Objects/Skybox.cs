@@ -70,7 +70,6 @@ namespace VoxelPizza.Client.Objects
             (Shader vs, Shader fs, SpecializationConstant[] specs) = StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "Skybox");
 
             _layout = factory.CreateResourceLayout(new ResourceLayoutDescription(
-                new ResourceLayoutElementDescription("CameraInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                 new ResourceLayoutElementDescription("CubeTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("CubeSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
 
@@ -80,14 +79,13 @@ namespace VoxelPizza.Client.Objects
                 new RasterizerStateDescription(FaceCullMode.None, PolygonFillMode.Solid, FrontFace.Clockwise, true, true),
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(vertexLayouts, new[] { vs, fs }, specs),
-                new ResourceLayout[] { _layout },
+                new ResourceLayout[] { _layout, sc.CameraInfoLayout },
                 sc.MainSceneFramebuffer.OutputDescription);
 
             _pipeline = factory.CreateGraphicsPipeline(ref pd);
 
             _resourceSet = factory.CreateResourceSet(new ResourceSetDescription(
                 _layout,
-                sc.CameraInfoBuffer,
                 textureCube,
                 gd.PointSampler));
 
@@ -101,10 +99,17 @@ namespace VoxelPizza.Client.Objects
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
         {
+            Camera? camera = sc.Camera;
+            if (camera == null)
+            {
+                return;
+            }
+
             cl.SetVertexBuffer(0, _vb);
             cl.SetIndexBuffer(_ib, IndexFormat.UInt16);
             cl.SetPipeline(_pipeline);
             cl.SetGraphicsResourceSet(0, _resourceSet);
+            cl.SetGraphicsResourceSet(1, sc.GetCameraInfoSet(camera));
             float depth = gd.IsDepthRangeZeroToOne ? 0 : 1;
             cl.SetViewport(0, new Viewport(0, 0, sc.MainSceneColorTexture.Width, sc.MainSceneColorTexture.Height, depth, depth));
             cl.DrawIndexed((uint)s_indices.Length, 1, 0, 0, 0);

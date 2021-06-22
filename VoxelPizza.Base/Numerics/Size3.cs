@@ -52,5 +52,25 @@ namespace VoxelPizza.Numerics
         {
             return ToString();
         }
+
+        public static implicit operator Size3f(Size3 size)
+        {
+            return new Size3f(size.W, size.H, size.D);
+        }
+
+        public static Size3 operator *(Size3 left, Size3 right)
+        {
+            return new Size3(left.W * right.W, left.H * right.H, left.D * right.D);
+        }
+
+        public static Size3 operator +(Size3 left, Size3 right)
+        {
+            return new Size3(left.W + right.W, left.H + right.H, left.D + right.D);
+        }
+
+        public static Size3 operator -(Size3 left, Size3 right)
+        {
+            return new Size3(left.W - right.W, left.H - right.H, left.D - right.D);
+        }
     }
 }

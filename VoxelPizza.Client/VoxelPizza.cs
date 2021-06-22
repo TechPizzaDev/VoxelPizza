@@ -47,6 +47,7 @@ namespace VoxelPizza.Client
         private ParticlePlane particlePlane;
 
         public ChunkRenderer ChunkRenderer { get; }
+        public ChunkBorderRenderer ChunkBorderRenderer { get; }
 
         public VoxelPizza() : base(preferredBackend: GraphicsBackend.Vulkan)
         {
@@ -55,18 +56,16 @@ namespace VoxelPizza.Client
 
             GraphicsDevice.SyncToVerticalBlank = true;
 
-            _imGuiRenderable = new ImGuiRenderable(Window.Width, Window.Height);
-            _resizeHandled += (w, h) => _imGuiRenderable.WindowResized(w, h);
-
             _scene = new Scene(GraphicsDevice, Window);
             _scene.Camera.Controller = _controllerTracker;
-            _sc.SetCurrentScene(_scene);
+            _scene.Camera.Position = new Vector3(-6, 24f, -0.43f);
+            _scene.Camera.Yaw = MathF.PI * 1.25f;
+            _scene.Camera.Pitch = 0;
+            _sc.Camera = _scene.Camera;
 
+            _imGuiRenderable = new ImGuiRenderable(Window.Width, Window.Height);
+            _resizeHandled += (w, h) => _imGuiRenderable.WindowResized(w, h);
             _scene.AddRenderable(_imGuiRenderable);
-
-            _sc.Camera.Position = new Vector3(-6, 24f, -0.43f);
-            _sc.Camera.Yaw = MathF.PI * 1.25f;
-            _sc.Camera.Pitch = 0;
 
             ShadowmapDrawer texDrawIndexeder = new ShadowmapDrawer(() => Window, () => _sc.NearShadowMapView);
             _resizeHandled += (w, h) => texDrawIndexeder.OnWindowResized();
@@ -92,10 +91,14 @@ namespace VoxelPizza.Client
             //particlePlane = new ParticlePlane(_scene.Camera);
             //_scene.AddRenderable(particlePlane);
 
-            ChunkRenderer = new ChunkRenderer(_scene.Camera, new UInt3(4, 3, 4));
+            ChunkRenderer = new ChunkRenderer(_scene.Camera, new Size3(4, 3, 4));
             _scene.AddUpdateable(ChunkRenderer);
             _scene.AddRenderable(ChunkRenderer);
-            
+
+            ChunkBorderRenderer = new ChunkBorderRenderer(ChunkRenderer);
+            _scene.AddUpdateable(ChunkBorderRenderer);
+            _scene.AddRenderable(ChunkBorderRenderer);
+             
             _loadTasks.Add(Task.Run(() =>
             {
                 Skybox skybox = GetDefaultSkybox();
@@ -111,7 +114,7 @@ namespace VoxelPizza.Client
             //
             //    AddObjModel(dir, obj, mtl);
             //}));
-            
+
             CreateGraphicsDeviceObjects();
 
             ImGui.StyleColorsClassic();
@@ -230,6 +233,7 @@ namespace VoxelPizza.Client
             {
                 DrawSettingsMenu();
                 DrawWindowMenu();
+                DrawRenderMenu();
                 DrawMaterialsMenu();
                 DrawRenderDocMenu();
                 DrawControllerDebugMenu();
@@ -353,21 +357,51 @@ namespace VoxelPizza.Client
                 bool vsync = GraphicsDevice.SyncToVerticalBlank;
                 if (ImGui.MenuItem("VSync", string.Empty, vsync, true))
                 {
-                    GraphicsDevice.SyncToVerticalBlank = !GraphicsDevice.SyncToVerticalBlank;
+                    GraphicsDevice.SyncToVerticalBlank = !vsync;
                 }
 
                 bool resizable = Window.Resizable;
                 if (ImGui.MenuItem("Resizable Window", string.Empty, resizable))
                 {
-                    Window.Resizable = !Window.Resizable;
+                    Window.Resizable = !resizable;
                 }
 
                 bool bordered = Window.BorderVisible;
                 if (ImGui.MenuItem("Visible Window Border", string.Empty, bordered))
                 {
-                    Window.BorderVisible = !Window.BorderVisible;
+                    Window.BorderVisible = !bordered;
                 }
 
+                ImGui.EndMenu();
+            }
+        }
+
+        private void DrawRenderMenu()
+        {
+            if (ImGui.BeginMenu("Render"))
+            {
+                if (ImGui.BeginMenu("Chunk borders"))
+                {
+                    bool drawChunks = ChunkBorderRenderer.DrawChunks;
+                    if (ImGui.MenuItem("Chunks", string.Empty, drawChunks))
+                    {
+                        ChunkBorderRenderer.DrawChunks = !drawChunks;
+                    }
+
+                    bool drawRegions = ChunkBorderRenderer.DrawRegions;
+                    if (ImGui.MenuItem("Regions", string.Empty, drawRegions))
+                    {
+                        ChunkBorderRenderer.DrawRegions = !drawRegions;
+                    }
+
+                    bool useDepth = ChunkBorderRenderer.UseDepth;
+                    if (ImGui.MenuItem("Depth", string.Empty, useDepth))
+                    {
+                        ChunkBorderRenderer.UseDepth = !useDepth;
+                    }
+
+                    ImGui.EndMenu();
+                }
                 ImGui.EndMenu();
             }
         }
@@ -390,6 +424,7 @@ namespace VoxelPizza.Client
 
                 ImGui.EndMenu();
             }
+
             if (ImGui.BeginMenu("Debug"))
             {
                 if (ImGui.MenuItem("Refresh Device Objects"))

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Numerics;
 using Veldrid;
 using Veldrid.Sdl2;
@@ -16,6 +15,7 @@ namespace VoxelPizza.Client
 
         public static Vector2 MousePosition;
         public static Vector2 MouseDelta;
+
         public static InputSnapshot? FrameSnapshot { get; private set; }
 
         public static bool GetKey(Key key)
@@ -75,14 +75,14 @@ namespace VoxelPizza.Client
 
             if (!window.Focused)
             {
-                foreach(var current in _currentlyPressedKeys)
+                foreach (Key currentKey in _currentlyPressedKeys)
                 {
-                    KeyUp(current);
+                    KeyUp(currentKey);
                 }
 
-                foreach(var current in _currentlyPressedMouseButtons)
+                foreach (MouseButton currentMouseButton in _currentlyPressedMouseButtons)
                 {
-                    MouseUp(current);
+                    MouseUp(currentMouseButton);
                 }
             }
         }

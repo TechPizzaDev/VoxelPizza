@@ -53,6 +53,14 @@ namespace VoxelPizza.Client
             _graphicsResources.Add(graphicsResource);
         }
 
+        public void RemoveGraphicsResource(GraphicsResource graphicsResource)
+        {
+            if (graphicsResource == null)
+                throw new ArgumentNullException(nameof(graphicsResource));
+
+            _graphicsResources.Remove(graphicsResource);
+        }
+
         public void AddRenderable(Renderable renderable, bool addAsGraphicsResource = true)
         {
             if (renderable == null)
@@ -77,6 +85,32 @@ namespace VoxelPizza.Client
                 throw new ArgumentNullException(nameof(updateable));
 
             _updateables.Add(updateable);
+        }
+
+        public void RemoveRenderable(Renderable renderable, bool removeGraphicsResource = true)
+        {
+            if (renderable == null)
+                throw new ArgumentNullException(nameof(renderable));
+
+            if (renderable is CullRenderable cr)
+            {
+                _octree.RemoveItem(cr);
+            }
+            else
+            {
+                _freeRenderables.Remove(renderable);
+            }
+
+            if (removeGraphicsResource)
+                RemoveGraphicsResource(renderable);
+        }
+
+        public void RemoveUpdateable(IUpdateable updateable)
+        {
+            if (updateable == null)
+                throw new ArgumentNullException(nameof(updateable));
+
+            _updateables.Remove(updateable);
         }
 
         public void Update(in FrameTime time)
@@ -268,7 +302,7 @@ namespace VoxelPizza.Client
                     sc.ShadowMapTexture.Width,
                     out var lightFrustum1);
                 cls[1].UpdateBuffer(sc.LightViewProjectionBuffer1, 0, ref viewProj1);
-                    
+
                 cls[1].SetFramebuffer(sc.MidShadowMapFramebuffer);
                 cls[1].SetViewport(0, new Viewport(0, 0, sc.ShadowMapTexture.Width, sc.ShadowMapTexture.Height, 0, 1));
                 cls[1].SetScissorRect(0, 0, 0, sc.ShadowMapTexture.Width, sc.ShadowMapTexture.Height);
@@ -369,9 +403,16 @@ namespace VoxelPizza.Client
             uint shadowMapWidth,
             out BoundingFrustum lightFrustum)
         {
+            Camera? camera = sc.Camera;
+            if (camera == null)
+            {
+                lightFrustum = default;
+                return Matrix4x4.Identity;
+            }
+
             Vector3 lightDir = sc.DirectionalLight.Direction;
-            Vector3 viewDir = sc.Camera.LookDirection;
-            Vector3 viewPos = sc.Camera.Position;
+            Vector3 viewDir = camera.LookDirection;
+            Vector3 viewPos = camera.Position;
             Vector3 unitY = Vector3.UnitY;
             FrustumCorners cameraCorners;
 
@@ -381,10 +422,10 @@ namespace VoxelPizza.Client
                     ref viewPos,
                     ref viewDir,
                     ref unitY,
-                    sc.Camera.FieldOfView,
+                    camera.FieldOfView,
                     far,
                     near,
-                    sc.Camera.AspectRatio,
+                    camera.AspectRatio,
                     out cameraCorners);
             }
             else
@@ -393,10 +434,10 @@ namespace VoxelPizza.Client
                     ref viewPos,
                     ref viewDir,
                     ref unitY,
-                    sc.Camera.FieldOfView,
+                    camera.FieldOfView,
                     near,
                     far,
-                    sc.Camera.AspectRatio,
+                    camera.AspectRatio,
                     out cameraCorners);
             }
 

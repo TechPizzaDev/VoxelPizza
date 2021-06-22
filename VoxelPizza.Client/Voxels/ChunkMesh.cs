@@ -89,7 +89,7 @@ namespace VoxelPizza.Client
             if (_indexBuffer == null)
                 return;
 
-            cl.SetGraphicsResourceSet(1, _chunkInfoSet);
+            cl.SetGraphicsResourceSet(2, _chunkInfoSet);
 
             cl.SetVertexBuffer(0, _spaceBuffer);
             cl.SetVertexBuffer(1, _paintBuffer);

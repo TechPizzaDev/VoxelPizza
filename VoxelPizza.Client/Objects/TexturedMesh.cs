@@ -26,7 +26,6 @@ namespace VoxelPizza.Client.Objects
         private TextureView _alphaMapView;
 
         private Pipeline _pipeline;
-        private ResourceSet _mainProjViewRS;
         private ResourceSet _mainSharedRS;
         private ResourceSet _mainPerObjectRS;
         private Pipeline _shadowMapPipeline;
@@ -164,7 +163,6 @@ namespace VoxelPizza.Client.Objects
                 new("LightViewProjection3", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
                 new("DepthLimits", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
                 new("LightInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
-                new("CameraInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
                 new("PointLights", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment)));
 
             ResourceLayout mainPerObjectLayout = StaticResourceCache.GetResourceLayout(gd.ResourceFactory, new ResourceLayoutDescription(
@@ -188,7 +186,7 @@ namespace VoxelPizza.Client.Objects
                 RasterizerStateDescription.Default,
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(mainVertexLayouts, new[] { mainVS, mainFS }, mainSpecs),
-                new ResourceLayout[] { mainSharedLayout, mainPerObjectLayout },
+                new ResourceLayout[] { mainSharedLayout, sc.CameraInfoLayout, mainPerObjectLayout },
                 sc.MainSceneFramebuffer.OutputDescription);
             _pipeline = StaticResourceCache.GetPipeline(gd.ResourceFactory, ref mainPD);
             _pipeline.Name = "TexturedMesh Main Pipeline";
@@ -199,7 +197,6 @@ namespace VoxelPizza.Client.Objects
                 sc.LightViewProjectionBuffer2,
                 sc.DepthLimitsBuffer,
                 sc.LightInfoBuffer,
-                sc.CameraInfoBuffer,
                 sc.PointLightsBuffer));
 
             _mainPerObjectRS = disposeFactory.CreateResourceSet(new ResourceSetDescription(mainPerObjectLayout,
@@ -312,6 +309,11 @@ namespace VoxelPizza.Client.Objects
 
         private void RenderShadowMap(CommandList cl, SceneContext sc, int shadowMapIndex)
         {
+            if (sc.Camera == null)
+            {
+                return;
+            }
+
             cl.SetPipeline(_shadowMapPipeline);
             cl.SetGraphicsResourceSet(0, _shadowMapResourceSets[shadowMapIndex * 2]);
             uint offset = _uniformOffset;
@@ -324,10 +326,17 @@ namespace VoxelPizza.Client.Objects
 
         private void RenderStandard(CommandList cl, SceneContext sc)
         {
+            Camera? camera = sc.Camera;
+            if (camera == null)
+            {
+                return;
+            }
+
             cl.SetPipeline(_pipeline);
             cl.SetGraphicsResourceSet(0, _mainSharedRS);
+            cl.SetGraphicsResourceSet(1, sc.GetCameraInfoSet(camera));
             uint offset = _uniformOffset;
-            cl.SetGraphicsResourceSet(1, _mainPerObjectRS, 1, ref offset);
+            cl.SetGraphicsResourceSet(2, _mainPerObjectRS, 1, ref offset);
 
             cl.SetVertexBuffer(0, _vb);
             cl.SetIndexBuffer(_ib, _meshData.IndexFormat);

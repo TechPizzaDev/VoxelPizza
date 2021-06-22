@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
@@ -7,12 +8,13 @@ namespace VoxelPizza.Client
 {
     public class SceneContext
     {
+        private Camera? _currentCamera;
+
         public DeviceBuffer LightInfoBuffer { get; private set; }
         public DeviceBuffer LightViewProjectionBuffer0 { get; internal set; }
         public DeviceBuffer LightViewProjectionBuffer1 { get; internal set; }
         public DeviceBuffer LightViewProjectionBuffer2 { get; internal set; }
         public DeviceBuffer DepthLimitsBuffer { get; internal set; }
-        public DeviceBuffer CameraInfoBuffer { get; private set; }
         public DeviceBuffer PointLightsBuffer { get; private set; }
 
         public CascadedShadowMaps ShadowMaps { get; private set; } = new CascadedShadowMaps();
@@ -26,6 +28,7 @@ namespace VoxelPizza.Client
 
         // MainSceneView and Duplicator resource sets both use this.
         public ResourceLayout TextureSamplerResourceLayout { get; private set; }
+        public ResourceLayout CameraInfoLayout { get; private set; }
 
         public Texture MainSceneColorTexture { get; private set; }
         public Texture MainSceneDepthTexture { get; private set; }
@@ -43,9 +46,28 @@ namespace VoxelPizza.Client
         public ResourceSet DuplicatorTargetSet1 { get; internal set; }
         public Framebuffer DuplicatorFramebuffer { get; private set; }
 
-        public Camera Camera { get; set; }
         public DirectionalLight DirectionalLight { get; } = new DirectionalLight();
         public TextureSampleCount MainSceneSampleCount { get; internal set; }
+
+        public List<Camera> Cameras { get; } = new();
+        public Dictionary<Camera, ResourceSet> CameraInfoSets { get; } = new();
+        public Dictionary<Camera, DeviceBuffer> CameraInfoBuffers { get; } = new();
+
+        public Camera? Camera
+        {
+            get => _currentCamera; 
+            set
+            {
+                _currentCamera = value;
+                if (value != null)
+                {
+                    if (!Cameras.Contains(value))
+                    {
+                        Cameras.Add(value);
+                    }
+                }
+            }
+        }
 
         public virtual void CreateGraphicsDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
@@ -58,14 +80,7 @@ namespace VoxelPizza.Client
             LightViewProjectionBuffer2.Name = "LightViewProjectionBuffer2";
             DepthLimitsBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<DepthCascadeLimits>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
             LightInfoBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<DirectionalLightInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-            CameraInfoBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-            if (Camera != null)
-            {
-                UpdateCameraBuffers(cl);
-            }
-
             PointLightsBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<PointLightsInfo.Blittable>(), BufferUsage.UniformBuffer));
-
             PointLightsInfo pli = new PointLightsInfo();
             pli.PointLights = new PointLightInfo[4]
             {
@@ -82,9 +97,31 @@ namespace VoxelPizza.Client
                 new ResourceLayoutElementDescription("SourceTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("SourceSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
 
+            CameraInfoLayout = factory.CreateResourceLayout(new ResourceLayoutDescription(
+                new ResourceLayoutElementDescription("CameraInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment)));
+
             RecreateWindowSizedResources(gd, cl);
 
             ShadowMaps.CreateDeviceResources(gd);
+
+            CreateCameraDeviceObjects(gd);
+        }
+
+        private void CreateCameraDeviceObjects(GraphicsDevice gd)
+        {
+            ResourceFactory factory = gd.ResourceFactory;
+
+            foreach (Camera camera in Cameras)
+            {
+                var cameraInfoBuffer = factory.CreateBuffer(new BufferDescription(
+                    (uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+
+                var cameraInfoSet = factory.CreateResourceSet(new ResourceSetDescription(
+                    CameraInfoLayout, cameraInfoBuffer));
+
+                CameraInfoSets.Add(camera, cameraInfoSet);
+                CameraInfoBuffers.Add(camera, cameraInfoBuffer);
+            }
         }
 
         public virtual void DisposeGraphicsDeviceObjects()
@@ -94,7 +131,6 @@ namespace VoxelPizza.Client
             LightViewProjectionBuffer1.Dispose();
             LightViewProjectionBuffer2.Dispose();
             DepthLimitsBuffer.Dispose();
-            CameraInfoBuffer.Dispose();
             PointLightsBuffer.Dispose();
             MainSceneColorTexture.Dispose();
             MainSceneResolvedColorTexture.Dispose();
@@ -111,16 +147,44 @@ namespace VoxelPizza.Client
             DuplicatorFramebuffer.Dispose();
             TextureSamplerResourceLayout.Dispose();
             ShadowMaps.DestroyDeviceObjects();
+
+            DestoryCameraDeviceObjects();
         }
 
-        public void SetCurrentScene(Scene scene)
+        private void DestoryCameraDeviceObjects()
         {
-            Camera = scene.Camera;
+            foreach (var cameraInfoSet in CameraInfoSets)
+            {
+                cameraInfoSet.Value.Dispose();
+            }
+            CameraInfoSets.Clear();
+
+            foreach (var cameraInfoBuffer in CameraInfoBuffers)
+            {
+                cameraInfoBuffer.Value.Dispose();
+            }
+            CameraInfoBuffers.Clear();
+        }
+
+        public void AddCamera(Camera camera)
+        {
+            if (camera == null)
+                throw new ArgumentNullException(nameof(camera));
+
+            Cameras.Add(camera);
+        }
+
+        public ResourceSet GetCameraInfoSet(Camera camera)
+        {
+            return CameraInfoSets[camera];
         }
 
         public void UpdateCameraBuffers(CommandList cl)
         {
-            cl.UpdateBuffer(CameraInfoBuffer, 0, Camera.GetCameraInfo());
+            foreach ((Camera camera, DeviceBuffer buffer) in CameraInfoBuffers)
+            {
+                cl.UpdateBuffer(buffer, 0, camera.GetCameraInfo());
+            }
         }
 
         internal void RecreateWindowSizedResources(GraphicsDevice gd, CommandList cl)
@@ -220,8 +284,9 @@ namespace VoxelPizza.Client
         public void CreateDeviceResources(GraphicsDevice gd)
         {
             var factory = gd.ResourceFactory;
-            TextureDescription desc = TextureDescription.Texture2D(2048, 2048, 1, 1, PixelFormat.D32_Float_S8_UInt, TextureUsage.DepthStencil | TextureUsage.Sampled);
-            
+            TextureDescription desc = TextureDescription.Texture2D(
+                2048, 2048, 1, 1, PixelFormat.D32_Float_S8_UInt, TextureUsage.DepthStencil | TextureUsage.Sampled);
+
             NearShadowMap = factory.CreateTexture(desc);
             NearShadowMap.Name = "Near Shadow Map";
             NearShadowMapView = factory.CreateTextureView(NearShadowMap);

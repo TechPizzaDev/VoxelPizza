@@ -37,7 +37,7 @@ namespace VoxelPizza.Client
         private DeviceBuffer _worldInfoBuffer;
         private DeviceBuffer _textureAtlasBuffer;
 
-        private Pipeline _pipeline;
+        private Pipeline _directPipeline;
         private Pipeline _indirectPipeline;
         private ResourceSet _sharedSet;
 
@@ -58,17 +58,23 @@ namespace VoxelPizza.Client
         private int _lastDrawCalls;
 
         public Camera Camera { get; }
-        public UInt3 RegionSize { get; }
+        public Size3 RegionSize { get; }
         public HeapPool ChunkMeshPool { get; }
         public ChunkMesher ChunkMesher { get; }
 
         public ResourceLayout ChunkInfoLayout { get; private set; }
 
-        public uint RegionVolume => RegionSize.X * RegionSize.Y * RegionSize.Z;
-
         public override RenderPasses RenderPasses => RenderPasses.Opaque;
 
-        public ChunkRenderer(Camera camera, UInt3 regionSize)
+        public event Action<Chunk>? ChunkAdded;
+        public event Action<ChunkMesh>? ChunkMeshAdded;
+        public event Action<ChunkMeshRegion>? ChunkRegionAdded;
+
+        public event Action<Chunk>? ChunkRemoved;
+        public event Action<ChunkMesh>? ChunkMeshRemoved;
+        public event Action<ChunkMeshRegion>? ChunkRegionRemoved;
+
+        public ChunkRenderer(Camera camera, Size3 regionSize)
         {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             RegionSize = regionSize;
@@ -91,9 +97,9 @@ namespace VoxelPizza.Client
         public ChunkRegionPosition GetRegionPosition(ChunkPosition chunkPosition)
         {
             return new ChunkRegionPosition(
-                IntMath.DivideRoundDown(chunkPosition.X, (int)RegionSize.X),
-                IntMath.DivideRoundDown(chunkPosition.Y, (int)RegionSize.Y),
-                IntMath.DivideRoundDown(chunkPosition.Z, (int)RegionSize.Z));
+                IntMath.DivideRoundDown(chunkPosition.X, (int)RegionSize.W),
+                IntMath.DivideRoundDown(chunkPosition.Y, (int)RegionSize.H),
+                IntMath.DivideRoundDown(chunkPosition.Z, (int)RegionSize.D));
         }
 
         public void StartThread()
@@ -104,13 +110,14 @@ namespace VoxelPizza.Client
                 {
                     //Thread.Sleep(2000);
 
-                    int width = 20;
+                    int width = 16;
                     int depth = width;
-                    int height = 4;
+                    int height = 1;
 
                     var list = new List<(int x, int y, int z)>();
 
-                    for (int y = -1; y < height; y++)
+                    int off = 0;
+                    for (int y = -off; y < height; y++)
                     {
                         for (int z = 0; z < depth; z++)
                         {
@@ -144,6 +151,7 @@ namespace VoxelPizza.Client
                     foreach (var (x, y, z) in list)
                     {
                         var chunk = new Chunk(new(x, y, z));
+                        ChunkAdded?.Invoke(chunk);
 
                         if (y < 0)
                             chunk.SetBlockLayer(15, 1);
@@ -178,7 +186,6 @@ namespace VoxelPizza.Client
                         }
                     }
 
-                    int off = 1;
                     for (int y = 0; y < height; y++)
                     {
                         for (int z = off; z < depth - off; z++)
@@ -289,11 +296,10 @@ namespace VoxelPizza.Client
                 _uploadSubmittedMeshes[i].Clear();
             }
 
-            _stagingMeshPool = new ChunkStagingMeshPool(factory, RegionVolume);
+            _stagingMeshPool = new ChunkStagingMeshPool(factory, RegionSize.Volume);
 
             ResourceLayout sharedLayout = factory.CreateResourceLayout(
                 new ResourceLayoutDescription(
-                    new ResourceLayoutElementDescription("CameraInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex),
                     new ResourceLayoutElementDescription("WorldInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
                     new ResourceLayoutElementDescription("LightInfo", ResourceKind.UniformBuffer, ShaderStages.Fragment),
                     new ResourceLayoutElementDescription("TextureAtlas", ResourceKind.StructuredBufferReadOnly, ShaderStages.Vertex)));
@@ -327,7 +333,7 @@ namespace VoxelPizza.Client
                 ? DepthStencilStateDescription.DepthOnlyGreaterEqual
                 : DepthStencilStateDescription.DepthOnlyLessEqual;
 
-            _pipeline = factory.CreateGraphicsPipeline(new GraphicsPipelineDescription(
+            _directPipeline = factory.CreateGraphicsPipeline(new GraphicsPipelineDescription(
                 BlendStateDescription.SingleOverrideBlend,
                 depthStencilState,
                 rasterizerState,
@@ -336,7 +342,7 @@ namespace VoxelPizza.Client
                     new[] { spaceLayout, paintLayout },
                     new[] { mainVs, mainFs, },
                     mainSpecs),
-                new[] { sharedLayout, ChunkInfoLayout },
+                new[] { sc.CameraInfoLayout, sharedLayout, ChunkInfoLayout },
                 sc.MainSceneFramebuffer.OutputDescription));
 
             (Shader mainIndirectVs, Shader mainIndirectFs, SpecializationConstant[] mainIndirectSpecs) =
@@ -351,7 +357,7 @@ namespace VoxelPizza.Client
                     new[] { spaceLayout, paintLayout, worldLayout },
                     new[] { mainIndirectVs, mainIndirectFs, },
                     mainIndirectSpecs),
-                new[] { sharedLayout },
+                new[] { sc.CameraInfoLayout, sharedLayout },
                 sc.MainSceneFramebuffer.OutputDescription));
 
             _worldInfoBuffer = factory.CreateBuffer(new BufferDescription(
@@ -394,30 +400,26 @@ namespace VoxelPizza.Client
 
             _sharedSet = factory.CreateResourceSet(new ResourceSetDescription(
                 sharedLayout,
-                sc.CameraInfoBuffer,
                 _worldInfoBuffer,
                 sc.LightInfoBuffer,
                 _textureAtlasBuffer));
-
-            foreach (ChunkMesh mesh in _meshes)
-                mesh.CreateDeviceObjects(gd, cl, sc);
-
-            lock (_regions)
-            {
-                foreach (ChunkMeshRegion region in _regions.Values)
-                    region.CreateDeviceObjects(gd, cl, sc);
-            }
         }
 
         public override void DestroyDeviceObjects()
         {
             foreach (ChunkMesh mesh in _meshes)
+            {
                 mesh.DestroyDeviceObjects();
+                ChunkMeshRemoved?.Invoke(mesh);
+            }
 
             lock (_regions)
             {
                 foreach (ChunkMeshRegion region in _regions.Values)
+                {
                     region.DestroyDeviceObjects();
+                    ChunkRegionRemoved?.Invoke(region);
+                }
             }
 
             _disposeCollector.DisposeAll();
@@ -500,11 +502,13 @@ namespace VoxelPizza.Client
             {
                 mesh.CreateDeviceObjects(gd, cl, sc);
                 _meshes.Add(mesh);
+                ChunkMeshAdded?.Invoke(mesh);
             }
 
             while (_queuedRegions.TryDequeue(out ChunkMeshRegion? region))
             {
                 region.CreateDeviceObjects(gd, cl, sc);
+                ChunkRegionAdded?.Invoke(region);
             }
 
             _lastTriangleCount = 0;
@@ -535,7 +539,8 @@ namespace VoxelPizza.Client
             GatherVisibleRegions(visibleRegions);
 
             cl.SetPipeline(_indirectPipeline);
-            cl.SetGraphicsResourceSet(0, _sharedSet);
+            cl.SetGraphicsResourceSet(0, sc.GetCameraInfoSet(Camera));
+            cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
             bool[] uploadReady = _uploadReady;
@@ -594,8 +599,9 @@ namespace VoxelPizza.Client
             visibleMeshes.Clear();
             GatherVisibleChunks(visibleMeshes);
 
-            cl.SetPipeline(_pipeline);
-            cl.SetGraphicsResourceSet(0, _sharedSet);
+            cl.SetPipeline(_directPipeline);
+            cl.SetGraphicsResourceSet(0, sc.GetCameraInfoSet(Camera));
+            cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
             for (int i = 0; i < visibleMeshes.Count; i++)

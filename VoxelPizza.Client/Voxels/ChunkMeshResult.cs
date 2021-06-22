@@ -17,6 +17,10 @@ namespace VoxelPizza.Client
         public readonly int IndexCount => _indices.Count;
         public readonly int VertexCount => _spaceVertices.Count;
 
+        public readonly int IndexByteCount => _indices.ByteCount;
+        public readonly int SpaceVertexByteCount => _spaceVertices.ByteCount;
+        public readonly int PaintVertexByteCount => _paintVertices.ByteCount;
+
         public readonly Span<uint> Indices => _indices.Span;
         public readonly Span<ChunkSpaceVertex> SpaceVertices => _spaceVertices.Span;
         public readonly Span<ChunkPaintVertex> PaintVertices => _paintVertices.Span;

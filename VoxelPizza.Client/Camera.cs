@@ -14,6 +14,7 @@ namespace VoxelPizza.Client
         private float _far = 5000f;
 
         private Matrix4x4 _viewMatrix;
+        private Matrix4x4 _inverseViewMatrix;
         private Matrix4x4 _projectionMatrix;
 
         private Vector3 _position = new Vector3(0, 3, 0);
@@ -31,8 +32,8 @@ namespace VoxelPizza.Client
         private float _windowHeight;
         private Sdl2Window _window;
 
-        public event Action<Matrix4x4>? ProjectionChanged;
-        public event Action<Matrix4x4>? ViewChanged;
+        public event Action<Camera>? ProjectionChanged;
+        public event Action<Camera>? ViewChanged;
 
         public Camera(GraphicsDevice gd, Sdl2Window window)
         {
@@ -51,10 +52,18 @@ namespace VoxelPizza.Client
             _useReverseDepth = gd.IsDepthRangeZeroToOne;
             _windowWidth = window.Width;
             _windowHeight = window.Height;
+            _window.FocusLost += Window_FocusLost;
+
             UpdatePerspectiveMatrix();
         }
 
+        private void Window_FocusLost()
+        {
+            ReleaseMouseGrab();
+        }
+
         public Matrix4x4 ViewMatrix => _viewMatrix;
+        public Matrix4x4 InverseViewMatrix => _inverseViewMatrix;
         public Matrix4x4 ProjectionMatrix => _projectionMatrix;
 
         public Vector3 Position { get => _position; set { _position = value; UpdateViewMatrix(); } }
@@ -83,6 +92,7 @@ namespace VoxelPizza.Client
                     : 1f;
 
             Vector3 motionDir = Vector3.Zero;
+
             if (InputTracker.GetKey(Key.A))
             {
                 motionDir += -Vector3.UnitX;
@@ -140,29 +150,29 @@ namespace VoxelPizza.Client
                 UpdateViewMatrix();
             }
 
-            if (!ImGui.GetIO().WantCaptureMouse
-                && (InputTracker.GetMouseButton(MouseButton.Left) || InputTracker.GetMouseButton(MouseButton.Right)))
+            if (!ImGui.GetIO().WantCaptureMouse &&
+                (InputTracker.GetMouseButton(MouseButton.Left) || InputTracker.GetMouseButton(MouseButton.Right)))
             {
                 if (!_mousePressed)
                 {
                     _mousePressed = true;
                     _mousePressedPos = InputTracker.MousePosition;
-                    Sdl2Native.SDL_ShowCursor(0);
+
+                    Sdl2Native.SDL_SetRelativeMouseMode(true);
                     Sdl2Native.SDL_SetWindowGrab(_window.SdlWindowHandle, true);
                 }
-                Vector2 mouseDelta = _mousePressedPos - InputTracker.MousePosition;
-                Sdl2Native.SDL_WarpMouseInWindow(_window.SdlWindowHandle, (int)_mousePressedPos.X, (int)_mousePressedPos.Y);
-                Yaw += mouseDelta.X * 0.002f;
-                Pitch += mouseDelta.Y * 0.002f;
+
+                Vector2 mouseDelta = InputTracker.MouseDelta;
+                Yaw -= mouseDelta.X * 0.002f;
+                Pitch -= mouseDelta.Y * 0.002f;
             }
             else if (_mousePressed)
             {
+                ReleaseMouseGrab();
                 Sdl2Native.SDL_WarpMouseInWindow(_window.SdlWindowHandle, (int)_mousePressedPos.X, (int)_mousePressedPos.Y);
-                Sdl2Native.SDL_SetWindowGrab(_window.SdlWindowHandle, false);
-                Sdl2Native.SDL_ShowCursor(1);
                 _mousePressed = false;
             }
-
+             
             if (Controller != null)
             {
                 float controllerRightX = Controller.GetAxis(SDL_GameControllerAxis.RightX);
@@ -181,6 +191,12 @@ namespace VoxelPizza.Client
             UpdateViewMatrix();
         }
 
+        private void ReleaseMouseGrab()
+        {
+            Sdl2Native.SDL_SetRelativeMouseMode(false);
+            Sdl2Native.SDL_SetWindowGrab(_window.SdlWindowHandle, false);
+        }
+
         public void WindowResized(float width, float height)
         {
             _windowWidth = width;
@@ -197,7 +213,7 @@ namespace VoxelPizza.Client
                 _windowWidth / _windowHeight,
                 _near,
                 _far);
-            ProjectionChanged?.Invoke(_projectionMatrix);
+            ProjectionChanged?.Invoke(this);
         }
 
         private void UpdateViewMatrix()
@@ -206,13 +222,15 @@ namespace VoxelPizza.Client
             Vector3 lookDir = Vector3.Transform(-Vector3.UnitZ, lookRotation);
             _lookDirection = lookDir;
             _viewMatrix = Matrix4x4.CreateLookAt(_position, _position + _lookDirection, Vector3.UnitY);
-            ViewChanged?.Invoke(_viewMatrix);
+            Matrix4x4.Invert(_viewMatrix, out _inverseViewMatrix);
+            ViewChanged?.Invoke(this);
         }
 
         public CameraInfo GetCameraInfo() => new CameraInfo
         {
             Projection = _projectionMatrix,
             View = _viewMatrix,
+            InverseView = _inverseViewMatrix,
             CameraPosition = new Vector4(_position, 0),
             CameraLookDirection = new Vector4(_lookDirection, 0)
         };
@@ -223,6 +241,7 @@ namespace VoxelPizza.Client
     {
         public Matrix4x4 Projection;
         public Matrix4x4 View;
+        public Matrix4x4 InverseView;
 
         public Vector4 CameraPosition;
         public Vector4 CameraLookDirection;

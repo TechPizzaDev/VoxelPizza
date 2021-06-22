@@ -15,17 +15,16 @@ layout(set = 0, binding = 2) uniform LightViewProjection3
     mat4 _LightViewProjection3;
 };
 
-layout(set = 0, binding = 5) uniform CameraInfo
+layout(set = 1, binding = 0) uniform CameraInfo
 {
-    mat4 _Projection;
-    mat4 _View;
-    
+    mat4 Projection;
+    mat4 View;
+
     vec4 CameraPosition;
     vec4 CameraLookDirection;
 };
 
-
-layout(set = 1, binding = 0) uniform WorldAndInverse
+layout(set = 2, binding = 0) uniform WorldAndInverse
 {
     mat4 World;
     mat4 InverseWorld;
@@ -45,8 +44,8 @@ layout(location = 6) out float fsin_FragDepth;
 void main()
 {
     vec4 worldPosition = World * vec4(Position, 1);
-    vec4 viewPosition = _View * worldPosition;
-    gl_Position = _Projection * viewPosition;
+    vec4 viewPosition = View * worldPosition;
+    gl_Position = Projection * viewPosition;
     fsin_Position_WorldSpace = worldPosition.xyz;
     vec4 outNormal = InverseWorld * vec4(Normal, 1);
     fsin_Normal = normalize(outNormal.xyz);

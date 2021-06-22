@@ -24,12 +24,12 @@ layout(set = 0, binding = 0) uniform CameraInfo
     vec4 CameraLookDirection;
 };
 
-layout(set = 0, binding = 1) uniform WorldInfo
+layout(set = 1, binding = 0) uniform WorldInfo
 {
     float GlobalTime;
 };
 
-layout(set = 0, binding = 3) readonly restrict buffer TextureAtlas
+layout(set = 1, binding = 2) readonly restrict buffer TextureAtlas
 {
     uvec4 TextureRegions[];
 };

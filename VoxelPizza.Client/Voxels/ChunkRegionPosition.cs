@@ -1,4 +1,6 @@
 ﻿using System;
+using VoxelPizza.Numerics;
+using VoxelPizza.World;
 
 namespace VoxelPizza.Client
 {
@@ -13,6 +15,12 @@ namespace VoxelPizza.Client
             X = x;
             Y = y;
             Z = z;
+        }
+
+        public readonly BlockPosition ToBlock(Size3 regionSize)
+        {
+            Size3 factor = Chunk.Size * regionSize;
+            return new BlockPosition((int)factor.W * X, (int)factor.H * Y, (int)factor.D * Z);
         }
 
         public bool Equals(ChunkRegionPosition other)

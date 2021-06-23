@@ -57,12 +57,14 @@ namespace VoxelPizza.Client
         private int _lastTriangleCount;
         private int _lastDrawCalls;
 
-        public Camera Camera { get; }
         public Size3 RegionSize { get; }
         public HeapPool ChunkMeshPool { get; }
         public ChunkMesher ChunkMesher { get; }
 
         public ResourceLayout ChunkInfoLayout { get; private set; }
+
+        public Camera? RenderCamera { get; set; }
+        public Camera? BoundCamera { get; set; }
 
         public override RenderPasses RenderPasses => RenderPasses.Opaque;
 
@@ -74,9 +76,8 @@ namespace VoxelPizza.Client
         public event Action<ChunkMesh>? ChunkMeshRemoved;
         public event Action<ChunkMeshRegion>? ChunkRegionRemoved;
 
-        public ChunkRenderer(Camera camera, Size3 regionSize)
+        public ChunkRenderer(Size3 regionSize)
         {
-            Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             RegionSize = regionSize;
             ChunkMeshPool = new HeapPool(1024 * 1024 * 16);
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
@@ -514,8 +515,13 @@ namespace VoxelPizza.Client
             _lastTriangleCount = 0;
             _lastDrawCalls = 0;
 
-            //RenderMeshes(gd, cl, sc);
-            RenderRegions(gd, cl, sc);
+            Camera? renderCamera = RenderCamera;
+            if (renderCamera != null)
+            {
+                ResourceSet renderCameraInfoSet = sc.GetCameraInfoSet(renderCamera);
+                RenderMeshes(renderCameraInfoSet, gd, cl, sc);
+                RenderRegions(renderCameraInfoSet, gd, cl, sc);
+            }
 
             for (int i = 0; i < _uploadLists.Length; i++)
             {
@@ -532,14 +538,14 @@ namespace VoxelPizza.Client
             frameEvent.Set();
         }
 
-        private void RenderRegions(GraphicsDevice gd, CommandList cl, SceneContext sc)
+        private void RenderRegions(ResourceSet cameraInfoSet, GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
             List<ChunkMeshRegion> visibleRegions = _visibleRegionBuffer;
             visibleRegions.Clear();
             GatherVisibleRegions(visibleRegions);
 
             cl.SetPipeline(_indirectPipeline);
-            cl.SetGraphicsResourceSet(0, sc.GetCameraInfoSet(Camera));
+            cl.SetGraphicsResourceSet(0, cameraInfoSet);
             cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
@@ -593,14 +599,14 @@ namespace VoxelPizza.Client
 
         long lastbytesum = 0;
 
-        private void RenderMeshes(GraphicsDevice gd, CommandList cl, SceneContext sc)
+        private void RenderMeshes(ResourceSet cameraInfoSet, GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
             List<ChunkMesh> visibleMeshes = _visibleMeshBuffer;
             visibleMeshes.Clear();
             GatherVisibleChunks(visibleMeshes);
 
             cl.SetPipeline(_directPipeline);
-            cl.SetGraphicsResourceSet(0, sc.GetCameraInfoSet(Camera));
+            cl.SetGraphicsResourceSet(0, cameraInfoSet);
             cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 

@@ -24,7 +24,7 @@ namespace VoxelPizza.Client
         private Sdl2ControllerTracker? _controllerTracker;
 
         private Scene _scene;
-        private SceneContext _sc = new SceneContext();
+        private SceneContext _sc;
 
         private CommandList _chunkCommands;
         private CommandList _frameCommands;
@@ -56,12 +56,20 @@ namespace VoxelPizza.Client
 
             GraphicsDevice.SyncToVerticalBlank = true;
 
+            _sc = new SceneContext();
+            _sc.CameraChanged += Scene_CameraChanged;
+
             _scene = new Scene(GraphicsDevice, Window);
-            _scene.Camera.Controller = _controllerTracker;
-            _scene.Camera.Position = new Vector3(-6, 24f, -0.43f);
-            _scene.Camera.Yaw = MathF.PI * 1.25f;
-            _scene.Camera.Pitch = 0;
-            _sc.Camera = _scene.Camera;
+
+            _scene.PrimaryCamera.Controller = _controllerTracker;
+            _sc.AddCamera(_scene.PrimaryCamera);
+
+            _scene.SecondaryCamera.Controller = _controllerTracker;
+            _sc.AddCamera(_scene.SecondaryCamera);
+
+            _scene.PrimaryCamera.Position = new Vector3(-6, 24f, -0.43f);
+            _scene.PrimaryCamera.Yaw = MathF.PI * 1.25f;
+            _scene.PrimaryCamera.Pitch = 0;
 
             _imGuiRenderable = new ImGuiRenderable(Window.Width, Window.Height);
             _resizeHandled += (w, h) => _imGuiRenderable.WindowResized(w, h);
@@ -91,7 +99,7 @@ namespace VoxelPizza.Client
             //particlePlane = new ParticlePlane(_scene.Camera);
             //_scene.AddRenderable(particlePlane);
 
-            ChunkRenderer = new ChunkRenderer(_scene.Camera, new Size3(4, 3, 4));
+            ChunkRenderer = new ChunkRenderer(new Size3(4, 3, 4));
             _scene.AddUpdateable(ChunkRenderer);
             _scene.AddRenderable(ChunkRenderer);
 
@@ -120,6 +128,13 @@ namespace VoxelPizza.Client
             ImGui.StyleColorsClassic();
 
             _sc.DirectionalLight.AmbientColor = new RgbaFloat(0.1f, 0.1f, 0.1f, 1);
+
+            _sc.CurrentCamera = _scene.PrimaryCamera;
+        }
+
+        private void Scene_CameraChanged(Camera? camera)
+        {
+            ChunkRenderer.RenderCamera = camera;
         }
 
         protected override void WindowResized()
@@ -163,14 +178,14 @@ namespace VoxelPizza.Client
             cl.End();
             GraphicsDevice.SubmitCommands(cl);
 
-            _scene.Camera.UpdateGraphicsBackend(GraphicsDevice, Window);
+            _scene.PrimaryCamera.UpdateGraphicsBackend(GraphicsDevice, Window);
         }
 
         public override void Update(in FrameTime time)
         {
             _imGuiRenderable.Update(time);
 
-            _scene.Update(time);
+            _scene.Update(time, _sc);
 
             particlePlane?.Update(time);
 
@@ -191,7 +206,7 @@ namespace VoxelPizza.Client
                 int width = Window.Width;
                 int height = Window.Height;
                 GraphicsDevice.ResizeMainWindow((uint)width, (uint)height);
-                _scene.Camera.WindowResized(width, height);
+                _scene.PrimaryCamera.WindowResized(width, height);
                 _resizeHandled?.Invoke(width, height);
 
                 using CommandList cl = GraphicsDevice.ResourceFactory.CreateCommandList();
@@ -235,6 +250,7 @@ namespace VoxelPizza.Client
                 DrawWindowMenu();
                 DrawRenderMenu();
                 DrawMaterialsMenu();
+                DrawDebugMenu();
                 DrawRenderDocMenu();
                 DrawControllerDebugMenu();
 
@@ -380,6 +396,21 @@ namespace VoxelPizza.Client
         {
             if (ImGui.BeginMenu("Render"))
             {
+                if (ImGui.BeginMenu("Camera"))
+                {
+                    if (ImGui.MenuItem("Primary", string.Empty, _sc.CurrentCamera == _scene.PrimaryCamera))
+                    {
+                        _sc.CurrentCamera = _scene.PrimaryCamera;
+                    }
+
+                    if (ImGui.MenuItem("Secondary", string.Empty, _sc.CurrentCamera == _scene.SecondaryCamera))
+                    {
+                        _sc.CurrentCamera = _scene.SecondaryCamera;
+                    }
+
+                    ImGui.EndMenu();
+                }
+
                 if (ImGui.BeginMenu("Chunk borders"))
                 {
                     bool drawChunks = ChunkBorderRenderer.DrawChunks;
@@ -395,13 +426,14 @@ namespace VoxelPizza.Client
                     }
 
                     bool useDepth = ChunkBorderRenderer.UseDepth;
-                    if (ImGui.MenuItem("Depth", string.Empty, useDepth))
+                    if (ImGui.MenuItem("Use depth", string.Empty, useDepth))
                     {
                         ChunkBorderRenderer.UseDepth = !useDepth;
                     }
 
                     ImGui.EndMenu();
                 }
+
                 ImGui.EndMenu();
             }
         }
@@ -424,7 +456,10 @@ namespace VoxelPizza.Client
 
                 ImGui.EndMenu();
             }
+        }
 
+        private void DrawDebugMenu()
+        {
             if (ImGui.BeginMenu("Debug"))
             {
                 if (ImGui.MenuItem("Refresh Device Objects"))
@@ -449,7 +484,8 @@ namespace VoxelPizza.Client
                     if (ImGui.MenuItem("Connect to Controller"))
                     {
                         Sdl2ControllerTracker.CreateDefault(out _controllerTracker);
-                        _scene.Camera.Controller = _controllerTracker;
+                        _scene.PrimaryCamera.Controller = _controllerTracker;
+                        _scene.SecondaryCamera.Controller = _controllerTracker;
                     }
                 }
 

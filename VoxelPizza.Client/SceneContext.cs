@@ -53,19 +53,22 @@ namespace VoxelPizza.Client
         public Dictionary<Camera, ResourceSet> CameraInfoSets { get; } = new();
         public Dictionary<Camera, DeviceBuffer> CameraInfoBuffers { get; } = new();
 
-        public Camera? Camera
+        public event Action<Camera?>? CameraChanged;
+
+        public Camera? CurrentCamera
         {
             get => _currentCamera; 
             set
             {
-                _currentCamera = value;
                 if (value != null)
                 {
                     if (!Cameras.Contains(value))
                     {
-                        Cameras.Add(value);
+                        throw new InvalidOperationException("The camera has not been registered.");
                     }
                 }
+                CameraChanged?.Invoke(value);
+                _currentCamera = value;
             }
         }
 

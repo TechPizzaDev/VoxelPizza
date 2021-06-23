@@ -99,7 +99,7 @@ namespace VoxelPizza.Client.Objects
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
         {
-            Camera? camera = sc.Camera;
+            Camera? camera = sc.CurrentCamera;
             if (camera == null)
             {
                 return;

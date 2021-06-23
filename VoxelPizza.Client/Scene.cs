@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
@@ -21,9 +20,11 @@ namespace VoxelPizza.Client
 
         private readonly ConcurrentDictionary<RenderPasses, Func<CullRenderable, bool>> _filters = new();
 
-        private readonly Camera _camera;
+        private readonly Camera _primaryCamera;
+        private readonly Camera _secondaryCamera;
 
-        public Camera Camera => _camera;
+        public Camera PrimaryCamera => _primaryCamera;
+        public Camera SecondaryCamera => _secondaryCamera;
 
         public bool ThreadedRendering { get; set; } = false;
 
@@ -36,13 +37,11 @@ namespace VoxelPizza.Client
 
         float _nearCascadeLimit = 100;
         float _midCascadeLimit = 300;
-        float _farCascadeLimit;
 
         public Scene(GraphicsDevice gd, Sdl2Window window)
         {
-            _camera = new Camera(gd, window);
-            _farCascadeLimit = _camera.FarDistance;
-            AddUpdateable(_camera);
+            _primaryCamera = new Camera(gd, window);
+            _secondaryCamera = new Camera(gd, window);
         }
 
         public void AddGraphicsResource(GraphicsResource graphicsResource)
@@ -113,12 +112,14 @@ namespace VoxelPizza.Client
             _updateables.Remove(updateable);
         }
 
-        public void Update(in FrameTime time)
+        public void Update(in FrameTime time, SceneContext sc)
         {
             foreach (IUpdateable updateable in _updateables)
             {
                 updateable.Update(time);
             }
+
+            sc.CurrentCamera?.Update(time);
         }
 
         private readonly Task[] _renderTasks = new Task[4];
@@ -137,15 +138,21 @@ namespace VoxelPizza.Client
 
         private void RenderAllSingleThread(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
+            Camera? camera = sc.CurrentCamera;
+            if (camera == null)
+            {
+                return;
+            }
+
             var renderQueue = _renderQueues[0];
             var cullableStage = _cullableStage[0];
             var renderableStage = _renderableStage[0];
 
             float depthClear = gd.IsDepthRangeZeroToOne ? 0f : 1f;
-            Matrix4x4 cameraProj = Camera.ProjectionMatrix;
+            Matrix4x4 cameraProj = camera.ProjectionMatrix;
             Vector4 nearLimitCS = Vector4.Transform(new Vector3(0, 0, -_nearCascadeLimit), cameraProj);
             Vector4 midLimitCS = Vector4.Transform(new Vector3(0, 0, -_midCascadeLimit), cameraProj);
-            Vector4 farLimitCS = Vector4.Transform(new Vector3(0, 0, -_farCascadeLimit), cameraProj);
+            Vector4 farLimitCS = Vector4.Transform(new Vector3(0, 0, -camera.FarDistance), cameraProj);
 
             Vector3 lightPos = sc.DirectionalLight.Transform.Position - sc.DirectionalLight.Direction * 1000f;
             // Near
@@ -153,7 +160,7 @@ namespace VoxelPizza.Client
             Matrix4x4 viewProj0 = UpdateDirectionalLightMatrices(
                 gd,
                 sc,
-                Camera.NearDistance,
+                camera.NearDistance,
                 _nearCascadeLimit,
                 sc.ShadowMapTexture.Width,
                 out BoundingFrustum lightFrustum);
@@ -206,17 +213,17 @@ namespace VoxelPizza.Client
             cl.ClearDepthStencil(depthClear);
             cl.SetFullScissorRects();
             sc.UpdateCameraBuffers(cl); // Re-set because reflection step changed it.
-            var cameraFrustum = new BoundingFrustum(_camera.ViewMatrix * _camera.ProjectionMatrix);
+            var cameraFrustum = new BoundingFrustum(_primaryCamera.ViewMatrix * _primaryCamera.ProjectionMatrix);
 
-            Render(gd, cl, sc, RenderPasses.Opaque, cameraFrustum, _camera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.Opaque, cameraFrustum, _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             cl.PushDebugGroup("Transparent Pass");
-            Render(gd, cl, sc, RenderPasses.AlphaBlend, cameraFrustum, _camera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.AlphaBlend, cameraFrustum, _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             cl.PushDebugGroup("Overlay");
-            Render(gd, cl, sc, RenderPasses.Overlay, cameraFrustum, _camera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.Overlay, cameraFrustum, _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             if (sc.MainSceneColorTexture.SampleCount != TextureSampleCount.Count1)
@@ -227,13 +234,13 @@ namespace VoxelPizza.Client
             cl.PushDebugGroup("Duplicator");
             cl.SetFramebuffer(sc.DuplicatorFramebuffer);
             cl.SetFullViewports();
-            Render(gd, cl, sc, RenderPasses.Duplicator, new BoundingFrustum(), _camera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.Duplicator, new BoundingFrustum(), _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             cl.PushDebugGroup("Swapchain Pass");
             cl.SetFramebuffer(gd.SwapchainFramebuffer);
             cl.SetFullViewports();
-            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), _camera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             _resourceUpdateCL.Begin();
@@ -260,11 +267,17 @@ namespace VoxelPizza.Client
 
         private void RenderAllMultiThreaded(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
+            Camera? camera = sc.CurrentCamera;
+            if (camera == null)
+            {
+                return;
+            }
+
             float depthClear = gd.IsDepthRangeZeroToOne ? 0f : 1f;
-            Matrix4x4 cameraProj = Camera.ProjectionMatrix;
+            Matrix4x4 cameraProj = camera.ProjectionMatrix;
             Vector4 nearLimitCS = Vector4.Transform(new Vector3(0, 0, -_nearCascadeLimit), cameraProj);
             Vector4 midLimitCS = Vector4.Transform(new Vector3(0, 0, -_midCascadeLimit), cameraProj);
-            Vector4 farLimitCS = Vector4.Transform(new Vector3(0, 0, -_farCascadeLimit), cameraProj);
+            Vector4 farLimitCS = Vector4.Transform(new Vector3(0, 0, -camera.FarDistance), cameraProj);
             Vector3 lightPos = sc.DirectionalLight.Transform.Position - sc.DirectionalLight.Direction * 1000f;
 
             var cls = _multithreadCls;
@@ -278,7 +291,7 @@ namespace VoxelPizza.Client
                 Matrix4x4 viewProj0 = UpdateDirectionalLightMatrices(
                     gd,
                     sc,
-                    Camera.NearDistance,
+                    camera.NearDistance,
                     _nearCascadeLimit,
                     sc.ShadowMapTexture.Width,
                     out BoundingFrustum lightFrustum0);
@@ -317,7 +330,7 @@ namespace VoxelPizza.Client
                     gd,
                     sc,
                     _midCascadeLimit,
-                    _farCascadeLimit,
+                    camera.FarDistance,
                     sc.ShadowMapTexture.Width,
                     out var lightFrustum2);
                 cls[2].UpdateBuffer(sc.LightViewProjectionBuffer2, 0, ref viewProj2);
@@ -339,11 +352,11 @@ namespace VoxelPizza.Client
                 cls[3].SetScissorRect(0, 0, 0, (uint)scWidth, (uint)scHeight);
                 cls[3].ClearDepthStencil(depthClear);
                 sc.UpdateCameraBuffers(cls[3]);
-                var cameraFrustum = new BoundingFrustum(_camera.ViewMatrix * _camera.ProjectionMatrix);
+                var cameraFrustum = new BoundingFrustum(_primaryCamera.ViewMatrix * _primaryCamera.ProjectionMatrix);
 
-                Render(gd, cls[3], sc, RenderPasses.Opaque, cameraFrustum, _camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
-                Render(gd, cls[3], sc, RenderPasses.AlphaBlend, cameraFrustum, _camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
-                Render(gd, cls[3], sc, RenderPasses.Overlay, cameraFrustum, _camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
+                Render(gd, cls[3], sc, RenderPasses.Opaque, cameraFrustum, _primaryCamera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
+                Render(gd, cls[3], sc, RenderPasses.AlphaBlend, cameraFrustum, _primaryCamera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
+                Render(gd, cls[3], sc, RenderPasses.Overlay, cameraFrustum, _primaryCamera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
             });
 
             Task.WaitAll(_renderTasks);
@@ -366,14 +379,14 @@ namespace VoxelPizza.Client
             cl.SetViewport(1, new Viewport(0, 0, fbWidth, fbHeight, 0, 1));
             cl.SetScissorRect(0, 0, 0, fbWidth, fbHeight);
             cl.SetScissorRect(1, 0, 0, fbWidth, fbHeight);
-            Render(gd, cl, sc, RenderPasses.Duplicator, new BoundingFrustum(), _camera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, false);
+            Render(gd, cl, sc, RenderPasses.Duplicator, new BoundingFrustum(), _primaryCamera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, false);
 
             cl.SetFramebuffer(gd.SwapchainFramebuffer);
             fbWidth = gd.SwapchainFramebuffer.Width;
             fbHeight = gd.SwapchainFramebuffer.Height;
             cl.SetViewport(0, new Viewport(0, 0, fbWidth, fbHeight, 0, 1));
             cl.SetScissorRect(0, 0, 0, fbWidth, fbHeight);
-            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), _camera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, false);
+            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), _primaryCamera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, false);
 
             _resourceUpdateCL.Begin();
             {
@@ -403,7 +416,7 @@ namespace VoxelPizza.Client
             uint shadowMapWidth,
             out BoundingFrustum lightFrustum)
         {
-            Camera? camera = sc.Camera;
+            Camera? camera = sc.CurrentCamera;
             if (camera == null)
             {
                 lightFrustum = default;

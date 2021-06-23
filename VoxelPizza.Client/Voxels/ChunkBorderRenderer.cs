@@ -144,10 +144,16 @@ namespace VoxelPizza.Client
                 return;
             }
 
+            Camera? renderCamera = ChunkRenderer.RenderCamera;
+            if (renderCamera == null)
+            {
+                return;
+            }
+
             cl.SetPipeline(UseDepth ? _batchDepthPipeline : _batchDepthLessPipeline);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
             cl.SetFullViewport(0);
-            cl.SetGraphicsResourceSet(0, sc.GetCameraInfoSet(ChunkRenderer.Camera));
+            cl.SetGraphicsResourceSet(0, sc.GetCameraInfoSet(renderCamera));
 
             if (DrawChunks)
                 _chunkBatch.Submit(cl);

@@ -309,7 +309,7 @@ namespace VoxelPizza.Client.Objects
 
         private void RenderShadowMap(CommandList cl, SceneContext sc, int shadowMapIndex)
         {
-            if (sc.Camera == null)
+            if (sc.CurrentCamera == null)
             {
                 return;
             }
@@ -326,7 +326,7 @@ namespace VoxelPizza.Client.Objects
 
         private void RenderStandard(CommandList cl, SceneContext sc)
         {
-            Camera? camera = sc.Camera;
+            Camera? camera = sc.CurrentCamera;
             if (camera == null)
             {
                 return;

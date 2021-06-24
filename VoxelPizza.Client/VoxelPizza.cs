@@ -100,6 +100,7 @@ namespace VoxelPizza.Client
             //_scene.AddRenderable(particlePlane);
 
             ChunkRenderer = new ChunkRenderer(new Size3(4, 3, 4));
+            ChunkRenderer.CullCamera = _scene.PrimaryCamera;
             _scene.AddUpdateable(ChunkRenderer);
             _scene.AddRenderable(ChunkRenderer);
 

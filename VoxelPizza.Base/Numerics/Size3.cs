@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Numerics;
 
 namespace VoxelPizza.Numerics
 {
@@ -56,6 +57,11 @@ namespace VoxelPizza.Numerics
         public static implicit operator Size3f(Size3 size)
         {
             return new Size3f(size.W, size.H, size.D);
+        }
+
+        public static implicit operator Vector3(Size3 size)
+        {
+            return new Vector3(size.W, size.H, size.D);
         }
 
         public static Size3 operator *(Size3 left, Size3 right)

@@ -64,7 +64,7 @@ namespace VoxelPizza.Client
         public ResourceLayout ChunkInfoLayout { get; private set; }
 
         public Camera? RenderCamera { get; set; }
-        public Camera? BoundCamera { get; set; }
+        public Camera? CullCamera { get; set; }
 
         public override RenderPasses RenderPasses => RenderPasses.Opaque;
 
@@ -456,18 +456,54 @@ namespace VoxelPizza.Client
             ImGuiNET.ImGui.End();
         }
 
-        public void GatherVisibleChunks(List<ChunkMesh> visibleChunks)
+        public void GatherVisibleChunks(List<ChunkMesh> visibleChunks, BoundingFrustum? cullFrustum)
         {
-            visibleChunks.AddRange(_meshes);
+            if (cullFrustum.HasValue)
+            {
+                BoundingFrustum frustum = cullFrustum.GetValueOrDefault();
+
+                foreach (ChunkMesh mesh in _meshes)
+                {
+                    Vector3 chunkPos = mesh.Chunk.Position.ToBlock();
+                    BoundingBox box = new(chunkPos, chunkPos + Chunk.Size);
+
+                    if (frustum.Contains(ref box) != ContainmentType.Disjoint)
+                    {
+                        visibleChunks.Add(mesh);
+                    }
+                }
+            }
+            else
+            {
+                visibleChunks.AddRange(_meshes);
+            }
         }
 
-        public void GatherVisibleRegions(List<ChunkMeshRegion> visibleRegions)
+        public void GatherVisibleRegions(List<ChunkMeshRegion> visibleRegions, BoundingFrustum? cullFrustum)
         {
             lock (_regions)
             {
-                foreach (ChunkMeshRegion region in _regions.Values)
+                if (cullFrustum.HasValue)
                 {
-                    visibleRegions.Add(region);
+                    BoundingFrustum frustum = cullFrustum.GetValueOrDefault();
+
+                    foreach (ChunkMeshRegion region in _regions.Values)
+                    {
+                        Vector3 regionPos = region.Position.ToBlock(region.Size);
+                        BoundingBox box = new(regionPos, regionPos + (region.Size * Chunk.Size));
+
+                        if (frustum.Contains(ref box) != ContainmentType.Disjoint)
+                        {
+                            visibleRegions.Add(region);
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (ChunkMeshRegion region in _regions.Values)
+                    {
+                        visibleRegions.Add(region);
+                    }
                 }
             }
         }
@@ -519,8 +555,16 @@ namespace VoxelPizza.Client
             if (renderCamera != null)
             {
                 ResourceSet renderCameraInfoSet = sc.GetCameraInfoSet(renderCamera);
-                RenderMeshes(renderCameraInfoSet, gd, cl, sc);
-                RenderRegions(renderCameraInfoSet, gd, cl, sc);
+
+                BoundingFrustum? cullFrustum = null;
+                Camera? cullCamera = CullCamera;
+                if (cullCamera != null)
+                {
+                    cullFrustum = new(cullCamera.ViewMatrix * cullCamera.ProjectionMatrix);
+                }
+
+                RenderMeshes(gd, cl, sc, renderCameraInfoSet, cullFrustum);
+                RenderRegions(gd, cl, sc, renderCameraInfoSet, cullFrustum);
             }
 
             for (int i = 0; i < _uploadLists.Length; i++)
@@ -538,11 +582,13 @@ namespace VoxelPizza.Client
             frameEvent.Set();
         }
 
-        private void RenderRegions(ResourceSet cameraInfoSet, GraphicsDevice gd, CommandList cl, SceneContext sc)
+        private void RenderRegions(
+            GraphicsDevice gd, CommandList cl, SceneContext sc,
+            ResourceSet cameraInfoSet, BoundingFrustum? cullFrustum)
         {
             List<ChunkMeshRegion> visibleRegions = _visibleRegionBuffer;
             visibleRegions.Clear();
-            GatherVisibleRegions(visibleRegions);
+            GatherVisibleRegions(visibleRegions, cullFrustum);
 
             cl.SetPipeline(_indirectPipeline);
             cl.SetGraphicsResourceSet(0, cameraInfoSet);
@@ -599,11 +645,13 @@ namespace VoxelPizza.Client
 
         long lastbytesum = 0;
 
-        private void RenderMeshes(ResourceSet cameraInfoSet, GraphicsDevice gd, CommandList cl, SceneContext sc)
+        private void RenderMeshes(
+            GraphicsDevice gd, CommandList cl, SceneContext sc,
+            ResourceSet cameraInfoSet, BoundingFrustum? cullFrustum)
         {
             List<ChunkMesh> visibleMeshes = _visibleMeshBuffer;
             visibleMeshes.Clear();
-            GatherVisibleChunks(visibleMeshes);
+            GatherVisibleChunks(visibleMeshes, cullFrustum);
 
             cl.SetPipeline(_directPipeline);
             cl.SetGraphicsResourceSet(0, cameraInfoSet);

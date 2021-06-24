@@ -20,11 +20,8 @@ namespace VoxelPizza.Client
 
         private readonly ConcurrentDictionary<RenderPasses, Func<CullRenderable, bool>> _filters = new();
 
-        private readonly Camera _primaryCamera;
-        private readonly Camera _secondaryCamera;
-
-        public Camera PrimaryCamera => _primaryCamera;
-        public Camera SecondaryCamera => _secondaryCamera;
+        public Camera PrimaryCamera { get; }
+        public Camera SecondaryCamera { get; }
 
         public bool ThreadedRendering { get; set; } = false;
 
@@ -40,8 +37,8 @@ namespace VoxelPizza.Client
 
         public Scene(GraphicsDevice gd, Sdl2Window window)
         {
-            _primaryCamera = new Camera(gd, window);
-            _secondaryCamera = new Camera(gd, window);
+            PrimaryCamera = new Camera(gd, window);
+            SecondaryCamera = new Camera(gd, window);
         }
 
         public void AddGraphicsResource(GraphicsResource graphicsResource)
@@ -213,17 +210,17 @@ namespace VoxelPizza.Client
             cl.ClearDepthStencil(depthClear);
             cl.SetFullScissorRects();
             sc.UpdateCameraBuffers(cl); // Re-set because reflection step changed it.
-            var cameraFrustum = new BoundingFrustum(_primaryCamera.ViewMatrix * _primaryCamera.ProjectionMatrix);
+            var cameraFrustum = new BoundingFrustum(camera.ViewMatrix * camera.ProjectionMatrix);
 
-            Render(gd, cl, sc, RenderPasses.Opaque, cameraFrustum, _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.Opaque, cameraFrustum, camera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             cl.PushDebugGroup("Transparent Pass");
-            Render(gd, cl, sc, RenderPasses.AlphaBlend, cameraFrustum, _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.AlphaBlend, cameraFrustum, camera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             cl.PushDebugGroup("Overlay");
-            Render(gd, cl, sc, RenderPasses.Overlay, cameraFrustum, _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.Overlay, cameraFrustum, camera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             if (sc.MainSceneColorTexture.SampleCount != TextureSampleCount.Count1)
@@ -234,13 +231,13 @@ namespace VoxelPizza.Client
             cl.PushDebugGroup("Duplicator");
             cl.SetFramebuffer(sc.DuplicatorFramebuffer);
             cl.SetFullViewports();
-            Render(gd, cl, sc, RenderPasses.Duplicator, new BoundingFrustum(), _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.Duplicator, new BoundingFrustum(), camera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             cl.PushDebugGroup("Swapchain Pass");
             cl.SetFramebuffer(gd.SwapchainFramebuffer);
             cl.SetFullViewports();
-            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), _primaryCamera.Position, renderQueue, cullableStage, renderableStage, null, false);
+            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), camera.Position, renderQueue, cullableStage, renderableStage, null, false);
             cl.PopDebugGroup();
 
             _resourceUpdateCL.Begin();
@@ -352,11 +349,11 @@ namespace VoxelPizza.Client
                 cls[3].SetScissorRect(0, 0, 0, (uint)scWidth, (uint)scHeight);
                 cls[3].ClearDepthStencil(depthClear);
                 sc.UpdateCameraBuffers(cls[3]);
-                var cameraFrustum = new BoundingFrustum(_primaryCamera.ViewMatrix * _primaryCamera.ProjectionMatrix);
+                var cameraFrustum = new BoundingFrustum(camera.ViewMatrix * camera.ProjectionMatrix);
 
-                Render(gd, cls[3], sc, RenderPasses.Opaque, cameraFrustum, _primaryCamera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
-                Render(gd, cls[3], sc, RenderPasses.AlphaBlend, cameraFrustum, _primaryCamera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
-                Render(gd, cls[3], sc, RenderPasses.Overlay, cameraFrustum, _primaryCamera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
+                Render(gd, cls[3], sc, RenderPasses.Opaque, cameraFrustum, camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
+                Render(gd, cls[3], sc, RenderPasses.AlphaBlend, cameraFrustum, camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
+                Render(gd, cls[3], sc, RenderPasses.Overlay, cameraFrustum, camera.Position, _renderQueues[3], _cullableStage[3], _renderableStage[3], null, true);
             });
 
             Task.WaitAll(_renderTasks);
@@ -379,14 +376,14 @@ namespace VoxelPizza.Client
             cl.SetViewport(1, new Viewport(0, 0, fbWidth, fbHeight, 0, 1));
             cl.SetScissorRect(0, 0, 0, fbWidth, fbHeight);
             cl.SetScissorRect(1, 0, 0, fbWidth, fbHeight);
-            Render(gd, cl, sc, RenderPasses.Duplicator, new BoundingFrustum(), _primaryCamera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, false);
+            Render(gd, cl, sc, RenderPasses.Duplicator, new BoundingFrustum(), camera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, false);
 
             cl.SetFramebuffer(gd.SwapchainFramebuffer);
             fbWidth = gd.SwapchainFramebuffer.Width;
             fbHeight = gd.SwapchainFramebuffer.Height;
             cl.SetViewport(0, new Viewport(0, 0, fbWidth, fbHeight, 0, 1));
             cl.SetScissorRect(0, 0, 0, fbWidth, fbHeight);
-            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), _primaryCamera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, false);
+            Render(gd, cl, sc, RenderPasses.SwapchainOutput, new BoundingFrustum(), camera.Position, _renderQueues[0], _cullableStage[0], _renderableStage[0], null, false);
 
             _resourceUpdateCL.Begin();
             {

@@ -19,14 +19,13 @@ namespace VoxelPizza.Client
 {
     public class VoxelPizza : Application
     {
-        public static RenderDoc? _renderDoc;
+        private static RenderDoc? _renderDoc;
 
         private Sdl2ControllerTracker? _controllerTracker;
 
         private Scene _scene;
         private SceneContext _sc;
 
-        private CommandList _chunkCommands;
         private CommandList _frameCommands;
 
         private ImGuiRenderable _imGuiRenderable;
@@ -37,9 +36,9 @@ namespace VoxelPizza.Client
         private int _msaaOption = 0;
         private TextureSampleCount? _newSampleCount;
 
-        private List<Task> _loadTasks = new List<Task>();
-        private ConcurrentQueue<Renderable> _queuedRenderables = new ConcurrentQueue<Renderable>();
-        private Dictionary<string, ImageSharpTexture> _textures = new Dictionary<string, ImageSharpTexture>();
+        private List<Task> _loadTasks = new();
+        private ConcurrentQueue<Renderable> _queuedRenderables = new();
+        private Dictionary<string, ImageSharpTexture> _textures = new();
 
         private event Action<int, int> _resizeHandled;
         private bool _windowResized;
@@ -107,7 +106,7 @@ namespace VoxelPizza.Client
             ChunkBorderRenderer = new ChunkBorderRenderer(ChunkRenderer);
             _scene.AddUpdateable(ChunkBorderRenderer);
             _scene.AddRenderable(ChunkBorderRenderer);
-             
+
             _loadTasks.Add(Task.Run(() =>
             {
                 Skybox skybox = GetDefaultSkybox();

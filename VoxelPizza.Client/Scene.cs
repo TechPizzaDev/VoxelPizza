@@ -556,7 +556,7 @@ namespace VoxelPizza.Client
             }
         }
 
-        private readonly HashSet<Renderable> _allPerFrameRenderablesSet = new HashSet<Renderable>();
+        private readonly HashSet<Renderable> _allPerFrameRenderablesSet = new();
         private readonly RenderQueue[] _renderQueues = Enumerable.Range(0, 4).Select(i => new RenderQueue()).ToArray();
         private readonly List<CullRenderable>[] _cullableStage = Enumerable.Range(0, 4).Select(i => new List<CullRenderable>()).ToArray();
         private readonly List<Renderable>[] _renderableStage = Enumerable.Range(0, 4).Select(i => new List<Renderable>()).ToArray();

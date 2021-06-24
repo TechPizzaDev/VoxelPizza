@@ -179,66 +179,6 @@ namespace VoxelPizza.Client
                 UpdateChunkRegionBatch(indices, vertices);
                 _regionsNeedUpdate = false;
             }
-
-            float delta = time.DeltaSeconds;
-
-            float tt = time.TotalSeconds;
-
-            if (false)
-            {
-                int siz = 32;
-                const int count = 1;
-                for (int yy = 0; yy < 256 / siz; yy++)
-                {
-                    for (int zz = 0; zz < 256 / siz; zz++)
-                    {
-                        for (int xx = 0; xx < 256 / siz; xx++)
-                        {
-                            //float t = time.TotalSeconds + j * MathF.PI / 1024;
-
-                            //float x = MathF.Cos(t) * 20f + 200;
-                            //float y = MathF.Sin(t) * 20f + 200;
-                            //float x = xx * 4 + 100;
-                            //float y = yy * 4 + 100;
-                            //float x = 480;
-                            //float y = 330;
-                            float x = 0;
-                            float y = 0;
-                            float w = 16;
-                            float h = 16;
-
-                            byte r = (byte)((MathF.Cos(tt) + 1) * 127.5f);
-                            byte g = (byte)((MathF.Sin(tt) + 1) * 127.5f);
-
-                            var reserve = _chunkBatch.ReserveQuadsUnsafe(count);
-
-                            for (int i = 0; i < count; i++)
-                            {
-                                VertexPosition<RgbaByte>* ptr = reserve.Vertices + i * 4;
-
-                                float qx = xx * siz;
-                                float qy = yy * siz;
-                                float qz = zz * siz;
-
-                                float sin = MathF.Sin((tt + MathF.Sin(yy * 0.1f) - 4.5f) * 3) * 1.5f;
-                                float cos = MathF.Cos((tt + MathF.Cos(xx * 0.1f) - 4.5f) * 6) * 0.75f;
-
-                                ShapeMeshHelper.SetRotatedQuad(ptr,
-                                    qx,
-                                    qy,
-                                    qz,
-                                    w / -2, h / -2,
-                                    w, h,
-                                    sin, cos,
-                                    new RgbaByte(127, g, 127, 255),
-                                    new RgbaByte(127, g, 127, 255),
-                                    new RgbaByte(r, 127, 127, 255),
-                                    new RgbaByte(r, 127, 127, 255));
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         private unsafe void UpdateChunkBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)

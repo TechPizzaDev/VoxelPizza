@@ -13,10 +13,10 @@ namespace VoxelPizza.Client
         private readonly int _controllerIndex;
         private readonly SDL_GameController _controller;
 
-        public string ControllerName { get; }
+        public string? ControllerName { get; }
 
-        private readonly Dictionary<SDL_GameControllerAxis, float> _axisValues = new Dictionary<SDL_GameControllerAxis, float>();
-        private readonly Dictionary<SDL_GameControllerButton, bool> _buttons = new Dictionary<SDL_GameControllerButton, bool>();
+        private readonly Dictionary<SDL_GameControllerAxis, float> _axisValues = new();
+        private readonly Dictionary<SDL_GameControllerButton, bool> _buttons = new();
 
         public unsafe Sdl2ControllerTracker(int index)
         {
@@ -78,7 +78,7 @@ namespace VoxelPizza.Client
             }
         }
 
-        private float Normalize(short value)
+        private static float Normalize(short value)
         {
             return value < 0
                 ? -(value / (float)short.MinValue)

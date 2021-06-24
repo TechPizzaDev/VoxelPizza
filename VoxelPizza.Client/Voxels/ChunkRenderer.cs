@@ -9,7 +9,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Veldrid;
-using Veldrid.Utilities;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
@@ -24,7 +23,6 @@ namespace VoxelPizza.Client
         /// </summary>
         public const int FetchBlockMargin = 2;
 
-        private DisposeCollector _disposeCollector;
         private string _graphicsDeviceName;
         private string _graphicsBackendName;
 
@@ -61,6 +59,7 @@ namespace VoxelPizza.Client
         public HeapPool ChunkMeshPool { get; }
         public ChunkMesher ChunkMesher { get; }
 
+        public ResourceLayout ChunkSharedLayout { get; private set; }
         public ResourceLayout ChunkInfoLayout { get; private set; }
 
         public Camera? RenderCamera { get; set; }
@@ -178,7 +177,7 @@ namespace VoxelPizza.Client
 
                         //var mesh = new ChunkMesh(this, chunk);
                         //_queuedMeshes.Enqueue(mesh);
-
+                        
                         count++;
                         if (count == 1)
                         {
@@ -286,9 +285,8 @@ namespace VoxelPizza.Client
             _graphicsDeviceName = gd.DeviceName;
             _graphicsBackendName = gd.BackendType.ToString();
 
-            DisposeCollectorResourceFactory factory = new(gd.ResourceFactory);
-            _disposeCollector = factory.DisposeCollector;
-
+            ResourceFactory factory = gd.ResourceFactory;
+            
             for (int i = 0; i < _uploadReady.Length; i++)
             {
                 _uploadReady[i] = true;
@@ -299,7 +297,7 @@ namespace VoxelPizza.Client
 
             _stagingMeshPool = new ChunkStagingMeshPool(factory, RegionSize.Volume);
 
-            ResourceLayout sharedLayout = factory.CreateResourceLayout(
+            ChunkSharedLayout = factory.CreateResourceLayout(
                 new ResourceLayoutDescription(
                     new ResourceLayoutElementDescription("WorldInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
                     new ResourceLayoutElementDescription("LightInfo", ResourceKind.UniformBuffer, ShaderStages.Fragment),
@@ -343,7 +341,7 @@ namespace VoxelPizza.Client
                     new[] { spaceLayout, paintLayout },
                     new[] { mainVs, mainFs, },
                     mainSpecs),
-                new[] { sc.CameraInfoLayout, sharedLayout, ChunkInfoLayout },
+                new[] { sc.CameraInfoLayout, ChunkSharedLayout, ChunkInfoLayout },
                 sc.MainSceneFramebuffer.OutputDescription));
 
             (Shader mainIndirectVs, Shader mainIndirectFs, SpecializationConstant[] mainIndirectSpecs) =
@@ -358,7 +356,7 @@ namespace VoxelPizza.Client
                     new[] { spaceLayout, paintLayout, worldLayout },
                     new[] { mainIndirectVs, mainIndirectFs, },
                     mainIndirectSpecs),
-                new[] { sc.CameraInfoLayout, sharedLayout },
+                new[] { sc.CameraInfoLayout, ChunkSharedLayout },
                 sc.MainSceneFramebuffer.OutputDescription));
 
             _worldInfoBuffer = factory.CreateBuffer(new BufferDescription(
@@ -400,7 +398,7 @@ namespace VoxelPizza.Client
             gd.UpdateBuffer(_textureAtlasBuffer, 0, regions);
 
             _sharedSet = factory.CreateResourceSet(new ResourceSetDescription(
-                sharedLayout,
+                ChunkSharedLayout,
                 _worldInfoBuffer,
                 sc.LightInfoBuffer,
                 _textureAtlasBuffer));
@@ -423,7 +421,14 @@ namespace VoxelPizza.Client
                 }
             }
 
-            _disposeCollector.DisposeAll();
+            _stagingMeshPool.Dispose();
+            ChunkSharedLayout.Dispose();
+            ChunkInfoLayout.Dispose();
+            _directPipeline.Dispose();
+            _indirectPipeline.Dispose();
+            _worldInfoBuffer.Dispose();
+            _textureAtlasBuffer.Dispose();
+            _sharedSet.Dispose();
         }
 
         public void Update(in FrameTime time)
@@ -467,7 +472,7 @@ namespace VoxelPizza.Client
                     Vector3 chunkPos = mesh.Chunk.Position.ToBlock();
                     BoundingBox box = new(chunkPos, chunkPos + Chunk.Size);
 
-                    if (frustum.Contains(ref box) != ContainmentType.Disjoint)
+                    if (frustum.Contains(box) != ContainmentType.Disjoint)
                     {
                         visibleChunks.Add(mesh);
                     }
@@ -492,7 +497,7 @@ namespace VoxelPizza.Client
                         Vector3 regionPos = region.Position.ToBlock(region.Size);
                         BoundingBox box = new(regionPos, regionPos + (region.Size * Chunk.Size));
 
-                        if (frustum.Contains(ref box) != ContainmentType.Disjoint)
+                        if (frustum.Contains(box) != ContainmentType.Disjoint)
                         {
                             visibleRegions.Add(region);
                         }
@@ -527,7 +532,7 @@ namespace VoxelPizza.Client
                 }
             }
 
-            gd.UpdateBuffer(_worldInfoBuffer, 0, _worldInfo);
+            cl.UpdateBuffer(_worldInfoBuffer, 0, _worldInfo);
 
             for (int i = 0; i < _uploadLists.Length; i++)
             {

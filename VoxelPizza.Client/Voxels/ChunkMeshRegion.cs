@@ -24,7 +24,7 @@ namespace VoxelPizza.Client
         private bool _uploadRequired;
 
         public ChunkRenderer Renderer { get; }
-        public ChunkRegionPosition Position { get; }
+        public RenderRegionPosition Position { get; }
         public Size3 Size { get; }
 
         public int DrawCount { get; private set; }
@@ -38,7 +38,7 @@ namespace VoxelPizza.Client
         public int RegionY => Position.Y;
         public int RegionZ => Position.Z;
 
-        public ChunkMeshRegion(ChunkRenderer chunkRenderer, ChunkRegionPosition position, Size3 size)
+        public ChunkMeshRegion(ChunkRenderer chunkRenderer, RenderRegionPosition position, Size3 size)
         {
             Renderer = chunkRenderer ?? throw new ArgumentNullException(nameof(chunkRenderer));
             Position = position;

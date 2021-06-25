@@ -14,6 +14,7 @@ using Veldrid.Sdl2;
 using Veldrid.Utilities;
 using VoxelPizza.Client.Objects;
 using VoxelPizza.Numerics;
+using VoxelPizza.World;
 
 namespace VoxelPizza.Client
 {
@@ -44,6 +45,9 @@ namespace VoxelPizza.Client
         private bool _windowResized;
 
         private ParticlePlane particlePlane;
+
+        private WorldManager _worldManager;
+        private Dimension _currentDimension;
 
         public ChunkRenderer ChunkRenderer { get; }
         public ChunkBorderRenderer ChunkBorderRenderer { get; }
@@ -98,7 +102,11 @@ namespace VoxelPizza.Client
             //particlePlane = new ParticlePlane(_scene.Camera);
             //_scene.AddRenderable(particlePlane);
 
-            ChunkRenderer = new ChunkRenderer(new Size3(4, 3, 4));
+            _worldManager = new WorldManager();
+            _currentDimension = _worldManager.CreateDimension();
+
+            var chunkMeshPool = new HeapPool(1024 * 1024 * 16);
+            ChunkRenderer = new ChunkRenderer(_currentDimension, chunkMeshPool, new Size3(4, 3, 4));
             ChunkRenderer.CullCamera = _scene.PrimaryCamera;
             _scene.AddUpdateable(ChunkRenderer);
             _scene.AddRenderable(ChunkRenderer);
@@ -419,10 +427,16 @@ namespace VoxelPizza.Client
                         ChunkBorderRenderer.DrawChunks = !drawChunks;
                     }
 
-                    bool drawRegions = ChunkBorderRenderer.DrawRegions;
-                    if (ImGui.MenuItem("Regions", string.Empty, drawRegions))
+                    bool drawChunkRegions = ChunkBorderRenderer.DrawChunkRegions;
+                    if (ImGui.MenuItem("Chunk Regions", string.Empty, drawChunkRegions))
                     {
-                        ChunkBorderRenderer.DrawRegions = !drawRegions;
+                        ChunkBorderRenderer.DrawChunkRegions = !drawChunkRegions;
+                    }
+
+                    bool drawRenderRegions = ChunkBorderRenderer.DrawRenderRegions;
+                    if (ImGui.MenuItem("Render Regions", string.Empty, drawRenderRegions))
+                    {
+                        ChunkBorderRenderer.DrawRenderRegions = !drawRenderRegions;
                     }
 
                     bool useDepth = ChunkBorderRenderer.UseDepth;

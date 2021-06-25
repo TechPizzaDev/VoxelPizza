@@ -12,10 +12,13 @@ namespace VoxelPizza.Client
     {
         private GeometryBatch<VertexPosition<RgbaByte>> _chunkBatch;
         private GeometryBatch<VertexPosition<RgbaByte>> _chunkRegionBatch;
-        private HashSet<ChunkPosition> _chunks;
-        private HashSet<ChunkRegionPosition> _chunkRegions;
+        private GeometryBatch<VertexPosition<RgbaByte>> _renderRegionBatch;
+        private HashSet<ChunkPosition> _chunks = new();
+        private HashSet<ChunkRegionPosition> _chunkRegions = new();
+        private HashSet<RenderRegionPosition> _renderRegions = new();
         private bool _chunksNeedUpdate;
-        private bool _regionsNeedUpdate;
+        private bool _chunkRegionsNeedUpdate;
+        private bool _renderRegionsNeedUpdate;
 
         private Pipeline _batchDepthLessPipeline;
         private Pipeline _batchDepthPipeline;
@@ -23,7 +26,8 @@ namespace VoxelPizza.Client
         public ChunkRenderer ChunkRenderer { get; }
 
         public bool DrawChunks { get; set; }
-        public bool DrawRegions { get; set; }
+        public bool DrawChunkRegions { get; set; }
+        public bool DrawRenderRegions { get; set; }
         public bool UseDepth { get; set; }
 
         public override RenderPasses RenderPasses => UseDepth ? RenderPasses.Opaque : RenderPasses.AlphaBlend;
@@ -35,17 +39,20 @@ namespace VoxelPizza.Client
             uint chunkQuadCap = 1024 * 32;
             _chunkBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * chunkQuadCap, 4 * chunkQuadCap);
 
-            uint regionQuadCap = 1024 * 8;
-            _chunkRegionBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * regionQuadCap, 4 * regionQuadCap);
+            uint chunkRegionQuadCap = 1024 * 4;
+            _chunkRegionBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * chunkRegionQuadCap, 4 * chunkRegionQuadCap);
 
-            _chunks = new HashSet<ChunkPosition>();
-            _chunkRegions = new HashSet<ChunkRegionPosition>();
+            uint renderRegionQuadCap = 1024 * 8;
+            _renderRegionBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * renderRegionQuadCap, 4 * renderRegionQuadCap);
 
-            ChunkRenderer.ChunkAdded += ChunkRenderer_ChunkAdded;
-            ChunkRenderer.ChunkRemoved += ChunkRenderer_ChunkRemoved;
+            ChunkRenderer.Dimension.ChunkAdded += ChunkRenderer_ChunkAdded;
+            ChunkRenderer.Dimension.ChunkRemoved += ChunkRenderer_ChunkRemoved;
 
-            ChunkRenderer.ChunkRegionAdded += ChunkRenderer_ChunkRegionAdded;
-            ChunkRenderer.ChunkRegionRemoved += ChunkRenderer_ChunkRegionRemoved;
+            ChunkRenderer.Dimension.RegionAdded += ChunkRenderer_RegionAdded;
+            ChunkRenderer.Dimension.RegionRemoved += ChunkRenderer_RegionRemoved;
+
+            ChunkRenderer.RenderRegionAdded += ChunkRenderer_RenderRegionAdded;
+            ChunkRenderer.RenderRegionRemoved += ChunkRenderer_RenderRegionRemoved;
         }
 
         private void ChunkRenderer_ChunkAdded(Chunk chunk)
@@ -66,21 +73,40 @@ namespace VoxelPizza.Client
             }
         }
 
-        private void ChunkRenderer_ChunkRegionAdded(ChunkMeshRegion chunkRegion)
+        private void ChunkRenderer_RegionAdded(ChunkRegion chunkRegion)
         {
             lock (_chunkRegions)
             {
                 _chunkRegions.Add(chunkRegion.Position);
-                _regionsNeedUpdate = true;
+                _chunkRegionsNeedUpdate = true;
             }
         }
 
-        private void ChunkRenderer_ChunkRegionRemoved(ChunkMeshRegion chunkRegion)
+        private void ChunkRenderer_RegionRemoved(ChunkRegion chunkRegion)
         {
             lock (_chunkRegions)
             {
                 _chunkRegions.Remove(chunkRegion.Position);
-                _regionsNeedUpdate = true;
+                _chunkRegionsNeedUpdate = true;
+            }
+        }
+
+
+        private void ChunkRenderer_RenderRegionAdded(ChunkMeshRegion chunkRegion)
+        {
+            lock (_renderRegions)
+            {
+                _renderRegions.Add(chunkRegion.Position);
+                _renderRegionsNeedUpdate = true;
+            }
+        }
+
+        private void ChunkRenderer_RenderRegionRemoved(ChunkMeshRegion chunkRegion)
+        {
+            lock (_renderRegions)
+            {
+                _renderRegions.Remove(chunkRegion.Position);
+                _renderRegionsNeedUpdate = true;
             }
         }
 
@@ -88,6 +114,7 @@ namespace VoxelPizza.Client
         {
             _chunkBatch.CreateDeviceObjects(gd, cl, sc);
             _chunkRegionBatch.CreateDeviceObjects(gd, cl, sc);
+            _renderRegionBatch.CreateDeviceObjects(gd, cl, sc);
 
             ResourceFactory factory = gd.ResourceFactory;
 
@@ -126,6 +153,7 @@ namespace VoxelPizza.Client
         {
             _chunkBatch.DestroyDeviceObjects();
             _chunkRegionBatch.DestroyDeviceObjects();
+            _renderRegionBatch.DestroyDeviceObjects();
         }
 
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
@@ -139,7 +167,7 @@ namespace VoxelPizza.Client
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
         {
-            if (!DrawChunks && !DrawRegions)
+            if (!DrawChunks && !DrawChunkRegions && !DrawRenderRegions)
             {
                 return;
             }
@@ -158,8 +186,11 @@ namespace VoxelPizza.Client
             if (DrawChunks)
                 _chunkBatch.Submit(cl);
 
-            if (DrawRegions)
+            if (DrawChunkRegions)
                 _chunkRegionBatch.Submit(cl);
+
+            if (DrawRenderRegions)
+                _renderRegionBatch.Submit(cl);
         }
 
         [SkipLocalsInit]
@@ -174,36 +205,33 @@ namespace VoxelPizza.Client
                 _chunksNeedUpdate = false;
             }
 
-            if (DrawRegions && _regionsNeedUpdate)
+            if (DrawChunkRegions && _chunkRegionsNeedUpdate)
             {
                 UpdateChunkRegionBatch(indices, vertices);
-                _regionsNeedUpdate = false;
+                _chunkRegionsNeedUpdate = false;
+            }
+
+            if (DrawRenderRegions && _renderRegionsNeedUpdate)
+            {
+                UpdateRenderRegionBatch(indices, vertices);
+                _renderRegionsNeedUpdate = false;
             }
         }
 
         private unsafe void UpdateChunkBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
         {
             float lineWidth = 0.125f;
-            RgbaByte color0 = new(0, 255, 0, 255);
+            RgbaByte color0 = new(0, 1, 0, 255);
             RgbaByte color1 = new(255, 0, 0, 255);
+
+            Size3f meshSize = Chunk.Size;
 
             _chunkBatch.Begin();
 
             foreach (ChunkPosition chunk in _chunks)
             {
-                int vertexCount = ShapeMeshHelper.GetBoxMesh(
-                    chunk.ToBlock(), Chunk.Size, lineWidth,
-                    color0, color1,
-                    indices, vertices);
-
-                var reserve = _chunkBatch.ReserveUnsafe(indices.Length, vertexCount);
-                vertices.Slice(0, vertexCount).CopyTo(new Span<VertexPosition<RgbaByte>>(reserve.Vertices, vertexCount));
-
-                Span<uint> reserveIndices = new(reserve.Indices, indices.Length);
-                for (int i = 0; i < indices.Length; i++)
-                {
-                    reserveIndices[i] = indices[i] + reserve.VertexOffset;
-                }
+                Vector3 position = chunk.ToBlock();
+                UpdateBatchItem(_chunkBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
             }
 
             _chunkBatch.End();
@@ -211,33 +239,61 @@ namespace VoxelPizza.Client
 
         private unsafe void UpdateChunkRegionBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
         {
-            float lineWidth = 0.125f;
+            float lineWidth = 0.175f;
+            RgbaByte color0 = new(0, 127, 255, 255);
+            RgbaByte color1 = new(127, 0, 255, 255);
+
+            Size3f meshSize = ChunkRegion.Size * Chunk.Size;
+
+            _chunkRegionBatch.Begin();
+
+            foreach (ChunkRegionPosition chunkRegion in _chunkRegions)
+            {
+                Vector3 position = chunkRegion.ToChunk().ToBlock();
+                UpdateBatchItem(_chunkRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
+            }
+
+            _chunkRegionBatch.End();
+        }
+
+        private unsafe void UpdateRenderRegionBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
+        {
+            float lineWidth = 0.175f;
             RgbaByte color0 = new(0, 127, 255, 255);
             RgbaByte color1 = new(127, 0, 255, 255);
 
             Size3 regionSize = ChunkRenderer.RegionSize;
             Size3f meshSize = regionSize * Chunk.Size;
 
-            _chunkRegionBatch.Begin();
+            _renderRegionBatch.Begin();
 
-            foreach (ChunkRegionPosition chunkRegion in _chunkRegions)
-            {
-                int vertexCount = ShapeMeshHelper.GetBoxMesh(
-                    chunkRegion.ToBlock(regionSize), meshSize, lineWidth,
-                    color0, color1,
-                    indices, vertices);
-
-                var reserve = _chunkRegionBatch.ReserveUnsafe(indices.Length, vertexCount);
-                vertices.Slice(0, vertexCount).CopyTo(new Span<VertexPosition<RgbaByte>>(reserve.Vertices, vertexCount));
-
-                Span<uint> reserveIndices = new(reserve.Indices, indices.Length);
-                for (int i = 0; i < indices.Length; i++)
-                {
-                    reserveIndices[i] = indices[i] + reserve.VertexOffset;
-                }
+            foreach (RenderRegionPosition chunkRegion in _renderRegions)
+            { 
+                Vector3 position = chunkRegion.ToBlock(regionSize);
+                UpdateBatchItem(_renderRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
             }
 
-            _chunkRegionBatch.End();
+            _renderRegionBatch.End();
+        }
+
+        private static unsafe void UpdateBatchItem(
+            GeometryBatch<VertexPosition<RgbaByte>> batch, Vector3 position, Size3f meshSize,
+            float lineWidth, RgbaByte color0, RgbaByte color1,
+            Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
+        {
+            int vertexCount = ShapeMeshHelper.GetBoxMesh(
+                position, meshSize, lineWidth,
+                color0, color1,
+                indices, vertices);
+
+            var reserve = batch.ReserveUnsafe(indices.Length, vertexCount);
+            vertices.Slice(0, vertexCount).CopyTo(new Span<VertexPosition<RgbaByte>>(reserve.Vertices, vertexCount));
+
+            Span<uint> reserveIndices = new(reserve.Indices, indices.Length);
+            for (int i = 0; i < indices.Length; i++)
+            {
+                reserveIndices[i] = indices[i] + reserve.VertexOffset;
+            }
         }
     }
 }

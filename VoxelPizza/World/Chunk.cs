@@ -5,7 +5,7 @@ using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
-    public class Chunk
+    public class Chunk : RefCounted
     {
         public const int Width = 16;
         public const int Depth = 16;
@@ -23,8 +23,11 @@ namespace VoxelPizza.World
 
         public WorldBox Box => new(Position.ToBlock(), Size);
 
-        public Chunk(ChunkPosition position)
+        public ChunkRegion Region { get; }
+
+        public Chunk(ChunkRegion region, ChunkPosition position)
         {
+            Region = region ?? throw new ArgumentNullException(nameof(region));
             Position = position;
 
             Blocks = new uint[Height * Depth * Width];

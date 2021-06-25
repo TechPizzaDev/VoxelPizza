@@ -39,7 +39,6 @@ namespace VoxelPizza.Client
         private Pipeline _indirectPipeline;
         private ResourceSet _sharedSet;
 
-        private Dictionary<ChunkPosition, Chunk> _chunks = new();
         private AutoResetEvent frameEvent = new(false);
 
         private List<ChunkMesh> _visibleMeshBuffer = new();
@@ -47,7 +46,7 @@ namespace VoxelPizza.Client
         private ConcurrentQueue<ChunkMesh> _queuedMeshes = new();
 
         private List<ChunkMeshRegion> _visibleRegionBuffer = new();
-        private Dictionary<ChunkRegionPosition, ChunkMeshRegion> _regions = new();
+        private Dictionary<RenderRegionPosition, ChunkMeshRegion> _regions = new();
         private ConcurrentQueue<ChunkMeshRegion> _queuedRegions = new();
 
         private WorldInfo _worldInfo;
@@ -55,8 +54,9 @@ namespace VoxelPizza.Client
         private int _lastTriangleCount;
         private int _lastDrawCalls;
 
-        public Size3 RegionSize { get; }
+        public Dimension Dimension { get; }
         public HeapPool ChunkMeshPool { get; }
+        public Size3 RegionSize { get; }
         public ChunkMesher ChunkMesher { get; }
 
         public ResourceLayout ChunkSharedLayout { get; private set; }
@@ -67,18 +67,17 @@ namespace VoxelPizza.Client
 
         public override RenderPasses RenderPasses => RenderPasses.Opaque;
 
-        public event Action<Chunk>? ChunkAdded;
         public event Action<ChunkMesh>? ChunkMeshAdded;
-        public event Action<ChunkMeshRegion>? ChunkRegionAdded;
+        public event Action<ChunkMeshRegion>? RenderRegionAdded;
 
-        public event Action<Chunk>? ChunkRemoved;
         public event Action<ChunkMesh>? ChunkMeshRemoved;
-        public event Action<ChunkMeshRegion>? ChunkRegionRemoved;
+        public event Action<ChunkMeshRegion>? RenderRegionRemoved;
 
-        public ChunkRenderer(Size3 regionSize)
+        public ChunkRenderer(Dimension dimension, HeapPool chunkMeshPool, Size3 regionSize)
         {
+            Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
+            ChunkMeshPool = chunkMeshPool ?? throw new ArgumentNullException(nameof(chunkMeshPool));
             RegionSize = regionSize;
-            ChunkMeshPool = new HeapPool(1024 * 1024 * 16);
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
             _uploadReady = new bool[4];
@@ -91,193 +90,21 @@ namespace VoxelPizza.Client
                 _uploadSubmittedMeshes[i] = new List<ChunkStagingMesh>();
             }
 
-            StartThread();
+            dimension.ChunkAdded += Dimension_ChunkAdded;
         }
 
-        public ChunkRegionPosition GetRegionPosition(ChunkPosition chunkPosition)
+        private void Dimension_ChunkAdded(Chunk chunk)
         {
-            return new ChunkRegionPosition(
+            var mesh = new ChunkMesh(this, chunk);
+            _queuedMeshes.Enqueue(mesh);
+        }
+
+        public RenderRegionPosition GetRegionPosition(ChunkPosition chunkPosition)
+        {
+            return new RenderRegionPosition(
                 IntMath.DivideRoundDown(chunkPosition.X, (int)RegionSize.W),
                 IntMath.DivideRoundDown(chunkPosition.Y, (int)RegionSize.H),
                 IntMath.DivideRoundDown(chunkPosition.Z, (int)RegionSize.D));
-        }
-
-        public void StartThread()
-        {
-            Task.Run(() =>
-            {
-                try
-                {
-                    //Thread.Sleep(2000);
-
-                    int width = 16;
-                    int depth = width;
-                    int height = 1;
-
-                    var list = new List<(int x, int y, int z)>();
-
-                    int off = 0;
-                    for (int y = -off; y < height; y++)
-                    {
-                        for (int z = 0; z < depth; z++)
-                        {
-                            for (int x = 0; x < width; x++)
-                            {
-                                list.Add((x, y, z));
-                            }
-                        }
-                    }
-
-                    list.Sort((a, b) =>
-                    {
-                        int cx = width / 2;
-                        int cy = height / 2;
-                        int cz = depth / 2;
-
-                        int ax = (cx - a.x);
-                        int ay = (cy - a.y);
-                        int az = (cz - a.z);
-                        int av = ax * ax + ay * ay + az * az;
-
-                        int bx = (cx - b.x);
-                        int by = (cy - b.y);
-                        int bz = (cz - b.z);
-                        int bv = bx * bx + by * by + bz * bz;
-
-                        return av.CompareTo(bv);
-                    });
-
-                    int count = 0;
-                    foreach (var (x, y, z) in list)
-                    {
-                        var chunk = new Chunk(new(x, y, z));
-                        ChunkAdded?.Invoke(chunk);
-
-                        if (y < 0)
-                            chunk.SetBlockLayer(15, 1);
-                        else
-                            chunk.Generate();
-
-                        lock (_chunks)
-                            _chunks.Add(chunk.Position, chunk);
-
-                        ChunkRegionPosition regionPosition = GetRegionPosition(chunk.Position);
-                        ChunkMeshRegion? region;
-                        lock (_regions)
-                        {
-                            if (!_regions.TryGetValue(regionPosition, out region))
-                            {
-                                region = new ChunkMeshRegion(this, regionPosition, RegionSize);
-                                _regions.Add(regionPosition, region);
-                                _queuedRegions.Enqueue(region);
-                            }
-                        }
-
-                        //region.UpdateChunk(chunk);
-
-                        //var mesh = new ChunkMesh(this, chunk);
-                        //_queuedMeshes.Enqueue(mesh);
-                        
-                        count++;
-                        if (count == 1)
-                        {
-                            //Thread.Sleep(1);
-                            count = 0;
-                        }
-                    }
-
-                    for (int y = 0; y < height; y++)
-                    {
-                        for (int z = off; z < depth - off; z++)
-                        {
-                            for (int x = off; x < width - off; x++)
-                            {
-                                var pp = new ChunkPosition(x, y, z);
-                                ChunkRegionPosition regionPosition = GetRegionPosition(pp);
-                                Chunk? chunk = GetChunk(pp);
-                                _regions[regionPosition].UpdateChunk(chunk);
-                            }
-                        }
-                    }
-
-                    return;
-
-                    Random rng = new Random(1234);
-                    for (int i = 0; i < (64 * 1024) / (width * height * depth); i++)
-                    {
-                        for (int y = 0; y < height; y++)
-                        {
-                            for (int z = 0; z < depth; z++)
-                            {
-                                for (int x = 0; x < width; x++)
-                                {
-                                    int xd = rng.Next(2);
-                                    int max = xd == 0 ? 512 : 128;
-                                    if (_chunks.TryGetValue(new ChunkPosition(x, y, z), out Chunk? c))
-                                    {
-                                        uint[] blocks = c.Blocks;
-                                        for (int b = 0; b < blocks.Length; b++)
-                                        {
-                                            blocks[b] = (uint)rng.Next(max);
-                                        }
-                                        //blocks.AsSpan().Clear();
-
-                                        ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
-                                        _regions[regionPosition].UpdateChunk(c);
-                                    }
-                                }
-                            }
-                        }
-
-                        frameEvent.WaitOne();
-                        frameEvent.WaitOne();
-                        //frameEvent.WaitOne();
-                        //frameEvent.WaitOne();
-                    }
-
-                    frameEvent.WaitOne();
-                    Thread.Sleep(1000);
-                    Environment.Exit(0);
-
-                    return;
-                    Thread.Sleep(5000);
-
-                    while (true)
-                    {
-                        int x = rng.Next(width);
-                        int z = rng.Next(depth);
-                        int y = rng.Next(height);
-                        if (_chunks.TryGetValue(new ChunkPosition(x, y, z), out Chunk? c))
-                        {
-                            c.Blocks[rng.Next(c.Blocks.Length)] = 0;
-
-                            ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
-                            _regions[regionPosition].UpdateChunk(c);
-
-                            Thread.Sleep(10);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex);
-                }
-            });
-        }
-
-        public Chunk? GetChunk(ChunkPosition position)
-        {
-            Chunk? chunk;
-            lock (_chunks)
-            {
-                _chunks.TryGetValue(position, out chunk);
-            }
-            return chunk;
-        }
-
-        public Chunk? GetChunk(int x, int y, int z)
-        {
-            return GetChunk(new ChunkPosition(x, y, z));
         }
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
@@ -286,7 +113,7 @@ namespace VoxelPizza.Client
             _graphicsBackendName = gd.BackendType.ToString();
 
             ResourceFactory factory = gd.ResourceFactory;
-            
+
             for (int i = 0; i < _uploadReady.Length; i++)
             {
                 _uploadReady[i] = true;
@@ -417,7 +244,7 @@ namespace VoxelPizza.Client
                 foreach (ChunkMeshRegion region in _regions.Values)
                 {
                     region.DestroyDeviceObjects();
-                    ChunkRegionRemoved?.Invoke(region);
+                    RenderRegionRemoved?.Invoke(region);
                 }
             }
 
@@ -451,7 +278,7 @@ namespace VoxelPizza.Client
                         count += reg.GetChunkCount();
                         regionCount++;
                     }
-                    foreach(ChunkMesh mesh in _meshes)
+                    foreach (ChunkMesh mesh in _meshes)
                     {
                         count += 1;
                     }
@@ -557,7 +384,7 @@ namespace VoxelPizza.Client
             while (_queuedRegions.TryDequeue(out ChunkMeshRegion? region))
             {
                 region.CreateDeviceObjects(gd, cl, sc);
-                ChunkRegionAdded?.Invoke(region);
+                RenderRegionAdded?.Invoke(region);
             }
 
             _lastTriangleCount = 0;
@@ -718,32 +545,40 @@ namespace VoxelPizza.Client
                 nint innerSizeD = (nint)chunkBox.Size.D;
                 uint innerSizeW = chunkBox.Size.W;
 
-                if (_chunks.TryGetValue(chunkBox.Chunk, out Chunk? chunk))
+                Chunk? chunk = Dimension.GetChunk(chunkBox.Chunk);
+                if (chunk != null)
                 {
-                    nint innerOriginX = chunkBox.InnerOrigin.X;
-                    nint innerOriginY = chunkBox.InnerOrigin.Y;
-                    nint innerOriginZ = chunkBox.InnerOrigin.Z;
-
-                    for (nint y = 0; y < innerSizeH; y++)
+                    try
                     {
-                        for (nint z = 0; z < innerSizeD; z++)
+                        nint innerOriginX = chunkBox.InnerOrigin.X;
+                        nint innerOriginY = chunkBox.InnerOrigin.Y;
+                        nint innerOriginZ = chunkBox.InnerOrigin.Z;
+
+                        for (nint y = 0; y < innerSizeH; y++)
                         {
-                            nint outerBaseIndex = BlockMemory.GetIndexBase(
-                                outerSizeD,
-                                outerSizeW,
-                                y + outerOriginY,
-                                z + outerOriginZ)
-                                + outerOriginX;
+                            for (nint z = 0; z < innerSizeD; z++)
+                            {
+                                nint outerBaseIndex = BlockMemory.GetIndexBase(
+                                    outerSizeD,
+                                    outerSizeW,
+                                    y + outerOriginY,
+                                    z + outerOriginZ)
+                                    + outerOriginX;
 
-                            ref uint destination = ref memory.Data[outerBaseIndex];
+                                ref uint destination = ref memory.Data[outerBaseIndex];
 
-                            chunk.GetBlockRowUnsafe(
-                                innerOriginX,
-                                y + innerOriginY,
-                                z + innerOriginZ,
-                                ref destination,
-                                innerSizeW);
+                                chunk.GetBlockRowUnsafe(
+                                    innerOriginX,
+                                    y + innerOriginY,
+                                    z + innerOriginZ,
+                                    ref destination,
+                                    innerSizeW);
+                            }
                         }
+                    }
+                    finally
+                    {
+                        chunk.DecrementRef();
                     }
                 }
                 else

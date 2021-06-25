@@ -4,13 +4,13 @@ using VoxelPizza.World;
 
 namespace VoxelPizza.Client
 {
-    public readonly struct ChunkRegionPosition : IEquatable<ChunkRegionPosition>
+    public readonly struct RenderRegionPosition : IEquatable<RenderRegionPosition>
     {
         public readonly int X;
         public readonly int Y;
         public readonly int Z;
 
-        public ChunkRegionPosition(int x, int y, int z)
+        public RenderRegionPosition(int x, int y, int z)
         {
             X = x;
             Y = y;
@@ -23,7 +23,7 @@ namespace VoxelPizza.Client
             return new BlockPosition((int)factor.W * X, (int)factor.H * Y, (int)factor.D * Z);
         }
 
-        public bool Equals(ChunkRegionPosition other)
+        public bool Equals(RenderRegionPosition other)
         {
             return X == other.X
                 && Y == other.Y

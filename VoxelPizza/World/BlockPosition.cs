@@ -26,6 +26,14 @@ namespace VoxelPizza.World
                 Chunk.BlockToChunkZ(Z));
         }
 
+        public readonly ChunkRegionPosition ToRegion()
+        {
+            return new ChunkRegionPosition(
+                ChunkRegion.ChunkToRegionX(Chunk.BlockToChunkX(X)),
+                ChunkRegion.ChunkToRegionY(Chunk.BlockToChunkY(Y)),
+                ChunkRegion.ChunkToRegionZ(Chunk.BlockToChunkZ(Z)));
+        }
+
         public readonly bool Equals(BlockPosition other)
         {
             return X == other.X

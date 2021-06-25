@@ -4,13 +4,13 @@ using System.Diagnostics;
 namespace VoxelPizza.World
 {
     [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
-    public struct ChunkPosition : IEquatable<ChunkPosition>
+    public struct ChunkRegionPosition : IEquatable<ChunkRegionPosition>
     {
         public int X;
         public int Y;
         public int Z;
 
-        public ChunkPosition(int x, int y, int z)
+        public ChunkRegionPosition(int x, int y, int z)
         {
             X = x;
             Y = y;
@@ -19,18 +19,21 @@ namespace VoxelPizza.World
 
         public readonly BlockPosition ToBlock()
         {
-            return new BlockPosition(Chunk.Width * X, Chunk.Height * Y, Chunk.Depth * Z);
+            return new BlockPosition(
+                ChunkRegion.Width * Chunk.Width * X,
+                ChunkRegion.Height * Chunk.Height * Y,
+                ChunkRegion.Depth * Chunk.Depth * Z);
         }
 
-        public readonly ChunkRegionPosition ToRegion()
+        public readonly ChunkPosition ToChunk()
         {
-            return new ChunkRegionPosition(
-                ChunkRegion.ChunkToRegionX(X),
-                ChunkRegion.ChunkToRegionY(Y),
-                ChunkRegion.ChunkToRegionZ(Z));
+            return new ChunkPosition(
+                ChunkRegion.Width * X,
+                ChunkRegion.Height * Y,
+                ChunkRegion.Depth * Z);
         }
 
-        public readonly bool Equals(ChunkPosition other)
+        public readonly bool Equals(ChunkRegionPosition other)
         {
             return X == other.X
                 && Y == other.Y
@@ -39,7 +42,7 @@ namespace VoxelPizza.World
 
         public readonly override bool Equals(object? obj)
         {
-            return obj is ChunkPosition other && Equals(other);
+            return obj is ChunkRegionPosition other && Equals(other);
         }
 
         public readonly override int GetHashCode()

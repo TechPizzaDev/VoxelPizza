@@ -4,14 +4,14 @@ namespace VoxelPizza
 {
     public readonly struct FrameTime
     {
-        private const float SecondsPerTick = 1f / TimeSpan.TicksPerSecond;
+        private const double SecondsPerTick = 1f / TimeSpan.TicksPerSecond;
 
         public TimeSpan Total { get; }
         public TimeSpan Delta { get; }
         public bool IsActive { get; }
 
-        public float DeltaSeconds => Delta.Ticks * SecondsPerTick;
-        public float TotalSeconds => Total.Ticks * SecondsPerTick;
+        public float DeltaSeconds => (float)(Delta.Ticks * SecondsPerTick);
+        public float TotalSeconds => (float)(Total.Ticks * SecondsPerTick);
 
         public FrameTime(TimeSpan total, TimeSpan delta, bool isActive)
         {

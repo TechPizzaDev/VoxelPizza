@@ -444,13 +444,20 @@ namespace VoxelPizza.Client
                 {
                     int pending = 0;
                     int count = 0;
-                    //foreach (var reg in _regions.Values)
-                    //{
-                    //    pending += reg.GetPendingChunkCount();
-                    //    count += reg.GetChunkCount();
-                    //}
+                    int regionCount = 0;
+                    foreach (ChunkMeshRegion reg in _regions.Values)
+                    {
+                        pending += reg.GetPendingChunkCount();
+                        count += reg.GetChunkCount();
+                        regionCount++;
+                    }
+                    foreach(ChunkMesh mesh in _meshes)
+                    {
+                        count += 1;
+                    }
                     ImGuiNET.ImGui.Text("Pending Chunks: " + pending);
                     ImGuiNET.ImGui.Text("Chunks: " + count);
+                    ImGuiNET.ImGui.Text("Chunk regions: " + regionCount);
                 }
 
                 ImGuiNET.ImGui.NewLine();
@@ -633,7 +640,7 @@ namespace VoxelPizza.Client
                     }
                 }
 
-                region.Render(gd, cl);
+                region.Render(cl);
 
                 int triCount = region.IndexCount / 3;
                 _lastTriangleCount += triCount;
@@ -666,7 +673,7 @@ namespace VoxelPizza.Client
             for (int i = 0; i < visibleMeshes.Count; i++)
             {
                 ChunkMesh mesh = visibleMeshes[i];
-                mesh.Render(gd, cl);
+                mesh.Render(cl);
 
                 uint triCount = mesh.TriangleCount;
                 _lastTriangleCount += (int)triCount;

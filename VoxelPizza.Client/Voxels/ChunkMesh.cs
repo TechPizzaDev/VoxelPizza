@@ -84,7 +84,7 @@ namespace VoxelPizza.Client
             _paintBuffer?.Dispose();
         }
 
-        public void Render(GraphicsDevice gd, CommandList cl)
+        public void Render(CommandList cl)
         {
             if (_indexBuffer == null)
                 return;

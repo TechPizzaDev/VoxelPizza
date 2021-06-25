@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Numerics;
-using System.Runtime;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 using Veldrid;
 using VoxelPizza.Numerics;
@@ -15,40 +11,14 @@ namespace VoxelPizza.Client
 {
     public partial class ChunkMeshRegion : GraphicsResource
     {
-        private struct StoredChunk
-        {
-            public Chunk Chunk { get; }
-            public ChunkInfo ChunkInfo;
-
-            public bool IsDirty;
-            public ChunkMeshResult StoredMesh;
-
-            public bool HasValue => Chunk != null;
-
-            public StoredChunk(Chunk chunk)
-            {
-                Chunk = chunk ?? throw new ArgumentNullException(nameof(chunk));
-
-                ChunkInfo = new ChunkInfo
-                {
-                    Translation = new Vector3(
-                        chunk.X * Chunk.Width,
-                        chunk.Y * Chunk.Height,
-                        chunk.Z * Chunk.Depth)
-                };
-
-                IsDirty = false;
-                StoredMesh = default;
-            }
-        }
-
         private DeviceBuffer _indirectBuffer;
         private DeviceBuffer _translationBuffer;
         private DeviceBuffer _indexBuffer;
         private DeviceBuffer _spaceVertexBuffer;
         private DeviceBuffer _paintVertexBuffer;
 
-        private StoredChunk[,,] _chunks;
+        private Stopwatch _buildWatch = new Stopwatch();
+        private StoredChunk[] _storedChunks;
         private List<ChunkPosition> _chunksToUpload;
         private int _buildRequired;
         private bool _uploadRequired;
@@ -74,7 +44,7 @@ namespace VoxelPizza.Client
             Position = position;
             Size = size;
 
-            _chunks = new StoredChunk[size.H, size.D, size.W];
+            _storedChunks = new StoredChunk[size.Volume];
             _chunksToUpload = new();
         }
 
@@ -105,16 +75,21 @@ namespace VoxelPizza.Client
                 (int)((uint)position.Z % Size.D));
         }
 
+        private int GetStoredChunkIndex(ChunkPosition localPosition)
+        {
+            return (localPosition.Y * (int)Size.D + localPosition.Z) * (int)Size.W + localPosition.X;
+        }
+
         private ref StoredChunk GetStoredChunk(ChunkPosition localPosition)
         {
-            return ref _chunks[localPosition.Y, localPosition.Z, localPosition.X];
-            ;
+            int index = GetStoredChunkIndex(localPosition);
+            return ref _storedChunks[index];
         }
 
         public Chunk? GetChunk(ChunkPosition position)
         {
-            ChunkPosition lposition = GetLocalChunkPosition(position);
-            ref StoredChunk storedChunk = ref GetStoredChunk(lposition);
+            ChunkPosition localPosition = GetLocalChunkPosition(position);
+            ref StoredChunk storedChunk = ref GetStoredChunk(localPosition);
             if (storedChunk.HasValue)
                 return storedChunk.Chunk;
             return null;
@@ -122,11 +97,11 @@ namespace VoxelPizza.Client
 
         public void UpdateChunk(Chunk chunk)
         {
-            ChunkPosition lpos = GetLocalChunkPosition(chunk.Position);
-            ref StoredChunk storedChunk = ref GetStoredChunk(lpos);
+            ChunkPosition localPosition = GetLocalChunkPosition(chunk.Position);
+            ref StoredChunk storedChunk = ref GetStoredChunk(localPosition);
 
             if (!storedChunk.HasValue)
-                storedChunk = new StoredChunk(chunk);
+                storedChunk = new StoredChunk(chunk, localPosition);
 
             //Chunk? frontChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 0, chunk.Z + 1);
             //Chunk? backChunk = Renderer.GetChunk(chunk.X + 0, chunk.Y + 0, chunk.Z - 1);
@@ -141,40 +116,26 @@ namespace VoxelPizza.Client
 
         public int GetPendingChunkCount()
         {
-            int sum = 0;
-            for (int y = 0; y < _chunks.GetLength(0); y++)
+            int dirtyChunkCount = 0;
+            for (int i = 0; i < _storedChunks.Length; i++)
             {
-                for (int z = 0; z < _chunks.GetLength(1); z++)
-                {
-                    for (int x = 0; x < _chunks.GetLength(2); x++)
-                    {
-                        ref StoredChunk storedChunk = ref GetStoredChunk(new ChunkPosition(x, y, z));
-                        if (!storedChunk.HasValue)
-                            continue;
-
-                        if (storedChunk.IsDirty)
-                            sum++;
-                    }
-                }
+                ref StoredChunk storedChunk = ref _storedChunks[i];
+                if (storedChunk.HasValue && storedChunk.IsDirty)
+                    dirtyChunkCount++;
             }
-            return sum;
+            return dirtyChunkCount;
         }
 
         public int GetChunkCount()
         {
-            int sum = 0;
-            for (int y = 0; y < _chunks.GetLength(0); y++)
+            int chunkCount = 0;
+            for (int i = 0; i < _storedChunks.Length; i++)
             {
-                for (int z = 0; z < _chunks.GetLength(1); z++)
-                {
-                    for (int x = 0; x < _chunks.GetLength(2); x++)
-                    {
-                        if (GetStoredChunk(new ChunkPosition(x, y, z)).HasValue)
-                            sum++;
-                    }
-                }
+                ref StoredChunk storedChunk = ref _storedChunks[i];
+                if (storedChunk.HasValue)
+                    chunkCount++;
             }
-            return sum;
+            return chunkCount;
         }
 
         public bool Build(ChunkMesher mesher)
@@ -184,55 +145,48 @@ namespace VoxelPizza.Client
                 return false;
 
             BlockMemory? blockMemory = null;
-            Stopwatch w = new Stopwatch();
             int c = 0;
 
-            for (int y = 0; y < _chunks.GetLength(0); y++)
+            for (int i = 0; i < _storedChunks.Length; i++)
             {
-                for (int z = 0; z < _chunks.GetLength(1); z++)
+                ref StoredChunk storedChunk = ref _storedChunks[i];
+                if (!storedChunk.HasValue)
+                    continue;
+
+                if (!storedChunk.IsDirty)
+                    continue;
+
+                storedChunk.StoredMesh.Dispose();
+
+                //Chunk chunk = storedChunk.Chunk;
+                //Chunk? frontChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z + 1);
+                //Chunk? backChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z - 1);
+                //Chunk? topChunk = Renderer.GetChunk(chunk.X, chunk.Y + 1, chunk.Z);
+                //Chunk? bottomChunk = Renderer.GetChunk(chunk.X, chunk.Y - 1, chunk.Z);
+                //Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y, chunk.Z);
+                //Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y, chunk.Z);
+
+                if (blockMemory == null)
                 {
-                    for (int x = 0; x < _chunks.GetLength(2); x++)
-                    {
-                        ref StoredChunk storedChunk = ref GetStoredChunk(new ChunkPosition(x, y, z));
-                        if (!storedChunk.HasValue)
-                            continue;
-
-                        if (!storedChunk.IsDirty)
-                            continue;
-
-                        storedChunk.StoredMesh.Dispose();
-
-                        //Chunk chunk = storedChunk.Chunk;
-                        //Chunk? frontChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z + 1);
-                        //Chunk? backChunk = Renderer.GetChunk(chunk.X, chunk.Y, chunk.Z - 1);
-                        //Chunk? topChunk = Renderer.GetChunk(chunk.X, chunk.Y + 1, chunk.Z);
-                        //Chunk? bottomChunk = Renderer.GetChunk(chunk.X, chunk.Y - 1, chunk.Z);
-                        //Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y, chunk.Z);
-                        //Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y, chunk.Z);
-
-                        if (blockMemory == null)
-                        {
-                            blockMemory = new BlockMemory(
-                                Renderer.GetBlockMemoryInnerSize(),
-                                Renderer.GetBlockMemoryOuterSize());
-                        }
-
-                        Renderer.FetchBlockMemory(blockMemory, storedChunk.Chunk.Position.ToBlock());
-
-                        w.Start();
-
-                        ChunkMeshResult result = mesher.Mesh(blockMemory);
-
-                        w.Stop();
-                        c++;
-
-                        storedChunk.StoredMesh = result;
-
-                        storedChunk.IsDirty = false;
-
-                        _uploadRequired = true;
-                    }
+                    blockMemory = new BlockMemory(
+                        Renderer.GetBlockMemoryInnerSize(),
+                        Renderer.GetBlockMemoryOuterSize());
                 }
+
+                Renderer.FetchBlockMemory(blockMemory, storedChunk.Chunk.Position.ToBlock());
+
+                _buildWatch.Start();
+
+                ChunkMeshResult result = mesher.Mesh(blockMemory);
+
+                _buildWatch.Stop();
+                c++;
+
+                storedChunk.StoredMesh = result;
+
+                storedChunk.IsDirty = false;
+
+                _uploadRequired = true;
             }
 
             //if (c != 0)
@@ -252,32 +206,26 @@ namespace VoxelPizza.Client
             int spaceVertexBytesRequired = 0;
             int paintVertexBytesRequired = 0;
 
-            for (int y = 0; y < _chunks.GetLength(0); y++)
+            for (int i = 0; i < _storedChunks.Length; i++)
             {
-                for (int z = 0; z < _chunks.GetLength(1); z++)
+                ref StoredChunk storedChunk = ref _storedChunks[i];
+                if (!storedChunk.HasValue)
+                    continue;
+
+                ref ChunkMeshResult mesh = ref storedChunk.StoredMesh;
+
+                int indexCount = mesh.IndexCount;
+                if (indexCount > 0)
                 {
-                    for (int x = 0; x < _chunks.GetLength(2); x++)
-                    {
-                        ref StoredChunk storedChunk = ref GetStoredChunk(new ChunkPosition(x, y, z));
-                        if (!storedChunk.HasValue)
-                            continue;
+                    _chunksToUpload.Add(storedChunk.LocalPosition);
 
-                        ref ChunkMeshResult mesh = ref storedChunk.StoredMesh;
+                    indexCountRequired += indexCount;
+                    spaceVertexBytesRequired += mesh.SpaceVertexByteCount;
+                    paintVertexBytesRequired += mesh.PaintVertexByteCount;
 
-                        int indexCount = mesh.IndexCount;
-                        if (indexCount > 0)
-                        {
-                            _chunksToUpload.Add(new ChunkPosition(x, y, z));
-
-                            indexCountRequired += indexCount;
-                            spaceVertexBytesRequired += mesh.SpaceVertexByteCount;
-                            paintVertexBytesRequired += mesh.PaintVertexByteCount;
-
-                            int vertexCount = mesh.VertexCount;
-                            if (vertexCount > maxVertexCount)
-                                maxVertexCount = vertexCount;
-                        }
-                    }
+                    int vertexCount = mesh.VertexCount;
+                    if (vertexCount > maxVertexCount)
+                        maxVertexCount = vertexCount;
                 }
             }
 
@@ -365,7 +313,7 @@ namespace VoxelPizza.Client
             return stagingMesh;
         }
 
-        public void Render(GraphicsDevice gd, CommandList cl)
+        public void Render(CommandList cl)
         {
             if (DrawCount == 0 || _indirectBuffer == null || _indexBuffer == null)
                 return;

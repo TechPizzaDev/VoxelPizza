@@ -1,5 +1,4 @@
-﻿using System;
-using System.Numerics;
+﻿using System.Numerics;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client
@@ -8,30 +7,33 @@ namespace VoxelPizza.Client
     {
         private struct StoredChunk
         {
-            public Chunk Chunk { get; }
+            public ChunkPosition Position { get; }
             public ChunkPosition LocalPosition { get; }
-            public ChunkInfo ChunkInfo;
+            public bool HasValue { get; }
 
-            public bool IsDirty;
+            public ChunkRenderInfo RenderInfo;
             public ChunkMeshResult StoredMesh;
+            public bool IsBuildRequired;
+            public bool IsUploadRequired;
 
-            public bool HasValue => Chunk != null;
-
-            public StoredChunk(Chunk chunk, ChunkPosition localPosition)
+            public StoredChunk(ChunkPosition position, ChunkPosition localPosition)
             {
-                Chunk = chunk ?? throw new ArgumentNullException(nameof(chunk));
+                Position = position;
                 LocalPosition = localPosition;
+                HasValue = true;
 
-                ChunkInfo = new ChunkInfo
+                RenderInfo = new ChunkRenderInfo
                 {
-                    Translation = new Vector3(
-                        chunk.X * Chunk.Width,
-                        chunk.Y * Chunk.Height,
-                        chunk.Z * Chunk.Depth)
+                    Translation = new Vector4(
+                        Position.X * Chunk.Width,
+                        Position.Y * Chunk.Height,
+                        Position.Z * Chunk.Depth,
+                        0)
                 };
 
-                IsDirty = false;
                 StoredMesh = default;
+                IsBuildRequired = false;
+                IsUploadRequired = false;
             }
         }
     }

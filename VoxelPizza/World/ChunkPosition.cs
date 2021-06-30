@@ -56,5 +56,15 @@ namespace VoxelPizza.World
         {
             return ToString();
         }
+
+        public static bool operator ==(ChunkPosition left, ChunkPosition right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(ChunkPosition left, ChunkPosition right)
+        {
+            return !(left == right);
+        }
     }
 }

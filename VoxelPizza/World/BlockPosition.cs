@@ -65,5 +65,15 @@ namespace VoxelPizza.World
         {
             return new Vector3(position.X, position.Y, position.Z);
         }
+
+        public static bool operator ==(BlockPosition left, BlockPosition right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(BlockPosition left, BlockPosition right)
+        {
+            return !(left == right);
+        }
     }
 }

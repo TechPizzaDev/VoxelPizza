@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Veldrid;
 
@@ -7,14 +8,15 @@ namespace VoxelPizza.Client
 {
     public class ChunkStagingMeshPool : IDisposable
     {
-        private ConcurrentStack<ChunkStagingMesh> _pool;
+        private List<ChunkStagingMesh> _all = new();
+        private ConcurrentStack<ChunkStagingMesh> _pool = new();
 
         public ResourceFactory Factory { get; }
         public uint MaxChunksPerMesh { get; }
 
         public bool IsDisposed { get; private set; }
 
-        public ChunkStagingMeshPool(ResourceFactory factory, uint maxChunksPerMesh)
+        public ChunkStagingMeshPool(ResourceFactory factory, uint maxChunksPerMesh, int count)
         {
             if (maxChunksPerMesh < 0)
                 throw new ArgumentOutOfRangeException(nameof(maxChunksPerMesh));
@@ -22,11 +24,10 @@ namespace VoxelPizza.Client
             Factory = factory ?? throw new ArgumentNullException(nameof(factory));
             MaxChunksPerMesh = maxChunksPerMesh;
 
-            _pool = new();
-
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < count; i++)
             {
                 var mesh = new ChunkStagingMesh(Factory, MaxChunksPerMesh);
+                _all.Add(mesh);
                 _pool.Push(mesh);
             }
         }
@@ -60,10 +61,11 @@ namespace VoxelPizza.Client
             {
                 if (disposing)
                 {
-                    while (_pool.TryPop(out ChunkStagingMesh? chunkMesh))
+                    foreach (ChunkStagingMesh? mesh in _all)
                     {
-                        chunkMesh.Dispose();
+                        mesh.Dispose();
                     }
+                    _pool.Clear();
                 }
 
                 IsDisposed = true;

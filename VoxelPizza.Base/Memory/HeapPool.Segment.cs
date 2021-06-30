@@ -42,7 +42,7 @@ namespace VoxelPizza
                     }
                 }
 
-                Console.WriteLine("freeing " + BlockSize);
+                //Console.WriteLine("freeing " + BlockSize);
                 Marshal.FreeHGlobal(buffer);
             }
         }

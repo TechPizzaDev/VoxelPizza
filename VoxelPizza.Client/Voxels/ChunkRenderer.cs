@@ -26,11 +26,15 @@ namespace VoxelPizza.Client
         private string _graphicsDeviceName;
         private string _graphicsBackendName;
 
+        private int _regionBuildLimit = 8;
+        private int _meshBuildLimit = 32;
+
         private bool[] _uploadReady;
         private CommandList[] _uploadLists;
         private Fence[] _uploadFences;
         private ChunkStagingMeshPool _stagingMeshPool;
         private List<ChunkStagingMesh>[] _uploadSubmittedMeshes;
+        private BlockMemory _blockMemory;
 
         private DeviceBuffer _worldInfoBuffer;
         private DeviceBuffer _textureAtlasBuffer;
@@ -80,10 +84,14 @@ namespace VoxelPizza.Client
             RegionSize = regionSize;
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
-            _uploadReady = new bool[4];
+            _uploadReady = new bool[32];
             _uploadLists = new CommandList[_uploadReady.Length];
             _uploadFences = new Fence[_uploadReady.Length];
             _uploadSubmittedMeshes = new List<ChunkStagingMesh>[_uploadReady.Length];
+
+            _blockMemory = new BlockMemory(
+                GetBlockMemoryInnerSize(),
+                GetBlockMemoryOuterSize());
 
             for (int i = 0; i < _uploadReady.Length; i++)
             {
@@ -95,8 +103,10 @@ namespace VoxelPizza.Client
 
         private void Dimension_ChunkAdded(Chunk chunk)
         {
-            var mesh = new ChunkMesh(this, chunk);
+            var mesh = new ChunkMesh(this, chunk.Position);
             _queuedMeshes.Enqueue(mesh);
+
+            mesh.RequestBuild(chunk.Position);
         }
 
         public RenderRegionPosition GetRegionPosition(ChunkPosition chunkPosition)
@@ -122,7 +132,7 @@ namespace VoxelPizza.Client
                 _uploadSubmittedMeshes[i].Clear();
             }
 
-            _stagingMeshPool = new ChunkStagingMeshPool(factory, RegionSize.Volume);
+            _stagingMeshPool = new ChunkStagingMeshPool(factory, RegionSize.Volume, _uploadReady.Length);
 
             ChunkSharedLayout = factory.CreateResourceLayout(
                 new ResourceLayoutDescription(
@@ -229,6 +239,19 @@ namespace VoxelPizza.Client
                 _worldInfoBuffer,
                 sc.LightInfoBuffer,
                 _textureAtlasBuffer));
+
+            foreach (ChunkMesh mesh in _meshes)
+            {
+                mesh.CreateDeviceObjects(gd, cl, sc);
+            }
+
+            lock (_regions)
+            {
+                foreach (ChunkMeshRegion region in _regions.Values)
+                {
+                    region.CreateDeviceObjects(gd, cl, sc);
+                }
+            }
         }
 
         public override void DestroyDeviceObjects()
@@ -236,7 +259,6 @@ namespace VoxelPizza.Client
             foreach (ChunkMesh mesh in _meshes)
             {
                 mesh.DestroyDeviceObjects();
-                ChunkMeshRemoved?.Invoke(mesh);
             }
 
             lock (_regions)
@@ -244,7 +266,6 @@ namespace VoxelPizza.Client
                 foreach (ChunkMeshRegion region in _regions.Values)
                 {
                     region.DestroyDeviceObjects();
-                    RenderRegionRemoved?.Invoke(region);
                 }
             }
 
@@ -267,25 +288,38 @@ namespace VoxelPizza.Client
                 ImGuiNET.ImGui.Text("Triangle Count: " + (_lastTriangleCount / 1000) + "k");
                 ImGuiNET.ImGui.Text("Draw Calls: " + _lastDrawCalls);
 
+                int total = 0;
+                int toBuild = 0;
+                int toUpload = 0;
+                int meshCount = 0;
+                int regionCount = 0;
+
                 lock (_regions)
                 {
-                    int pending = 0;
-                    int count = 0;
-                    int regionCount = 0;
                     foreach (ChunkMeshRegion reg in _regions.Values)
                     {
-                        pending += reg.GetPendingChunkCount();
-                        count += reg.GetChunkCount();
+                        (int Total, int ToBuild, int ToUpload) = reg.GetMeshCount();
+                        total += Total;
+                        toBuild += ToBuild;
+                        toUpload += ToUpload;
                         regionCount++;
                     }
-                    foreach (ChunkMesh mesh in _meshes)
-                    {
-                        count += 1;
-                    }
-                    ImGuiNET.ImGui.Text("Pending Chunks: " + pending);
-                    ImGuiNET.ImGui.Text("Chunks: " + count);
-                    ImGuiNET.ImGui.Text("Chunk regions: " + regionCount);
                 }
+
+                foreach (ChunkMesh mesh in _meshes)
+                {
+                    (int Total, int ToBuild, int ToUpload) = mesh.GetMeshCount();
+                    total += Total;
+                    toBuild += ToBuild;
+                    toUpload += ToUpload;
+                    meshCount++;
+                }
+
+                ImGuiNET.ImGui.Text("Chunks to build: " + toBuild);
+                ImGuiNET.ImGui.Text("Chunks to upload: " + toUpload);
+                ImGuiNET.ImGui.Text("Chunks: " + total);
+                ImGuiNET.ImGui.Text("Chunk instances: " + meshCount);
+                ImGuiNET.ImGui.Text("Chunk regions: " + regionCount);
 
                 ImGuiNET.ImGui.NewLine();
 
@@ -303,7 +337,7 @@ namespace VoxelPizza.Client
 
                 foreach (ChunkMesh mesh in _meshes)
                 {
-                    Vector3 chunkPos = mesh.Chunk.Position.ToBlock();
+                    Vector3 chunkPos = mesh.Position.ToBlock();
                     BoundingBox box = new(chunkPos, chunkPos + Chunk.Size);
 
                     if (frustum.Contains(box) != ContainmentType.Disjoint)
@@ -434,21 +468,32 @@ namespace VoxelPizza.Client
             cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
+            int uploadCount = RenderChunks(gd, cl, ref _regionBuildLimit, visibleRegions.GetEnumerator());
+            _regionBuildLimit += uploadCount;
+        }
+
+        long lastbytesum = 0;
+
+        private int RenderChunks<TMeshes>(
+            GraphicsDevice gd, CommandList cl, ref int maxBuilds, TMeshes meshes)
+            where TMeshes : IEnumerator<ChunkMeshBase>
+        {
             bool[] uploadReady = _uploadReady;
             int uploadOffset = 0;
-            int maxBuilds = 4;
+            int uploadCount = 0;
+            bool canUploadMore = true;
 
-            for (int i = 0; i < visibleRegions.Count; i++)
+            while (meshes.MoveNext())
             {
-                ChunkMeshRegion region = visibleRegions[i];
+                ChunkMeshBase? mesh = meshes.Current;
 
                 if (maxBuilds > 0)
                 {
-                    if (region.Build(ChunkMesher))
+                    if (mesh.Build(ChunkMesher, _blockMemory))
                         maxBuilds--;
                 }
 
-                if (region.IsUploadRequired)
+                if (canUploadMore && mesh.IsUploadRequired)
                 {
                     for (int j = 0; j < uploadReady.Length; j++)
                     {
@@ -456,20 +501,28 @@ namespace VoxelPizza.Client
 
                         if (uploadReady[uploadIndex])
                         {
-                            ChunkStagingMesh? stagingMesh = region.Upload(gd, _uploadLists[uploadIndex], _stagingMeshPool);
-                            if (stagingMesh != null)
+                            if (mesh.Upload(gd, _uploadLists[uploadIndex], _stagingMeshPool, out ChunkStagingMesh? stagingMesh))
                             {
-                                _uploadSubmittedMeshes[uploadIndex].Add(stagingMesh);
-                                uploadOffset++;
+                                uploadCount++;
+
+                                if (stagingMesh != null)
+                                {
+                                    _uploadSubmittedMeshes[uploadIndex].Add(stagingMesh);
+                                    uploadOffset++;
+                                }
+                            }
+                            else
+                            {
+                                canUploadMore = false;
                             }
                             break;
                         }
                     }
                 }
 
-                region.Render(cl);
+                mesh.Render(cl);
 
-                int triCount = region.IndexCount / 3;
+                int triCount = mesh.IndexCount / 3;
                 _lastTriangleCount += triCount;
 
                 if (triCount > 0)
@@ -480,9 +533,9 @@ namespace VoxelPizza.Client
             if (lastbytesum != ss)
                 Console.WriteLine(ss);
             lastbytesum = ss;
-        }
 
-        long lastbytesum = 0;
+            return uploadCount;
+        }
 
         private void RenderMeshes(
             GraphicsDevice gd, CommandList cl, SceneContext sc,
@@ -497,17 +550,8 @@ namespace VoxelPizza.Client
             cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
-            for (int i = 0; i < visibleMeshes.Count; i++)
-            {
-                ChunkMesh mesh = visibleMeshes[i];
-                mesh.Render(cl);
-
-                uint triCount = mesh.TriangleCount;
-                _lastTriangleCount += (int)triCount;
-
-                if (triCount > 0)
-                    _lastDrawCalls++;
-            }
+            int uploadCount = RenderChunks(gd, cl, ref _meshBuildLimit, visibleMeshes.GetEnumerator());
+            _meshBuildLimit += uploadCount;
         }
 
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)

@@ -25,11 +25,11 @@ namespace VoxelPizza.Client
             {
                 try
                 {
-                    Thread.Sleep(2000);
+                    Thread.Sleep(1000);
 
-                    int width = 16;
+                    int width = 32;
                     int depth = width;
-                    int height = 1;
+                    int height = 4;
 
                     var list = new List<(int x, int y, int z)>();
 
@@ -73,6 +73,8 @@ namespace VoxelPizza.Client
                             chunk.SetBlockLayer(15, 1);
                         else
                             chunk.Generate();
+
+                        //Thread.Sleep(5);
 
                         //ChunkRegionPosition regionPosition = GetRegionPosition(chunk.Position);
                         //ChunkMeshRegion? region;

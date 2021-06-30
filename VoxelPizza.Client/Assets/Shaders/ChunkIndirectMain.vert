@@ -38,7 +38,7 @@ layout(location = 0) in vec3 Position;
 layout(location = 1) in uint Normal;
 layout(location = 2) in uint TexAnimation0;
 layout(location = 3) in uint TexRegion0;
-layout(location = 4) in vec3 Translation;
+layout(location = 4) in vec4 Translation;
 
 layout(location = 0) out vec3 f_Normal;
 layout(location = 1) out vec2 f_TexCoord0_0;
@@ -89,7 +89,7 @@ TextureRegion unpackTexRegion(uint index)
 
 void main()
 {
-    vec4 worldPosition = vec4(Position + Translation, 1);
+    vec4 worldPosition = vec4(Position + Translation.xyz, 1);
     vec4 outPosition = Projection * View * worldPosition;
 
     mat4 world = mat4(

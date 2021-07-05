@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using Veldrid;
 using Veldrid.Sdl2;
@@ -7,13 +9,17 @@ using Veldrid.StartupUtilities;
 
 namespace VoxelPizza.Client
 {
-    public abstract class Application
+    public abstract unsafe class Application
     {
         private Sdl2Window _window;
         private GraphicsDevice _graphicsDevice;
 
+        private long _totalTicks;
+        private long _previousTicks;
+
         private Action _enableScreensaver;
         private Action _disableScreensaver;
+        private SDL_EventFilter _sdlEventWatch;
 
         private bool _drawWhenUnfocused = true;
         private bool _drawWhenMinimized = false;
@@ -49,8 +55,9 @@ namespace VoxelPizza.Client
             {
                 _window = value ?? throw new ArgumentNullException(nameof(value));
                 _window.Resized += () => WindowResized();
-                _window.FocusGained += Window_FocusGained;
-                _window.FocusLost += Window_FocusLost;
+                _window.Exposed += () => WindowExposed();
+                _window.FocusGained += () => WindowGainedFocus();
+                _window.FocusLost += () => WindowLostFocus();
             }
         }
 
@@ -92,37 +99,58 @@ namespace VoxelPizza.Client
             _enableScreensaver = Sdl2Native.LoadFunction<Action>("SDL_EnableScreenSaver");
             _disableScreensaver = Sdl2Native.LoadFunction<Action>("SDL_DisableScreenSaver");
 
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                _sdlEventWatch = SdlEventWatch;
+                Sdl2Native.SDL_AddEventWatch(_sdlEventWatch, null);
+            }
+
             TimeAverager = new TimeAverager(4, TimeSpan.FromSeconds(0.5));
             GraphicsDevice = gd;
             Window = window;
         }
 
-        private void Window_FocusGained()
+        protected virtual void WindowGainedFocus()
         {
             IsActive = true;
             _disableScreensaver.Invoke();
-            WindowGainedFocus();
         }
 
-        private void Window_FocusLost()
+        protected virtual void WindowLostFocus()
         {
             IsActive = false;
             _enableScreensaver.Invoke();
-            WindowLostFocus();
+        }
+
+        private unsafe int SdlEventWatch(void* data, SDL_Event* @event)
+        {
+            if (@event->type == SDL_EventType.WindowEvent)
+            {
+                var windowEvent = Unsafe.Read<SDL_WindowEvent>(@event);
+                if (windowEvent.@event == SDL_WindowEventID.Exposed)
+                {
+                    PumpSdlEvents();
+                    WindowExposed();
+                }
+            }
+            return 0;
         }
 
         public void Run()
         {
-            long totalTicks = 0;
-            long previousTicks = Stopwatch.GetTimestamp();
+            _totalTicks = 0;
+            _previousTicks = Stopwatch.GetTimestamp();
 
-            if (RunBody(ref totalTicks, ref previousTicks))
+            PumpSdlEvents();
+            if (RunBody())
             {
                 Window.Visible = true;
 
                 while (Window.Exists)
                 {
-                    if (!RunBody(ref totalTicks, ref previousTicks))
+                    PumpSdlEvents();
+
+                    if (!RunBody())
                         break;
 
                     TimeAverager.Tick();
@@ -133,20 +161,19 @@ namespace VoxelPizza.Client
             GraphicsDevice.Dispose();
         }
 
-        protected virtual bool RunBody(ref long totalTicks, ref long previousTicks)
+        protected virtual bool RunBody()
         {
             long currentTicks = Stopwatch.GetTimestamp();
-            long deltaTicks = currentTicks - previousTicks;
-            previousTicks = currentTicks;
-            totalTicks += deltaTicks;
+            long deltaTicks = currentTicks - _previousTicks;
+            _previousTicks = currentTicks;
+            _totalTicks += deltaTicks;
 
             var time = new FrameTime(
-                TimeSpan.FromSeconds(totalTicks * TimeAverager.SecondsPerTick),
+                TimeSpan.FromSeconds(_totalTicks * TimeAverager.SecondsPerTick),
                 TimeSpan.FromSeconds(deltaTicks * TimeAverager.SecondsPerTick),
                 IsActive);
 
             TimeAverager.BeginUpdate();
-            PumpSdlEvents();
             Update(time);
             TimeAverager.EndUpdate();
 
@@ -192,9 +219,8 @@ namespace VoxelPizza.Client
             _shouldExit = true;
         }
 
-        protected virtual void PumpSdlEvents()
+        private void PumpSdlEvents()
         {
-            Sdl2Events.ProcessEvents();
             InputSnapshot snapshot = Window.PumpEvents();
             InputTracker.UpdateFrameInput(snapshot, Window);
         }
@@ -293,12 +319,12 @@ namespace VoxelPizza.Client
         {
         }
 
-        protected virtual void WindowGainedFocus()
+        protected virtual void WindowExposed()
         {
-        }
-
-        protected virtual void WindowLostFocus()
-        {
+            if (RunBody())
+            {
+                TimeAverager.Tick();
+            }
         }
 
         protected void ChangeGraphicsBackend(GraphicsBackend? preferredBackend = null)

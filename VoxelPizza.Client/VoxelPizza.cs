@@ -193,13 +193,13 @@ namespace VoxelPizza.Client
 
         private List<Profiler.FrameSet> frameSets = new();
 
-        protected override bool RunBody(ref long totalTicks, ref long previousTicks)
+        protected override bool RunBody()
         {
             Profiler? profiler = _sc.Profiler;
             profiler?.Start();
             try
             {
-                return base.RunBody(ref totalTicks, ref previousTicks);
+                return base.RunBody();
             }
             finally
             {
@@ -224,13 +224,6 @@ namespace VoxelPizza.Client
                     profiler.Clear();
                 }
             }
-        }
-
-        protected override void PumpSdlEvents()
-        {
-            using var profilerToken = _sc.Profiler.Push();
-
-            base.PumpSdlEvents();
         }
 
         public override void Update(in FrameTime time)

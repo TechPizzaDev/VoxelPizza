@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Veldrid;
+using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
@@ -329,8 +330,16 @@ namespace VoxelPizza.Client
             ImGuiNET.ImGui.End();
         }
 
-        public void GatherVisibleChunks(List<ChunkMesh> visibleChunks, BoundingFrustum? cullFrustum)
+        public void GatherVisibleChunks(
+            SceneContext sc,
+            Vector3? cullOrigin,
+            BoundingFrustum? cullFrustum,
+            List<ChunkMesh> visibleChunks)
         {
+            using var profilerToken = sc.Profiler.Push();
+
+            Vector3 origin = cullOrigin.GetValueOrDefault();
+
             if (cullFrustum.HasValue)
             {
                 BoundingFrustum frustum = cullFrustum.GetValueOrDefault();
@@ -350,10 +359,32 @@ namespace VoxelPizza.Client
             {
                 visibleChunks.AddRange(_meshes);
             }
+
+            if (cullOrigin.HasValue)
+            {
+                visibleChunks.Sort((x, y) =>
+                {
+                    float a = ManhattanDistance(x.Position.ToBlock(), origin);
+                    float b = ManhattanDistance(y.Position.ToBlock(), origin);
+                    return a.CompareTo(b);
+                });
+            }
         }
 
-        public void GatherVisibleRegions(List<ChunkMeshRegion> visibleRegions, BoundingFrustum? cullFrustum)
+        private static float ManhattanDistance(Vector3 a, Vector3 b)
         {
+            Vector3 d = Vector3.Abs(a - b);
+            return d.X + d.Y + d.Z;
+        }
+
+        public void GatherVisibleRegions(
+            SceneContext sc,
+            Vector3? cullOrigin,
+            BoundingFrustum? cullFrustum,
+            List<ChunkMeshRegion> visibleRegions)
+        {
+            using var profilerToken = sc.Profiler.Push();
+
             lock (_regions)
             {
                 if (cullFrustum.HasValue)
@@ -383,6 +414,8 @@ namespace VoxelPizza.Client
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
         {
+            using var profilerToken = sc.Profiler.Push();
+
             for (int i = 0; i < _uploadFences.Length; i++)
             {
                 Fence fence = _uploadFences[i];
@@ -429,15 +462,18 @@ namespace VoxelPizza.Client
             {
                 ResourceSet renderCameraInfoSet = sc.GetCameraInfoSet(renderCamera);
 
+                Vector3? cullOrigin = null;
                 BoundingFrustum? cullFrustum = null;
+
                 Camera? cullCamera = CullCamera;
                 if (cullCamera != null)
                 {
+                    cullOrigin = cullCamera.Position;
                     cullFrustum = new(cullCamera.ViewMatrix * cullCamera.ProjectionMatrix);
                 }
 
-                RenderMeshes(gd, cl, sc, renderCameraInfoSet, cullFrustum);
-                RenderRegions(gd, cl, sc, renderCameraInfoSet, cullFrustum);
+                RenderMeshes(gd, cl, sc, renderCameraInfoSet, cullOrigin, cullFrustum);
+                RenderRegions(gd, cl, sc, renderCameraInfoSet, cullOrigin, cullFrustum);
             }
 
             for (int i = 0; i < _uploadLists.Length; i++)
@@ -457,27 +493,31 @@ namespace VoxelPizza.Client
 
         private void RenderRegions(
             GraphicsDevice gd, CommandList cl, SceneContext sc,
-            ResourceSet cameraInfoSet, BoundingFrustum? cullFrustum)
+            ResourceSet cameraInfoSet, Vector3? cullOrigin, BoundingFrustum? cullFrustum)
         {
+            using var profilerToken = sc.Profiler.Push();
+
             List<ChunkMeshRegion> visibleRegions = _visibleRegionBuffer;
             visibleRegions.Clear();
-            GatherVisibleRegions(visibleRegions, cullFrustum);
+            GatherVisibleRegions(sc, cullOrigin, cullFrustum, visibleRegions);
 
             cl.SetPipeline(_indirectPipeline);
             cl.SetGraphicsResourceSet(0, cameraInfoSet);
             cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
-            int uploadCount = RenderChunks(gd, cl, ref _regionBuildLimit, visibleRegions.GetEnumerator());
+            int uploadCount = Render(gd, cl, sc, ref _regionBuildLimit, visibleRegions.GetEnumerator());
             _regionBuildLimit += uploadCount;
         }
 
         long lastbytesum = 0;
 
-        private int RenderChunks<TMeshes>(
-            GraphicsDevice gd, CommandList cl, ref int maxBuilds, TMeshes meshes)
+        private int Render<TMeshes>(
+            GraphicsDevice gd, CommandList cl, SceneContext sc, ref int maxBuilds, TMeshes meshes)
             where TMeshes : IEnumerator<ChunkMeshBase>
         {
+            using var profilerToken = sc.Profiler.Push();
+
             bool[] uploadReady = _uploadReady;
             int uploadOffset = 0;
             int uploadCount = 0;
@@ -489,8 +529,10 @@ namespace VoxelPizza.Client
 
                 if (maxBuilds > 0)
                 {
-                    if (mesh.Build(ChunkMesher, _blockMemory))
+                    if (mesh.IsBuildRequired && mesh.Build(ChunkMesher, _blockMemory))
+                    {
                         maxBuilds--;
+                    }
                 }
 
                 if (canUploadMore && mesh.IsUploadRequired)
@@ -539,18 +581,20 @@ namespace VoxelPizza.Client
 
         private void RenderMeshes(
             GraphicsDevice gd, CommandList cl, SceneContext sc,
-            ResourceSet cameraInfoSet, BoundingFrustum? cullFrustum)
+            ResourceSet cameraInfoSet, Vector3? cullOrigin, BoundingFrustum? cullFrustum)
         {
+            using var profilerToken = sc.Profiler.Push();
+
             List<ChunkMesh> visibleMeshes = _visibleMeshBuffer;
             visibleMeshes.Clear();
-            GatherVisibleChunks(visibleMeshes, cullFrustum);
+            GatherVisibleChunks(sc, cullOrigin, cullFrustum, visibleMeshes);
 
             cl.SetPipeline(_directPipeline);
             cl.SetGraphicsResourceSet(0, cameraInfoSet);
             cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
-            int uploadCount = RenderChunks(gd, cl, ref _meshBuildLimit, visibleMeshes.GetEnumerator());
+            int uploadCount = Render(gd, cl, sc, ref _meshBuildLimit, visibleMeshes.GetEnumerator());
             _meshBuildLimit += uploadCount;
         }
 

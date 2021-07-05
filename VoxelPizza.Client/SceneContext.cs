@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
+using VoxelPizza.Diagnostics;
 
 namespace VoxelPizza.Client
 {
     public class SceneContext
     {
         private Camera? _currentCamera;
+
+        public Profiler? Profiler { get; set; }
 
         public DeviceBuffer LightInfoBuffer { get; private set; }
         public DeviceBuffer LightViewProjectionBuffer0 { get; internal set; }

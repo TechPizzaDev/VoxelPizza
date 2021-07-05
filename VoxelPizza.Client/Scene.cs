@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Veldrid;
 using Veldrid.Sdl2;
 using Veldrid.Utilities;
+using VoxelPizza.Diagnostics;
 
 namespace VoxelPizza.Client
 {
@@ -135,6 +136,8 @@ namespace VoxelPizza.Client
 
         private void RenderAllSingleThread(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
+            using var profilerToken = sc.Profiler.Push();
+
             Camera? camera = sc.CurrentCamera;
             if (camera == null)
             {
@@ -264,6 +267,8 @@ namespace VoxelPizza.Client
 
         private void RenderAllMultiThreaded(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
+            using var profilerToken = sc.Profiler.Push();
+
             Camera? camera = sc.CurrentCamera;
             if (camera == null)
             {

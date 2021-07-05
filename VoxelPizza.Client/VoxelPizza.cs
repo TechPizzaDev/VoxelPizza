@@ -13,6 +13,7 @@ using Veldrid.ImageSharp;
 using Veldrid.Sdl2;
 using Veldrid.Utilities;
 using VoxelPizza.Client.Objects;
+using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
@@ -60,6 +61,7 @@ namespace VoxelPizza.Client
             GraphicsDevice.SyncToVerticalBlank = true;
 
             _sc = new SceneContext();
+            _sc.Profiler = new Profiler();
             _sc.CameraChanged += Scene_CameraChanged;
 
             _scene = new Scene(GraphicsDevice, Window);
@@ -189,11 +191,55 @@ namespace VoxelPizza.Client
             _scene.PrimaryCamera.UpdateGraphicsBackend(GraphicsDevice, Window);
         }
 
+        private List<Profiler.FrameSet> frameSets = new();
+
+        protected override bool RunBody(ref long totalTicks, ref long previousTicks)
+        {
+            Profiler? profiler = _sc.Profiler;
+            profiler?.Start();
+            try
+            {
+                return base.RunBody(ref totalTicks, ref previousTicks);
+            }
+            finally
+            {
+                if (profiler != null)
+                {
+                    profiler.Stop();
+
+                    var sets = profiler._sets;
+                    if (sets.Count > 0)
+                    {
+                        for (int i = 0; i < sets.Count; i++)
+                        {
+                            if (frameSets.Count <= i)
+                                frameSets.Add(new Profiler.FrameSet());
+
+                            frameSets[i].Items.Clear();
+                            frameSets[i].Items.AddRange(sets[i].Items);
+                            frameSets[i].Offset = sets[i].Offset;
+                        }
+                    }
+
+                    profiler.Clear();
+                }
+            }
+        }
+
+        protected override void PumpSdlEvents()
+        {
+            using var profilerToken = _sc.Profiler.Push();
+
+            base.PumpSdlEvents();
+        }
+
         public override void Update(in FrameTime time)
         {
+            using var profilerToken = _sc.Profiler.Push();
+
             _imGuiRenderable.Update(time);
 
-            _scene.Update(time, _sc);
+            UpdateScene(time);
 
             particlePlane?.Update(time);
 
@@ -205,8 +251,17 @@ namespace VoxelPizza.Client
             }
         }
 
+        private void UpdateScene(in FrameTime time)
+        {
+            using var profilerToken = _sc.Profiler.Push();
+
+            _scene.Update(time, _sc);
+        }
+
         public override void Draw()
         {
+            using var profilerToken = _sc.Profiler.Push();
+
             if (_windowResized)
             {
                 _windowResized = false;
@@ -233,7 +288,7 @@ namespace VoxelPizza.Client
                 CreateGraphicsDeviceObjects();
             }
 
-            DrawMainMenu();
+            DrawOverlay();
 
             _frameCommands.Begin();
             {
@@ -250,8 +305,26 @@ namespace VoxelPizza.Client
             GraphicsDevice.SubmitCommands(_frameCommands);
         }
 
+        public override void Present()
+        {
+            using var profilerToken = _sc.Profiler.Push();
+
+            base.Present();
+        }
+
+        private void DrawOverlay()
+        {
+            using var profilerToken = _sc.Profiler.Push();
+
+            DrawMainMenu();
+
+            DrawProfiler(frameSets);
+        }
+
         private void DrawMainMenu()
         {
+            using var profilerToken = _sc.Profiler.Push();
+
             if (ImGui.BeginMainMenuBar())
             {
                 DrawSettingsMenu();
@@ -620,6 +693,83 @@ namespace VoxelPizza.Client
                     }
                 }
                 ImGui.End();
+            }
+        }
+
+        private void DrawProfiler(List<Profiler.FrameSet> frameSets)
+        {
+            using var profilerToken = _sc.Profiler.Push();
+
+            if (frameSets.Count > 0)
+            {
+                if (ImGui.Begin("Profiler"))
+                {
+                    void SameLineFor(string text)
+                    {
+                        ImGui.SameLine(ImGui.GetWindowContentRegionWidth() - ImGui.CalcTextSize(text).X + 8);
+                    }
+
+                    void DrawFrameSet(int setIndex, int parentIndex)
+                    {
+                        Profiler.FrameSet frameSet = frameSets[setIndex];
+
+                        List<Profiler.Item> items = frameSet.Items;
+
+                        for (int itemIndex = 0; itemIndex < items.Count; itemIndex++)
+                        {
+                            Profiler.Item item = items[itemIndex];
+
+                            if (parentIndex != item.ParentOffset)
+                                continue;
+
+                            if (setIndex + 1 < frameSets.Count)
+                            {
+                                bool hasMatchingSubItems = false;
+                                foreach (Profiler.Item subItem in frameSets[setIndex + 1].Items)
+                                {
+                                    if (subItem.ParentOffset == itemIndex)
+                                    {
+                                        hasMatchingSubItems = true;
+                                        break;
+                                    }
+                                }
+
+                                if (hasMatchingSubItems)
+                                {
+                                    if (ImGui.CollapsingHeader(item.MemberName))
+                                    {
+                                        string durationText = item.Duration.TotalMilliseconds.ToString("0.000");
+                                        SameLineFor(durationText);
+                                        ImGui.Text(durationText);
+
+                                        ImGui.TreePush();
+                                        DrawFrameSet(setIndex + 1, itemIndex);
+                                        ImGui.TreePop();
+                                    }
+                                    else
+                                    {
+                                        string durationText = item.Duration.TotalMilliseconds.ToString("0.000");
+                                        SameLineFor(durationText);
+                                        ImGui.Text(durationText);
+                                    }
+                                    continue;
+                                }
+                            }
+
+                            {
+                                ImGui.Text(item.MemberName);
+
+                                string durationText = item.Duration.TotalMilliseconds.ToString("0.000");
+                                SameLineFor(durationText);
+                                ImGui.Text(durationText);
+                            }
+                        }
+                    }
+
+                    DrawFrameSet(0, 0);
+
+                    ImGui.End();
+                }
             }
         }
 

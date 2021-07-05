@@ -133,7 +133,7 @@ namespace VoxelPizza.Client
             GraphicsDevice.Dispose();
         }
 
-        private bool RunBody(ref long totalTicks, ref long previousTicks)
+        protected virtual bool RunBody(ref long totalTicks, ref long previousTicks)
         {
             long currentTicks = Stopwatch.GetTimestamp();
             long deltaTicks = currentTicks - previousTicks;
@@ -192,7 +192,7 @@ namespace VoxelPizza.Client
             _shouldExit = true;
         }
 
-        private void PumpSdlEvents()
+        protected virtual void PumpSdlEvents()
         {
             Sdl2Events.ProcessEvents();
             InputSnapshot snapshot = Window.PumpEvents();

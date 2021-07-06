@@ -1,4 +1,4 @@
-#version 450
+#version 320 es
 
 layout(set = 0, binding = 0) uniform CameraInfo
 {

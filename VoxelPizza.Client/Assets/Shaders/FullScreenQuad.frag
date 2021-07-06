@@ -1,4 +1,6 @@
-#version 450
+#version 320 es
+precision highp float;
+precision lowp sampler;
 
 layout(set = 0, binding = 0) uniform texture2D SourceTexture;
 layout(set = 0, binding = 1) uniform sampler SourceSampler;

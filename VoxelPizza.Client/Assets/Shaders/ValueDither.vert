@@ -1,4 +1,4 @@
-#version 450
+#version 320 es
 
 struct DepthCascadeLimits
 {

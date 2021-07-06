@@ -1,4 +1,5 @@
-#version 450
+#version 320 es
+precision highp float;
 
 layout(set = 1, binding = 0) uniform WorldInfo
 {
@@ -28,7 +29,7 @@ void main()
     vec4 surfaceColor = vec4(texColor, 1);
 
     vec3 lightDir = -LightDirection;
-    float lightIntensity = clamp(dot(Normal, lightDir), 0, 1);
+    float lightIntensity = clamp(dot(Normal, lightDir), 0.0, 1.0);
 
     vec4 directionalColor = surfaceColor * mix(AmbientColor, LightColor, lightIntensity);
 

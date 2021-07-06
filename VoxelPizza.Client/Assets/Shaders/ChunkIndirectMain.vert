@@ -1,4 +1,4 @@
-#version 450
+#version 320 es
 
 struct TextureAnimation
 {
@@ -50,9 +50,9 @@ layout(location = 5) out float f_TexFraction_0;
 vec3 unpack3x10(uint packed) 
 {
     vec3 v;
-    v.x = (packed & 1023);
-    v.y = (packed >> 10) & 1023;
-    v.z = (packed >> 20) & 1023;
+    v.x = float((packed & 1023u));
+    v.y = float((packed >> 10) & 1023u);
+    v.z = float((packed >> 20) & 1023u);
     v /= 1023.0 / 2.0;
     v -= 1.0;
     return v;
@@ -61,15 +61,15 @@ vec3 unpack3x10(uint packed)
 TextureAnimation unpackTexAnim(uint packed)
 {
     TextureAnimation anim; 
-    anim.Type = packed & 1;
-    anim.Count = (packed >> 1) & 16383;
-    anim.Rate = (packed >> 15) / 4096.0;
+    anim.Type = packed & 1u;
+    anim.Count = (packed >> 1) & 16383u;
+    anim.Rate = float(packed >> 15) / 4096.0;
     return anim;
 }
 
 vec3 unpackUnorm3x8(uint packed)
 {
-    return vec3(packed & 255, (packed >> 8) & 255, (packed >> 16) & 255) / 255.0;
+    return vec3(packed & 255u, (packed >> 8) & 255u, (packed >> 16) & 255u) / 255.0;
 }
 
 TextureRegion unpackTexRegion(uint index)
@@ -80,9 +80,9 @@ TextureRegion unpackTexRegion(uint index)
     uint emissionRgb = packed.z;
 
     TextureRegion region;
-    region.TexId = textureRgb & 255;
+    region.TexId = textureRgb & 255u;
     region.TexColor = unpackUnorm3x8(textureRgb >> 8).xyz;
-    region.TexCoord = vec2(xy & 65535, xy >> 16); // * AtlasTexelSize;
+    region.TexCoord = vec2(xy & 65535u, xy >> 16); // * AtlasTexelSize;
     region.Emission = unpackUnorm3x8(emissionRgb);
     return region;
 }
@@ -104,7 +104,7 @@ void main()
     TextureAnimation texAnim0 = unpackTexAnim(TexAnimation0);
     float step0 = GlobalTime * texAnim0.Rate;
     float indexF0;
-    float texFract0 = modf(step0 - texAnim0.Type * 0.5f, indexF0);
+    float texFract0 = modf(step0 - float(texAnim0.Type) * 0.5f, indexF0);
     uint indexOffset0 = uint(indexF0);
     uint indexOffset0_0 = indexOffset0 % texAnim0.Count;
     uint indexOffset0_1 = (indexOffset0 + texAnim0.Type) % texAnim0.Count;

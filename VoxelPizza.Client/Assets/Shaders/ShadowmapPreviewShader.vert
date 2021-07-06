@@ -1,4 +1,4 @@
-#version 450
+#version 320 es
 
 struct SizeInfo
 {
@@ -29,6 +29,6 @@ void main()
     gl_Position = _Projection * vec4(scaledInput, 0, 1);
     if (ClipSpaceInvertedY)
     {
-        gl_Position.y *= -1;
+        gl_Position.y *= -1.0;
     }
 }

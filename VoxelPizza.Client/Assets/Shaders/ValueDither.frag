@@ -1,4 +1,6 @@
-#version 450
+#version 320 es
+precision highp float;
+precision lowp sampler;
 
 struct DepthCascadeLimits
 {
@@ -132,10 +134,10 @@ layout(constant_id = 102) const bool ReverseDepthRange = true;
 
 vec2 ClipToUV(vec4 clip)
 {
-    vec2 ret = vec2((clip.x / clip.w) / 2 + 0.5, (clip.y / clip.w) / -2 + 0.5);
+    vec2 ret = vec2((clip.x / clip.w) / 2.0 + 0.5, (clip.y / clip.w) / -2.0 + 0.5);
     if (ClipSpaceInvertedY || TextureCoordinatesInvertedY)
     {
-        ret.y = 1 - ret.y;
+        ret.y = 1.0 - ret.y;
     }
 
     return ret;
@@ -147,18 +149,18 @@ bool IsDepthNearer(float a, float b)
     else { return a < b; }
 }
 
-float IsDithered(vec2 pos, float alpha) {
+// Define a dither threshold matrix which can
+// be used to define how a 4x4 set of pixels
+// will be dithered
+const float DITHER_THRESHOLDS[16] = float[16]
+(
+    1.0 / 17.0,  9.0 / 17.0,  3.0 / 17.0, 11.0 / 17.0,
+    13.0 / 17.0,  5.0 / 17.0, 15.0 / 17.0,  7.0 / 17.0,
+    4.0 / 17.0, 12.0 / 17.0,  2.0 / 17.0, 10.0 / 17.0,
+    16.0 / 17.0,  8.0 / 17.0, 14.0 / 17.0,  6.0 / 17.0
+);
 
-    // Define a dither threshold matrix which can
-    // be used to define how a 4x4 set of pixels
-    // will be dithered
-    float DITHER_THRESHOLDS[16] =
-    {
-        1.0 / 17.0,  9.0 / 17.0,  3.0 / 17.0, 11.0 / 17.0,
-        13.0 / 17.0,  5.0 / 17.0, 15.0 / 17.0,  7.0 / 17.0,
-        4.0 / 17.0, 12.0 / 17.0,  2.0 / 17.0, 10.0 / 17.0,
-        16.0 / 17.0,  8.0 / 17.0, 14.0 / 17.0,  6.0 / 17.0
-    };
+float IsDithered(vec2 pos, float alpha) {
 
     int index = (int(pos.x) % 4) * 4 + int(pos.y) % 4;
     return alpha - DITHER_THRESHOLDS[index];
@@ -169,30 +171,30 @@ void main()
     float alphaMapSample = texture(sampler2D(AlphaMap, AlphaMapSampler), TexCoord).x;
     float ditherAlpha = IsDithered(ScreenCoords * ScreenSize, DitherValue);
     
-    if (alphaMapSample < 0 || ditherAlpha < 0)
+    if (alphaMapSample < 0.0 || ditherAlpha < 0.0)
     {
         discard;
     }
 
     vec4 surfaceColor = texture(sampler2D(SurfaceTexture, RegularSampler), TexCoord);
 
-    vec4 ambientLight = vec4(0.05f, 0.05f, 0.05f, 1.f);
+    vec4 ambientLight = vec4(0.05, 0.05, 0.05, 1.0);
     vec3 lightDir = -_LightInfo.Direction;
     vec4 directionalColor = ambientLight * surfaceColor;
-    float shadowBias = 0.0005f;
+    float shadowBias = 0.0005;
     if (ReverseDepthRange)
     {
-        shadowBias *= -1;
+        shadowBias *= -1.0;
     }
-    float lightIntensity = 0.f;
+    float lightIntensity = 0.0;
     vec4 directionalSpecColor = vec4(0, 0, 0, 0);
     vec3 vertexToEye = normalize(Position_WorldSpace - _CameraInfo.CameraPosition_WorldSpace);
     vec3 lightReflect = normalize(reflect(_LightInfo.Direction, Normal));
     float specularFactor = dot(vertexToEye, lightReflect);
-    if (specularFactor > 0)
+    if (specularFactor > 0.0)
     {
         specularFactor = pow(abs(specularFactor), _MaterialProperties.SpecularPower);
-        directionalSpecColor = vec4(_LightInfo.Color.xyz * _MaterialProperties.SpecularIntensity * specularFactor, 1.0f);
+        directionalSpecColor = vec4(_LightInfo.Color.xyz * _MaterialProperties.SpecularIntensity * specularFactor, 1.0);
     }
 
     float depthTest = FragDepth;
@@ -204,20 +206,20 @@ void main()
     float lightDepthValues_2 = LightPosition3.z / LightPosition3.w;
     int shadowIndex = 3;
     vec2 shadowCoords = vec2(0, 0);
-    float lightDepthValue = 0;
-    if (IsDepthNearer(depthTest, _DepthLimits.NearLimit) && InRange(shadowCoords_0.x, 0, 1) && InRange(shadowCoords_0.y, 0, 1))
+    float lightDepthValue = 0.0;
+    if (IsDepthNearer(depthTest, _DepthLimits.NearLimit) && InRange(shadowCoords_0.x, 0.0, 1.0) && InRange(shadowCoords_0.y, 0.0, 1.0))
     {
         shadowIndex = 0;
         shadowCoords = shadowCoords_0;
         lightDepthValue = lightDepthValues_0;
     }
-    else if (IsDepthNearer(depthTest, _DepthLimits.MidLimit) && InRange(shadowCoords_1.x, 0, 1) && InRange(shadowCoords_1.y, 0, 1))
+    else if (IsDepthNearer(depthTest, _DepthLimits.MidLimit) && InRange(shadowCoords_1.x, 0.0, 1.0) && InRange(shadowCoords_1.y, 0.0, 1.0))
     {
         shadowIndex = 1;
         shadowCoords = shadowCoords_1;
         lightDepthValue = lightDepthValues_1;
     }
-    else if (IsDepthNearer(depthTest, _DepthLimits.FarLimit) && InRange(shadowCoords_2.x, 0, 1) && InRange(shadowCoords_2.y, 0, 1))
+    else if (IsDepthNearer(depthTest, _DepthLimits.FarLimit) && InRange(shadowCoords_2.x, 0.0, 1.0) && InRange(shadowCoords_2.y, 0.0, 1.0))
     {
         shadowIndex = 2;
         shadowCoords = shadowCoords_2;
@@ -230,8 +232,8 @@ void main()
         float biasedDistToLight = (lightDepthValue - shadowBias);
         if (IsDepthNearer(biasedDistToLight, shadowMapDepth))
         {
-            lightIntensity = clamp(dot(Normal, lightDir), 0, 1);
-            if (lightIntensity > 0.0f)
+            lightIntensity = clamp(dot(Normal, lightDir), 0.0, 1.0);
+            if (lightIntensity > 0.0)
             {
                 directionalColor = surfaceColor * (lightIntensity * _LightInfo.Color);
             }
@@ -244,8 +246,8 @@ void main()
     }
     else
     {
-        lightIntensity = clamp(dot(Normal, lightDir), 0, 1);
-        if (lightIntensity > 0.0f)
+        lightIntensity = clamp(dot(Normal, lightDir), 0.0, 1.0);
+        if (lightIntensity > 0.0)
         {
             directionalColor = surfaceColor * lightIntensity * _LightInfo.Color;
         }
@@ -257,19 +259,19 @@ void main()
     {
         PointLightInfo pli = _PointLights.PointLights[i];
         vec3 ptLightDir = normalize(pli.Position - Position_WorldSpace);
-        float intensity = clamp(dot(Normal, ptLightDir), 0, 1);
+        float intensity = clamp(dot(Normal, ptLightDir), 0.0, 1.0);
         float lightDistance = distance(pli.Position, Position_WorldSpace);
-        intensity = clamp(intensity * (1 - (lightDistance / pli.Range)), 0, 1);
+        intensity = clamp(intensity * (1.0 - (lightDistance / pli.Range)), 0.0, 1.0);
         pointDiffuse += intensity * vec4(pli.Color, 1) * surfaceColor;
         vec3 lightReflect0 = normalize(reflect(ptLightDir, Normal));
         float specularFactor0 = dot(vertexToEye, lightReflect0);
-        if (specularFactor0 > 0 && pli.Range > lightDistance)
+        if (specularFactor0 > 0.0 && pli.Range > lightDistance)
         {
             specularFactor0 = pow(abs(specularFactor0), _MaterialProperties.SpecularPower);
-            pointSpec += (1 - (lightDistance / pli.Range)) * (vec4(pli.Color * _MaterialProperties.SpecularIntensity * specularFactor0, 1.0f));
+            pointSpec += (1.0 - (lightDistance / pli.Range)) * (vec4(pli.Color * _MaterialProperties.SpecularIntensity * specularFactor0, 1.0));
         }
     }
 
-    _outputColor_ = WithAlpha(clamp(directionalSpecColor + directionalColor + pointSpec + pointDiffuse, 0, 1), alphaMapSample);
+    _outputColor_ = WithAlpha(clamp(directionalSpecColor + directionalColor + pointSpec + pointDiffuse, 0.0, 1.0), alphaMapSample);
 }
 

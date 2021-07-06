@@ -1,4 +1,6 @@
-#version 450
+#version 320 es
+precision highp float;
+precision lowp sampler;
 
 layout(set = 0, binding = 2) uniform texture2D Tex;
 layout(set = 0, binding = 3) uniform sampler TexSampler;
@@ -13,7 +15,7 @@ void main()
     vec2 texCoord = fsin_0;
     if (TextureCoordinatesInvertedY)
     {
-        texCoord.y *= -1;
+        texCoord.y *= -1.0;
     }
 
     OutputColor = texture(sampler2D(Tex, TexSampler), texCoord);

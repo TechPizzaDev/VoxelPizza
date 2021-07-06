@@ -1,4 +1,4 @@
-#version 450
+#version 320 es
 
 layout(set = 0, binding = 0) uniform CameraInfo
 {
@@ -19,6 +19,6 @@ void main()
     mat4 vp = Projection * View;
     vec4 pos = vp * vec4(Position, 1);
 
-    f_Color = Color / 255.0;
+    f_Color = vec4(Color) / 255.0;
     gl_Position = pos;
 }

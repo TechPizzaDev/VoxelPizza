@@ -270,6 +270,13 @@ namespace VoxelPizza.Client
                 }
             }
 
+            for (int i = 0; i < _uploadReady.Length; i++)
+            {
+                _uploadReady[i] = false;
+                _uploadLists[i].Dispose();
+                _uploadFences[i].Dispose();
+            }
+
             _stagingMeshPool.Dispose();
             ChunkSharedLayout.Dispose();
             ChunkInfoLayout.Dispose();

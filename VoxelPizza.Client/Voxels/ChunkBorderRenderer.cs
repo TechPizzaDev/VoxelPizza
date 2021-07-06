@@ -151,6 +151,9 @@ namespace VoxelPizza.Client
 
         public override void DestroyDeviceObjects()
         {
+            _batchDepthPipeline.Dispose();
+            _batchDepthLessPipeline.Dispose();
+
             _chunkBatch.DestroyDeviceObjects();
             _chunkRegionBatch.DestroyDeviceObjects();
             _renderRegionBatch.DestroyDeviceObjects();

@@ -160,16 +160,12 @@ namespace VoxelPizza.Client
 
         protected override void DisposeGraphicsDeviceObjects()
         {
-            GraphicsDevice.WaitForIdle();
-
             _frameCommands.Dispose();
             StaticResourceCache.DisposeGraphicsDeviceObjects();
 
             _sc.DisposeGraphicsDeviceObjects();
             _scene.DestroyGraphicsDeviceObjects();
             CommonMaterials.DisposeGraphicsDeviceObjects();
-
-            GraphicsDevice.WaitForIdle();
         }
 
         protected override void CreateGraphicsDeviceObjects()

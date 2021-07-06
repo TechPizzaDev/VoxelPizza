@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 using Veldrid;
 using Veldrid.Sdl2;
@@ -99,11 +98,8 @@ namespace VoxelPizza.Client
             _enableScreensaver = Sdl2Native.LoadFunction<Action>("SDL_EnableScreenSaver");
             _disableScreensaver = Sdl2Native.LoadFunction<Action>("SDL_DisableScreenSaver");
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                _sdlEventWatch = SdlEventWatch;
-                Sdl2Native.SDL_AddEventWatch(_sdlEventWatch, null);
-            }
+            _sdlEventWatch = SdlEventWatch;
+            Sdl2Native.SDL_AddEventWatch(_sdlEventWatch, null);
 
             TimeAverager = new TimeAverager(4, TimeSpan.FromSeconds(0.5));
             GraphicsDevice = gd;
@@ -142,23 +138,31 @@ namespace VoxelPizza.Client
             _previousTicks = Stopwatch.GetTimestamp();
 
             PumpSdlEvents();
-            if (RunBody())
+            if (RunOnce())
             {
                 Window.Visible = true;
 
                 while (Window.Exists)
                 {
                     PumpSdlEvents();
-
-                    if (!RunBody())
+                    if (!RunOnce())
                         break;
-
-                    TimeAverager.Tick();
                 }
             }
 
-            DisposeGraphicsDeviceObjects();
-            GraphicsDevice.Dispose();
+            DisposeGraphicsDevice();
+        }
+
+        public bool RunOnce()
+        {
+            try
+            {
+                return RunBody();
+            }
+            finally
+            {
+                TimeAverager.Tick();
+            }
         }
 
         protected virtual bool RunBody()
@@ -267,8 +271,7 @@ namespace VoxelPizza.Client
             GraphicsBackend previousBackend = GraphicsDevice.BackendType;
             bool syncToVBlank = GraphicsDevice.SyncToVerticalBlank;
 
-            DisposeGraphicsDeviceObjects();
-            GraphicsDevice.Dispose();
+            DisposeGraphicsDevice();
 
             if (AlwaysRecreateWindow || forceRecreateWindow)
             {
@@ -306,6 +309,14 @@ namespace VoxelPizza.Client
             CreateGraphicsDeviceObjects();
         }
 
+        private void DisposeGraphicsDevice()
+        {
+            GraphicsDevice.WaitForIdle();
+            DisposeGraphicsDeviceObjects();
+            GraphicsDevice.WaitForIdle();
+            GraphicsDevice.Dispose();
+        }
+
         protected virtual bool ShouldEnableGraphicsDeviceDebug()
         {
 #if DEBUG
@@ -321,10 +332,7 @@ namespace VoxelPizza.Client
 
         protected virtual void WindowExposed()
         {
-            if (RunBody())
-            {
-                TimeAverager.Tick();
-            }
+            RunOnce();
         }
 
         protected void ChangeGraphicsBackend(GraphicsBackend? preferredBackend = null)

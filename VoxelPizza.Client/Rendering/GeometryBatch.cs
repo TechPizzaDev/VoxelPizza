@@ -13,7 +13,7 @@ namespace VoxelPizza.Client
         private List<uint> _indexCounts = new();
         private int _bufferCount;
 
-        private GraphicsDevice? _device;
+        private GraphicsDevice _device;
         private bool _begun;
         private MappedResourceView<uint> _indexView;
         private MappedResourceView<TVertex> _vertexView;
@@ -41,6 +41,9 @@ namespace VoxelPizza.Client
 
         public override void DestroyDeviceObjects()
         {
+            if (_begun)
+                End();
+
             foreach (DeviceBuffer buffer in _indexBuffers)
                 buffer.Dispose();
             _indexBuffers.Clear();
@@ -50,6 +53,7 @@ namespace VoxelPizza.Client
             _vertexBuffers.Clear();
 
             _bufferCount = 0;
+            _device = null!;
         }
 
         private void FinishCurrentBuffers()
@@ -58,7 +62,7 @@ namespace VoxelPizza.Client
             {
                 _indexCounts.Add(_indexOffset);
 
-                _device!.Unmap(_indexView.MappedResource.Resource);
+                _device.Unmap(_indexView.MappedResource.Resource);
                 _indexView = default;
 
                 _device.Unmap(_vertexView.MappedResource.Resource);
@@ -206,7 +210,7 @@ namespace VoxelPizza.Client
                 throw new InvalidOperationException();
 
             _begun = false;
-            
+
             if (_indexOffset == 0)
                 _bufferCount--;
 

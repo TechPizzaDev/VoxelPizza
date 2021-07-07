@@ -25,8 +25,8 @@ namespace VoxelPizza.Client
         private float _pitch;
 
         private Vector2 _mousePressedPos;
-        private bool _mousePressed = false;
-        private GraphicsDevice _gd;
+        private bool _mousePressed;
+        private bool _invertedClipSpaceY;
         private bool _useReverseDepth;
         private float _windowWidth;
         private float _windowHeight;
@@ -37,7 +37,6 @@ namespace VoxelPizza.Client
 
         public Camera(GraphicsDevice gd, Sdl2Window window)
         {
-            _gd = gd ?? throw new ArgumentNullException(nameof(gd));
             _window = window ?? throw new ArgumentNullException(nameof(window));
 
             UpdateGraphicsBackend(gd, window);
@@ -46,9 +45,9 @@ namespace VoxelPizza.Client
 
         public void UpdateGraphicsBackend(GraphicsDevice gd, Sdl2Window window)
         {
-            _gd = gd ?? throw new ArgumentNullException(nameof(gd));
             _window = window ?? throw new ArgumentNullException(nameof(window));
 
+            _invertedClipSpaceY = gd.IsClipSpaceYInverted;
             _useReverseDepth = gd.IsDepthRangeZeroToOne;
             _windowWidth = window.Width;
             _windowHeight = window.Height;
@@ -214,7 +213,7 @@ namespace VoxelPizza.Client
         private void UpdatePerspectiveMatrix()
         {
             _projectionMatrix = Util.CreatePerspective(
-                _gd,
+                _invertedClipSpaceY,
                 _useReverseDepth,
                 _fov,
                 _windowWidth / _windowHeight,

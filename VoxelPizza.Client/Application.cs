@@ -35,18 +35,7 @@ namespace VoxelPizza.Client
 
         public string WindowTitle = "VoxelPizza";
 
-        public GraphicsDevice GraphicsDevice
-        {
-            get => _graphicsDevice;
-            private set
-            {
-                if (value == null)
-                    throw new ArgumentNullException(nameof(value));
-
-                _graphicsDevice = value;
-            }
-        }
-
+        public GraphicsDevice GraphicsDevice => _graphicsDevice;
         public Sdl2Window Window
         {
             get => _window;
@@ -75,8 +64,8 @@ namespace VoxelPizza.Client
             var gdOptions = new GraphicsDeviceOptions(
                 ShouldEnableGraphicsDeviceDebug(), null, false, ResourceBindingModel.Improved, true, true, SrgbSwapchain);
 
-            GraphicsDevice gd;
             Sdl2Window window;
+            GraphicsDevice gd;
             try
             {
                 VeldridStartup.CreateWindowAndGraphicsDevice(
@@ -95,6 +84,9 @@ namespace VoxelPizza.Client
                     out window,
                     out gd);
             }
+            _window = window;
+            _graphicsDevice = gd;
+
             _enableScreensaver = Sdl2Native.LoadFunction<Action>("SDL_EnableScreenSaver");
             _disableScreensaver = Sdl2Native.LoadFunction<Action>("SDL_DisableScreenSaver");
 
@@ -102,8 +94,6 @@ namespace VoxelPizza.Client
             Sdl2Native.SDL_AddEventWatch(_sdlEventWatch, null);
 
             TimeAverager = new TimeAverager(4, TimeSpan.FromSeconds(0.5));
-            GraphicsDevice = gd;
-            Window = window;
         }
 
         protected virtual void WindowGainedFocus()
@@ -151,6 +141,7 @@ namespace VoxelPizza.Client
             }
 
             DisposeGraphicsDevice();
+            _graphicsDevice = null!;
         }
 
         public bool RunOnce()
@@ -188,8 +179,10 @@ namespace VoxelPizza.Client
                 return false;
             }
 
-            if (!Window.Exists)
+            if (!Window.Exists || _graphicsDevice == null)
+            {
                 return false;
+            }
 
             if (time.IsActive)
             {
@@ -239,7 +232,7 @@ namespace VoxelPizza.Client
 
         public virtual void Present()
         {
-            GraphicsDevice.SwapBuffers();
+            _graphicsDevice.SwapBuffers();
         }
 
         private void DrawAndPresent()
@@ -268,10 +261,11 @@ namespace VoxelPizza.Client
 
         public void ChangeGraphicsBackend(bool forceRecreateWindow, GraphicsBackend? preferredBackend = null)
         {
-            GraphicsBackend previousBackend = GraphicsDevice.BackendType;
-            bool syncToVBlank = GraphicsDevice.SyncToVerticalBlank;
+            GraphicsBackend previousBackend = _graphicsDevice.BackendType;
+            bool syncToVBlank = _graphicsDevice.SyncToVerticalBlank;
 
             DisposeGraphicsDevice();
+            _graphicsDevice = null!;
 
             if (AlwaysRecreateWindow || forceRecreateWindow)
             {
@@ -297,13 +291,13 @@ namespace VoxelPizza.Client
                 if (preferredBackend == null)
                     preferredBackend = previousBackend;
 
-                GraphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions, preferredBackend.Value);
+                _graphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions, preferredBackend.Value);
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex); // TODO: log proper error
 
-                GraphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions);
+                _graphicsDevice = VeldridStartup.CreateGraphicsDevice(Window, gdOptions);
             }
 
             CreateGraphicsDeviceObjects();

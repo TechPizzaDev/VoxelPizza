@@ -98,7 +98,7 @@ namespace VoxelPizza.Client
         }
 
         public static Matrix4x4 CreatePerspective(
-            GraphicsDevice gd,
+            bool invertedClipSpaceY,
             bool useReverseDepth,
             float fov,
             float aspectRatio,
@@ -110,7 +110,7 @@ namespace VoxelPizza.Client
             else
                 persp = CreatePerspective(fov, aspectRatio, near, far);
             
-            if (gd.IsClipSpaceYInverted)
+            if (invertedClipSpaceY)
             {
                 persp *= new Matrix4x4(
                     1, 0, 0, 0,

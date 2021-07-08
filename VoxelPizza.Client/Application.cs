@@ -21,7 +21,6 @@ namespace VoxelPizza.Client
         private SDL_EventFilter _sdlEventWatch;
 
         private bool _drawWhenUnfocused = true;
-        private bool _drawWhenMinimized = false;
         private TimeSpan _inactiveFrameTime = TimeSpan.FromSeconds(1 / 20.0);
 
         private bool _shouldExit;
@@ -84,7 +83,7 @@ namespace VoxelPizza.Client
                     out window,
                     out gd);
             }
-            _window = window;
+            Window = window;
             _graphicsDevice = gd;
 
             _enableScreensaver = Sdl2Native.LoadFunction<Action>("SDL_EnableScreenSaver");
@@ -94,7 +93,7 @@ namespace VoxelPizza.Client
             Sdl2Native.SDL_AddEventWatch(_sdlEventWatch, null);
 
             TimeAverager = new TimeAverager(4, TimeSpan.FromSeconds(0.5));
-            
+
             WindowGainedFocus();
         }
 
@@ -186,29 +185,29 @@ namespace VoxelPizza.Client
                 return false;
             }
 
+            WindowState windowState = Window.WindowState;
+            bool hasSurface = windowState is not WindowState.Minimized and not WindowState.Hidden;
+            
             if (time.IsActive)
             {
-                DrawAndPresent();
+                if (hasSurface)
+                {
+                    DrawAndPresent();
+                }
             }
             else
             {
-                if (_drawWhenUnfocused)
+                if (hasSurface && _drawWhenUnfocused)
                 {
-                    if (Window.WindowState == WindowState.Minimized)
-                    {
-                        if (_drawWhenMinimized)
-                            DrawAndPresent();
-                    }
-                    else
-                    {
-                        DrawAndPresent();
-                    }
+                    DrawAndPresent();
                 }
 
                 double spentMillis = (Stopwatch.GetTimestamp() - currentTicks) * TimeAverager.MillisPerTick;
                 int millis = (int)(_inactiveFrameTime.TotalMilliseconds - spentMillis);
                 if (millis > 0)
+                {
                     Thread.Sleep(millis);
+                }
             }
             return true;
         }

@@ -62,17 +62,10 @@ namespace VoxelPizza.Client
 
         public override void DestroyDeviceObjects()
         {
-            _indexBuffer?.Dispose();
-            _indexBuffer = null!;
+            DisposeMeshBuffers();
 
             _renderInfoBuffer?.Dispose();
             _renderInfoBuffer = null!;
-
-            _spaceVertexBuffer?.Dispose();
-            _spaceVertexBuffer = null!;
-
-            _paintVertexBuffer?.Dispose();
-            _paintVertexBuffer = null!;
 
             _chunkInfoSet?.Dispose();
             _chunkInfoSet = null!;
@@ -141,11 +134,8 @@ namespace VoxelPizza.Client
 
             if (indexCountRequired <= 0)
             {
-                _indexBuffer?.Dispose();
-                _spaceVertexBuffer?.Dispose();
-                _paintVertexBuffer?.Dispose();
-                _indexCount = 0;
-                _vertexCount = 0;
+                DisposeMeshBuffers();
+
                 _uploadRequired = false;
                 stagingMesh = null;
                 return true;
@@ -199,7 +189,7 @@ namespace VoxelPizza.Client
 
         public override void Render(CommandList cl)
         {
-            if (_indexBuffer == null)
+            if (_indexCount != 0)
                 return;
 
             cl.SetGraphicsResourceSet(2, _chunkInfoSet);
@@ -207,7 +197,22 @@ namespace VoxelPizza.Client
             cl.SetVertexBuffer(0, _spaceVertexBuffer);
             cl.SetVertexBuffer(1, _paintVertexBuffer);
             cl.SetIndexBuffer(_indexBuffer, IndexFormat.UInt32);
-            cl.DrawIndexed(_indexBuffer.SizeInBytes / 4, 1, 0, 0, 0);
+            cl.DrawIndexed((uint)_indexCount, 1, 0, 0, 0);
+        }
+
+        private void DisposeMeshBuffers()
+        {
+            _indexCount = 0;
+            _vertexCount = 0;
+
+            _indexBuffer?.Dispose();
+            _indexBuffer = null!;
+
+            _spaceVertexBuffer?.Dispose();
+            _spaceVertexBuffer = null!;
+
+            _paintVertexBuffer?.Dispose();
+            _paintVertexBuffer = null!;
         }
     }
 }

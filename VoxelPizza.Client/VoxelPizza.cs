@@ -43,7 +43,7 @@ namespace VoxelPizza.Client
         private Dictionary<string, ImageSharpTexture> _textures = new();
 
         private event Action<int, int> _resizeHandled;
-        private bool _windowResized;
+        private bool _windowResized = true;
 
         private ParticlePlane particlePlane;
 

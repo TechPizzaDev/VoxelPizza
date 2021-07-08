@@ -94,6 +94,8 @@ namespace VoxelPizza.Client
             Sdl2Native.SDL_AddEventWatch(_sdlEventWatch, null);
 
             TimeAverager = new TimeAverager(4, TimeSpan.FromSeconds(0.5));
+            
+            WindowGainedFocus();
         }
 
         protected virtual void WindowGainedFocus()

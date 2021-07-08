@@ -93,6 +93,8 @@ namespace VoxelPizza.Client
                         //var mesh = new ChunkMesh(this, chunk);
                         //_queuedMeshes.Enqueue(mesh);
 
+                        chunk.InvokeUpdate();
+
                         count++;
                         if (count == 1)
                         {
@@ -115,64 +117,73 @@ namespace VoxelPizza.Client
                     //    }
                     //}
 
-                    return;
+                    if (false)
+                    {
+                        Random rng = new Random(1234);
+                        for (int i = 0; i < (64 * 1024) / (width * height * depth); i++)
+                        {
+                            for (int y = 0; y < height; y++)
+                            {
+                                for (int z = 0; z < depth; z++)
+                                {
+                                    for (int x = 0; x < width; x++)
+                                    {
+                                        int xd = rng.Next(2);
+                                        int max = xd == 0 ? 512 : 128;
+                                        var c = dimension.GetChunk(new ChunkPosition(x, y, z));
+                                        if (c != null)
+                                        {
+                                            uint[] blocks = c.Blocks;
+                                            for (int b = 0; b < blocks.Length; b++)
+                                            {
+                                                blocks[b] = (uint)rng.Next(max);
+                                            }
+                                            //blocks.AsSpan().Clear();
 
-                    //Random rng = new Random(1234);
-                    //for (int i = 0; i < (64 * 1024) / (width * height * depth); i++)
-                    //{
-                    //    for (int y = 0; y < height; y++)
-                    //    {
-                    //        for (int z = 0; z < depth; z++)
-                    //        {
-                    //            for (int x = 0; x < width; x++)
-                    //            {
-                    //                int xd = rng.Next(2);
-                    //                int max = xd == 0 ? 512 : 128;
-                    //                if (_chunks.TryGetValue(new ChunkPosition(x, y, z), out Chunk? c))
-                    //                {
-                    //                    uint[] blocks = c.Blocks;
-                    //                    for (int b = 0; b < blocks.Length; b++)
-                    //                    {
-                    //                        blocks[b] = (uint)rng.Next(max);
-                    //                    }
-                    //                    //blocks.AsSpan().Clear();
-                    //
-                    //                    ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
-                    //                    _regions[regionPosition].UpdateChunk(c);
-                    //                }
-                    //            }
-                    //        }
-                    //    }
-                    //
-                    //    frameEvent.WaitOne();
-                    //    frameEvent.WaitOne();
-                    //    //frameEvent.WaitOne();
-                    //    //frameEvent.WaitOne();
-                    //}
-                    //
-                    //frameEvent.WaitOne();
-                    //Thread.Sleep(1000);
-                    //Environment.Exit(0);
-                    //
-                    //return;
-                    //Thread.Sleep(5000);
-                    //
-                    //while (true)
-                    //{
-                    //    int x = rng.Next(width);
-                    //    int z = rng.Next(depth);
-                    //    int y = rng.Next(height);
-                    //    if (_chunks.TryGetValue(new ChunkPosition(x, y, z), out Chunk? c))
-                    //    {
-                    //        c.Blocks[rng.Next(c.Blocks.Length)] = 0;
-                    //
-                    //        ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
-                    //        _regions[regionPosition].UpdateChunk(c);
-                    //
-                    //        Thread.Sleep(10);
-                    //    }
-                    //}
-                }   
+
+                                            //ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
+                                            //_regions[regionPosition].UpdateChunk(c);
+                                        }
+                                    }
+                                }
+                            }
+                            //frameEvent.WaitOne();
+                            //frameEvent.WaitOne();
+                            //frameEvent.WaitOne();
+                            //frameEvent.WaitOne();
+                        }
+
+                        //frameEvent.WaitOne();
+                        Thread.Sleep(1000);
+                        Environment.Exit(0);
+                    }
+
+                    if (true)
+                    {
+                        Random rng = new Random(1234);
+                        while (true)
+                        {
+                            int x = rng.Next(width);
+                            int z = rng.Next(depth);
+                            int y = rng.Next(height);
+                            Chunk? c = dimension.GetChunk(new ChunkPosition(x, y, z));
+                            if (c != null)
+                            {
+                                try
+                                {
+                                    c.Blocks[rng.Next(c.Blocks.Length)] = (uint)rng.Next(128);
+
+                                    c.InvokeUpdate();
+                                }
+                                finally
+                                {
+                                    c.DecrementRef();
+                                }
+                                Thread.Sleep(1);
+                            }
+                        }
+                    }
+                }
                 catch (Exception ex)
                 {
                     Console.WriteLine(ex);

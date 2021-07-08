@@ -15,6 +15,8 @@ namespace VoxelPizza.World
 
         public uint[] Blocks;
 
+        public event ChunkAction? Updated;
+
         public ChunkPosition Position { get; }
 
         public int X => Position.X;
@@ -31,6 +33,11 @@ namespace VoxelPizza.World
             Position = position;
 
             Blocks = new uint[Height * Depth * Width];
+        }
+
+        public void InvokeUpdate()
+        {
+            Updated?.Invoke(this);
         }
 
         public void GetBlockRowUnsafe(nint x, nint y, nint z, ref uint destination, uint length)

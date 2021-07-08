@@ -15,11 +15,13 @@ namespace VoxelPizza.World
 
         private Chunk?[] _chunks;
         private ReaderWriterLockSlim _chunkLock = new();
+        private ChunkAction _cachedChunkUpdated;
 
         public Dimension Dimension { get; }
         public ChunkRegionPosition Position { get; }
 
         public event ChunkAction? ChunkAdded;
+        public event ChunkAction? ChunkUpdated;
         public event ChunkAction? ChunkRemoved;
 
         public ChunkRegion(Dimension dimension, ChunkRegionPosition position)
@@ -28,6 +30,12 @@ namespace VoxelPizza.World
             Position = position;
 
             _chunks = new Chunk?[Width * Height * Depth];
+            _cachedChunkUpdated = Chunk_ChunkUpdated;
+        }
+
+        private void Chunk_ChunkUpdated(Chunk chunk)
+        {
+            ChunkUpdated?.Invoke(chunk);
         }
 
         public Chunk? GetLocalChunk(int index)
@@ -76,6 +84,7 @@ namespace VoxelPizza.World
             try
             {
                 chunk = new Chunk(this, position);
+                chunk.Updated += _cachedChunkUpdated;
                 _chunks[index] = chunk;
             }
             finally

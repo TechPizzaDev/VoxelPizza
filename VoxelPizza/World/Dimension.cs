@@ -12,9 +12,11 @@ namespace VoxelPizza.World
         private ReaderWriterLockSlim _regionLock = new();
 
         private ChunkAction _cachedChunkAdded;
+        private ChunkAction _cachedChunkUpdated;
         private ChunkAction _cachedChunkRemoved;
 
         public event ChunkAction? ChunkAdded;
+        public event ChunkAction? ChunkUpdated;
         public event ChunkAction? ChunkRemoved;
 
         public event RegionAction? RegionAdded;
@@ -23,12 +25,18 @@ namespace VoxelPizza.World
         public Dimension()
         {
             _cachedChunkAdded = Region_ChunkAdded;
+            _cachedChunkUpdated = Region_ChunkUpdated;
             _cachedChunkRemoved = Region_ChunkRemoved;
         }
 
         private void Region_ChunkAdded(Chunk chunk)
         {
             ChunkAdded?.Invoke(chunk);
+        }
+
+        private void Region_ChunkUpdated(Chunk chunk)
+        {
+            ChunkUpdated?.Invoke(chunk);
         }
 
         private void Region_ChunkRemoved(Chunk chunk)
@@ -67,6 +75,7 @@ namespace VoxelPizza.World
             {
                 region = new ChunkRegion(this, position);
                 region.ChunkAdded += _cachedChunkAdded;
+                region.ChunkUpdated += _cachedChunkUpdated;
                 region.ChunkRemoved += _cachedChunkRemoved;
 
                 _regions.Add(region.Position, region);

@@ -100,6 +100,7 @@ namespace VoxelPizza.Client
             }
 
             dimension.ChunkAdded += Dimension_ChunkAdded;
+            dimension.ChunkUpdated += Dimension_ChunkUpdated;
         }
 
         private void Dimension_ChunkAdded(Chunk chunk)
@@ -108,6 +109,19 @@ namespace VoxelPizza.Client
             _queuedMeshes.Enqueue(mesh);
 
             mesh.RequestBuild(chunk.Position);
+        }
+
+        private void Dimension_ChunkUpdated(Chunk chunk)
+        {
+            lock (_meshes)
+            {
+                ChunkMesh? mesh = _meshes.Find(x => x.Position == chunk.Position);
+                if (mesh == null)
+                {
+                    return;
+                }
+                mesh.RequestBuild(chunk.Position);
+            }
         }
 
         public RenderRegionPosition GetRegionPosition(ChunkPosition chunkPosition)
@@ -241,9 +255,12 @@ namespace VoxelPizza.Client
                 sc.LightInfoBuffer,
                 _textureAtlasBuffer));
 
-            foreach (ChunkMesh mesh in _meshes)
+            lock (_meshes)
             {
-                mesh.CreateDeviceObjects(gd, cl, sc);
+                foreach (ChunkMesh mesh in _meshes)
+                {
+                    mesh.CreateDeviceObjects(gd, cl, sc);
+                }
             }
 
             lock (_regions)
@@ -257,9 +274,12 @@ namespace VoxelPizza.Client
 
         public override void DestroyDeviceObjects()
         {
-            foreach (ChunkMesh mesh in _meshes)
+            lock (_meshes)
             {
-                mesh.DestroyDeviceObjects();
+                foreach (ChunkMesh mesh in _meshes)
+                {
+                    mesh.DestroyDeviceObjects();
+                }
             }
 
             lock (_regions)
@@ -314,13 +334,16 @@ namespace VoxelPizza.Client
                     }
                 }
 
-                foreach (ChunkMesh mesh in _meshes)
+                lock (_meshes)
                 {
-                    (int Total, int ToBuild, int ToUpload) = mesh.GetMeshCount();
-                    total += Total;
-                    toBuild += ToBuild;
-                    toUpload += ToUpload;
-                    meshCount++;
+                    foreach (ChunkMesh mesh in _meshes)
+                    {
+                        (int Total, int ToBuild, int ToUpload) = mesh.GetMeshCount();
+                        total += Total;
+                        toBuild += ToBuild;
+                        toUpload += ToUpload;
+                        meshCount++;
+                    }
                 }
 
                 ImGuiNET.ImGui.Text("Chunks to build: " + toBuild);
@@ -347,24 +370,27 @@ namespace VoxelPizza.Client
 
             Vector3 origin = cullOrigin.GetValueOrDefault();
 
-            if (cullFrustum.HasValue)
+            lock (_meshes)
             {
-                BoundingFrustum frustum = cullFrustum.GetValueOrDefault();
-
-                foreach (ChunkMesh mesh in _meshes)
+                if (cullFrustum.HasValue)
                 {
-                    Vector3 chunkPos = mesh.Position.ToBlock();
-                    BoundingBox box = new(chunkPos, chunkPos + Chunk.Size);
+                    BoundingFrustum frustum = cullFrustum.GetValueOrDefault();
 
-                    if (frustum.Contains(box) != ContainmentType.Disjoint)
+                    foreach (ChunkMesh mesh in _meshes)
                     {
-                        visibleChunks.Add(mesh);
+                        Vector3 chunkPos = mesh.Position.ToBlock();
+                        BoundingBox box = new(chunkPos, chunkPos + Chunk.Size);
+
+                        if (frustum.Contains(box) != ContainmentType.Disjoint)
+                        {
+                            visibleChunks.Add(mesh);
+                        }
                     }
                 }
-            }
-            else
-            {
-                visibleChunks.AddRange(_meshes);
+                else
+                {
+                    visibleChunks.AddRange(_meshes);
+                }
             }
 
             if (cullOrigin.HasValue)
@@ -448,11 +474,14 @@ namespace VoxelPizza.Client
                     _uploadLists[i].Begin();
             }
 
-            while (_queuedMeshes.TryDequeue(out ChunkMesh? mesh))
+            lock (_meshes)
             {
-                mesh.CreateDeviceObjects(gd, cl, sc);
-                _meshes.Add(mesh);
-                ChunkMeshAdded?.Invoke(mesh);
+                while (_queuedMeshes.TryDequeue(out ChunkMesh? mesh))
+                {
+                    mesh.CreateDeviceObjects(gd, cl, sc);
+                    _meshes.Add(mesh);
+                    ChunkMeshAdded?.Invoke(mesh);
+                }
             }
 
             while (_queuedRegions.TryDequeue(out ChunkMeshRegion? region))

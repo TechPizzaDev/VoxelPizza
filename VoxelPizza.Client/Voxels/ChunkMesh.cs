@@ -189,7 +189,7 @@ namespace VoxelPizza.Client
 
         public override void Render(CommandList cl)
         {
-            if (_indexCount != 0)
+            if (_indexBuffer == null)
                 return;
 
             cl.SetGraphicsResourceSet(2, _chunkInfoSet);
@@ -197,7 +197,7 @@ namespace VoxelPizza.Client
             cl.SetVertexBuffer(0, _spaceVertexBuffer);
             cl.SetVertexBuffer(1, _paintVertexBuffer);
             cl.SetIndexBuffer(_indexBuffer, IndexFormat.UInt32);
-            cl.DrawIndexed((uint)_indexCount, 1, 0, 0, 0);
+            cl.DrawIndexed(_indexBuffer.SizeInBytes / 4, 1, 0, 0, 0);
         }
 
         private void DisposeMeshBuffers()

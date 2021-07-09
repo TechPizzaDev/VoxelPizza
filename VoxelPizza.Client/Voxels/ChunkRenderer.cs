@@ -105,22 +105,45 @@ namespace VoxelPizza.Client
 
         private void Dimension_ChunkAdded(Chunk chunk)
         {
-            var mesh = new ChunkMesh(this, chunk.Position);
-            _queuedMeshes.Enqueue(mesh);
+            //var mesh = new ChunkMesh(this, chunk.Position);
+            //_queuedMeshes.Enqueue(mesh);
+            //
+            //mesh.RequestBuild(chunk.Position);
 
-            mesh.RequestBuild(chunk.Position);
+            RenderRegionPosition regionPosition = GetRegionPosition(chunk.Position);
+            lock (_regions)
+            {
+                if (!_regions.TryGetValue(regionPosition, out ChunkMeshRegion? meshRegion))
+                {
+                    meshRegion = new ChunkMeshRegion(this, regionPosition, RegionSize);
+                    _regions.Add(regionPosition, meshRegion);
+
+                    _queuedRegions.Enqueue(meshRegion);
+                }
+
+                //meshRegion.RequestBuild(chunk.Position);
+            }
         }
 
         private void Dimension_ChunkUpdated(Chunk chunk)
         {
-            lock (_meshes)
+            //lock (_meshes)
+            //{
+            //    ChunkMesh? mesh = _meshes.Find(x => x.Position == chunk.Position);
+            //    if (mesh == null)
+            //    {
+            //        return;
+            //    }
+            //    mesh.RequestBuild(chunk.Position);
+            //}
+
+            RenderRegionPosition regionPosition = GetRegionPosition(chunk.Position);
+            lock (_regions)
             {
-                ChunkMesh? mesh = _meshes.Find(x => x.Position == chunk.Position);
-                if (mesh == null)
+                if (_regions.TryGetValue(regionPosition, out ChunkMeshRegion? meshRegion))
                 {
-                    return;
+                    meshRegion.RequestBuild(chunk.Position);
                 }
-                mesh.RequestBuild(chunk.Position);
             }
         }
 
@@ -168,7 +191,7 @@ namespace VoxelPizza.Client
                 new VertexElementDescription("TexRegion0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1));
 
             VertexLayoutDescription worldLayout = new VertexLayoutDescription(
-                new VertexElementDescription("Translation", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3))
+                new VertexElementDescription("Translation", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4))
             {
                 InstanceStepRate = 1
             };

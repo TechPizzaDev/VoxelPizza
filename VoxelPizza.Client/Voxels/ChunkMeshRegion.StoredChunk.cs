@@ -13,7 +13,7 @@ namespace VoxelPizza.Client
 
             public ChunkRenderInfo RenderInfo;
             public ChunkMeshResult StoredMesh;
-            public bool IsBuildRequired;
+            public int IsBuildRequired;
             public bool IsUploadRequired;
 
             public StoredChunk(ChunkPosition position, ChunkPosition localPosition)
@@ -32,7 +32,7 @@ namespace VoxelPizza.Client
                 };
 
                 StoredMesh = default;
-                IsBuildRequired = false;
+                IsBuildRequired = 0;
                 IsUploadRequired = false;
             }
         }

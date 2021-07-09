@@ -94,7 +94,7 @@ TextureRegion unpackTexRegion(uint index)
 
 void main()
 {
-    vec4 worldPosition = vec4(Position, 1) + Translation;
+    vec4 worldPosition = vec4(Position + Translation.xyz, 1);
     vec4 outPosition = Projection * View * worldPosition;
     
     mat4 world = mat4(

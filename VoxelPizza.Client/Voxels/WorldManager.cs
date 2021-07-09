@@ -33,7 +33,7 @@ namespace VoxelPizza.Client
 
                     var list = new List<(int x, int y, int z)>();
 
-                    int off = 0;
+                    int off = 1;
                     for (int y = -off; y < height; y++)
                     {
                         for (int z = 0; z < depth; z++)
@@ -74,26 +74,12 @@ namespace VoxelPizza.Client
                         else
                             chunk.Generate();
 
-                        //Thread.Sleep(5);
-
-                        //ChunkRegionPosition regionPosition = GetRegionPosition(chunk.Position);
-                        //ChunkMeshRegion? region;
-                        //lock (_regions)
-                        //{
-                        //    if (!_regions.TryGetValue(regionPosition, out region))
-                        //    {
-                        //        region = new ChunkMeshRegion(this, regionPosition, RegionSize);
-                        //        _regions.Add(regionPosition, region);
-                        //        _queuedRegions.Enqueue(region);
-                        //    }
-                        //}
-
-                        //region.UpdateChunk(chunk);
-
-                        //var mesh = new ChunkMesh(this, chunk);
-                        //_queuedMeshes.Enqueue(mesh);
-
-                        chunk.InvokeUpdate();
+                        if (y >= 0 && x >= off && z >= off &&
+                            x < width - off &&
+                            z < depth - off)
+                        {
+                            chunk.InvokeUpdate();
+                        }
 
                         count++;
                         if (count == 1)
@@ -102,20 +88,6 @@ namespace VoxelPizza.Client
                             count = 0;
                         }
                     }
-
-                    //for (int y = 0; y < height; y++)
-                    //{
-                    //    for (int z = off; z < depth - off; z++)
-                    //    {
-                    //        for (int x = off; x < width - off; x++)
-                    //        {
-                    //            var pp = new ChunkPosition(x, y, z);
-                    //            ChunkRegionPosition regionPosition = GetRegionPosition(pp);
-                    //            Chunk? chunk = GetChunk(pp);
-                    //            _regions[regionPosition].UpdateChunk(chunk);
-                    //        }
-                    //    }
-                    //}
 
                     if (false)
                     {
@@ -163,24 +135,28 @@ namespace VoxelPizza.Client
                         Random rng = new Random(1234);
                         while (true)
                         {
-                            int x = rng.Next(width);
-                            int z = rng.Next(depth);
-                            int y = rng.Next(height);
-                            Chunk? c = dimension.GetChunk(new ChunkPosition(x, y, z));
-                            if (c != null)
+                            for (int i = 0; i < 5; i++)
                             {
-                                try
+                                int x = rng.Next(width - off) + off;
+                                int z = rng.Next(depth - off) + off;
+                                int y = rng.Next(height);
+                                Chunk? c = dimension.GetChunk(new ChunkPosition(x, y, z));
+                                if (c != null)
                                 {
-                                    c.Blocks[rng.Next(c.Blocks.Length)] = (uint)rng.Next(128);
+                                    try
+                                    {
+                                        c.Blocks[rng.Next(c.Blocks.Length)] = (uint)rng.Next(128);
 
-                                    c.InvokeUpdate();
+                                        c.InvokeUpdate();
+                                    }
+                                    finally
+                                    {
+                                        c.DecrementRef();
+                                    }
                                 }
-                                finally
-                                {
-                                    c.DecrementRef();
-                                }
-                                Thread.Sleep(1);
                             }
+
+                            Thread.Sleep(1);
                         }
                     }
                 }

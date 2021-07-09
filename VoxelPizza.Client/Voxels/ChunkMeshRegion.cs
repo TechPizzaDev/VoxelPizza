@@ -52,6 +52,15 @@ namespace VoxelPizza.Client
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
             _uploadRequired = true;
+
+            for (int i = 0; i < _storedChunks.Length; i++)
+            {
+                ref StoredChunk storedChunk = ref _storedChunks[i];
+                if (!storedChunk.HasValue)
+                    continue;
+
+                storedChunk.IsUploadRequired = true;
+            }
         }
 
         public override void DestroyDeviceObjects()
@@ -108,7 +117,7 @@ namespace VoxelPizza.Client
             //Chunk? leftChunk = Renderer.GetChunk(chunk.X - 1, chunk.Y + 0, chunk.Z + 0);
             //Chunk? rightChunk = Renderer.GetChunk(chunk.X + 1, chunk.Y + 0, chunk.Z + 0);
 
-            storedChunk.IsBuildRequired = true;
+            Interlocked.Increment(ref storedChunk.IsBuildRequired);
             Interlocked.Increment(ref _buildRequired);
         }
 
@@ -124,7 +133,7 @@ namespace VoxelPizza.Client
                 if (storedChunk.HasValue)
                     total++;
 
-                if (storedChunk.IsBuildRequired)
+                if (storedChunk.IsBuildRequired > 0)
                     toBuild++;
 
                 if (storedChunk.IsUploadRequired)
@@ -151,8 +160,10 @@ namespace VoxelPizza.Client
                     continue;
 
                 storedChunk.IsUploadRequired = true;
+                _uploadRequired = true;
 
-                if (!storedChunk.IsBuildRequired)
+                int chunkBuildRequired = storedChunk.IsBuildRequired;
+                if (storedChunk.IsBuildRequired == 0)
                     continue;
 
                 storedChunk.StoredMesh.Dispose();
@@ -167,9 +178,7 @@ namespace VoxelPizza.Client
                 c++;
 
                 storedChunk.StoredMesh = result;
-                storedChunk.IsBuildRequired = false;
-
-                _uploadRequired = true;
+                Interlocked.Add(ref storedChunk.IsBuildRequired, -chunkBuildRequired);
             }
 
             //if (c != 0)

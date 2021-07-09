@@ -23,18 +23,15 @@
       <Visible>false</Visible>
     </Content>
   </ItemGroup>
-  
-  <ItemGroup>
-    <PackageReference Include="Veldrid" Version="4.9.0-gbe8e5a15f4" />
-    <PackageReference Include="Veldrid.ImageSharp" Version="4.9.0-gbe8e5a15f4" />
-    <PackageReference Include="Veldrid.ImGui" Version="5.72.0-gbe8e5a15f4" />
-    <PackageReference Include="Veldrid.RenderDoc" Version="1.0.1-gbe8e5a15f4" />
-    <PackageReference Include="Veldrid.SPIRV" Version="1.0.14" />
-    <PackageReference Include="Veldrid.StartupUtilities" Version="4.9.0-gbe8e5a15f4" />
-    <PackageReference Include="Veldrid.Utilities" Version="4.9.0-g04d2d9fc8e" />
-  </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\veldrid-spirv\src\Veldrid.SPIRV\Veldrid.SPIRV.csproj" />
+    <ProjectReference Include="..\veldrid\src\Veldrid.ImageSharp\Veldrid.ImageSharp.csproj" />
+    <ProjectReference Include="..\veldrid\src\Veldrid.ImGui\Veldrid.ImGui.csproj" />
+    <ProjectReference Include="..\veldrid\src\Veldrid.RenderDoc\Veldrid.RenderDoc.csproj" />
+    <ProjectReference Include="..\veldrid\src\Veldrid.StartupUtilities\Veldrid.StartupUtilities.csproj" />
+    <ProjectReference Include="..\veldrid\src\Veldrid.Utilities\Veldrid.Utilities.csproj" />
+    <ProjectReference Include="..\veldrid\src\Veldrid\Veldrid.csproj" />
     <ProjectReference Include="..\VoxelPizza.Base\VoxelPizza.Base.csproj" />
     <ProjectReference Include="..\VoxelPizza\VoxelPizza.csproj" />
   </ItemGroup>

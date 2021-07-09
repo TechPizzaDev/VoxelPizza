@@ -37,6 +37,7 @@ namespace VoxelPizza.Client
         private readonly string[] _msaaOptions = new string[] { "Off", "2x", "4x", "8x", "16x", "32x" };
         private int _msaaOption = 0;
         private TextureSampleCount? _newSampleCount;
+        private GraphicsBackend? _newGraphicsBackend;
 
         private List<Task> _loadTasks = new();
         private ConcurrentQueue<Renderable> _queuedRenderables = new();
@@ -251,6 +252,12 @@ namespace VoxelPizza.Client
         {
             using var profilerToken = _sc.Profiler.Push();
 
+            if (_newGraphicsBackend.HasValue)
+            {
+                ChangeGraphicsBackend(_newGraphicsBackend.GetValueOrDefault());
+                _newGraphicsBackend = null;
+            }
+
             if (_windowResized)
             {
                 _windowResized = false;
@@ -360,29 +367,31 @@ namespace VoxelPizza.Client
         {
             var gd = GraphicsDevice;
 
+            GraphicsBackend currentBackend = gd.BackendType;
+            
             if (ImGui.BeginMenu("Settings"))
             {
                 if (ImGui.BeginMenu("Graphics Backend"))
                 {
-                    if (ImGui.MenuItem("Vulkan", string.Empty, gd.BackendType == GraphicsBackend.Vulkan, GraphicsDevice.IsBackendSupported(GraphicsBackend.Vulkan)))
+                    if (ImGui.MenuItem("Vulkan", string.Empty, currentBackend == GraphicsBackend.Vulkan, GraphicsDevice.IsBackendSupported(GraphicsBackend.Vulkan)))
                     {
-                        ChangeGraphicsBackend(GraphicsBackend.Vulkan);
+                        _newGraphicsBackend = GraphicsBackend.Vulkan;
                     }
-                    if (ImGui.MenuItem("OpenGL", string.Empty, gd.BackendType == GraphicsBackend.OpenGL, GraphicsDevice.IsBackendSupported(GraphicsBackend.OpenGL)))
+                    if (ImGui.MenuItem("OpenGL", string.Empty, currentBackend == GraphicsBackend.OpenGL, GraphicsDevice.IsBackendSupported(GraphicsBackend.OpenGL)))
                     {
-                        ChangeGraphicsBackend(GraphicsBackend.OpenGL);
+                        _newGraphicsBackend = GraphicsBackend.OpenGL;
                     }
-                    if (ImGui.MenuItem("OpenGL ES", string.Empty, gd.BackendType == GraphicsBackend.OpenGLES, GraphicsDevice.IsBackendSupported(GraphicsBackend.OpenGLES)))
+                    if (ImGui.MenuItem("OpenGL ES", string.Empty, currentBackend == GraphicsBackend.OpenGLES, GraphicsDevice.IsBackendSupported(GraphicsBackend.OpenGLES)))
                     {
-                        ChangeGraphicsBackend(GraphicsBackend.OpenGLES);
+                        _newGraphicsBackend = GraphicsBackend.OpenGLES;
                     }
-                    if (ImGui.MenuItem("Direct3D 11", string.Empty, gd.BackendType == GraphicsBackend.Direct3D11, GraphicsDevice.IsBackendSupported(GraphicsBackend.Direct3D11)))
+                    if (ImGui.MenuItem("Direct3D 11", string.Empty, currentBackend == GraphicsBackend.Direct3D11, GraphicsDevice.IsBackendSupported(GraphicsBackend.Direct3D11)))
                     {
-                        ChangeGraphicsBackend(GraphicsBackend.Direct3D11);
+                        _newGraphicsBackend = GraphicsBackend.Direct3D11;
                     }
-                    if (ImGui.MenuItem("Metal", string.Empty, gd.BackendType == GraphicsBackend.Metal, GraphicsDevice.IsBackendSupported(GraphicsBackend.Metal)))
+                    if (ImGui.MenuItem("Metal", string.Empty, currentBackend == GraphicsBackend.Metal, GraphicsDevice.IsBackendSupported(GraphicsBackend.Metal)))
                     {
-                        ChangeGraphicsBackend(GraphicsBackend.Metal);
+                        _newGraphicsBackend = GraphicsBackend.Metal;
                     }
                     ImGui.EndMenu();
                 }

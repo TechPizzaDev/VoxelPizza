@@ -33,7 +33,7 @@ namespace VoxelPizza.Client
 
         public override void DestroyDeviceObjects()
         {
-            _imGuiRenderer?.Dispose();
+            _imGuiRenderer?.DestroyDeviceObjects();
         }
 
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)

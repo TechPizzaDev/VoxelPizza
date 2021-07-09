@@ -24,6 +24,7 @@ namespace VoxelPizza.Client
         private TimeSpan _inactiveFrameTime = TimeSpan.FromSeconds(1 / 20.0);
 
         private bool _shouldExit;
+        private bool _inRun;
 
         public TimeAverager TimeAverager { get; private set; }
 
@@ -159,57 +160,70 @@ namespace VoxelPizza.Client
 
         protected virtual bool RunBody()
         {
-            long currentTicks = Stopwatch.GetTimestamp();
-            long deltaTicks = currentTicks - _previousTicks;
-            _previousTicks = currentTicks;
-            _totalTicks += deltaTicks;
-
-            var time = new FrameTime(
-                TimeSpan.FromSeconds(_totalTicks * TimeAverager.SecondsPerTick),
-                TimeSpan.FromSeconds(deltaTicks * TimeAverager.SecondsPerTick),
-                IsActive);
-
-            TimeAverager.BeginUpdate();
-            Update(time);
-            TimeAverager.EndUpdate();
-
-            if (_shouldExit)
+            if (_inRun)
             {
-                Window.Close();
-                _shouldExit = false;
-                return false;
+                throw new InvalidOperationException();
             }
+            _inRun = true;
 
-            if (!Window.Exists || _graphicsDevice == null)
+            try
             {
-                return false;
-            }
+                long currentTicks = Stopwatch.GetTimestamp();
+                long deltaTicks = currentTicks - _previousTicks;
+                _previousTicks = currentTicks;
+                _totalTicks += deltaTicks;
 
-            WindowState windowState = Window.WindowState;
-            bool hasSurface = windowState is not WindowState.Minimized and not WindowState.Hidden;
-            
-            if (time.IsActive)
-            {
-                if (hasSurface)
+                var time = new FrameTime(
+                    TimeSpan.FromSeconds(_totalTicks * TimeAverager.SecondsPerTick),
+                    TimeSpan.FromSeconds(deltaTicks * TimeAverager.SecondsPerTick),
+                    IsActive);
+
+                TimeAverager.BeginUpdate();
+                Update(time);
+                TimeAverager.EndUpdate();
+
+                if (_shouldExit)
                 {
-                    DrawAndPresent();
-                }
-            }
-            else
-            {
-                if (hasSurface && _drawWhenUnfocused)
-                {
-                    DrawAndPresent();
+                    Window.Close();
+                    _shouldExit = false;
+                    return false;
                 }
 
-                double spentMillis = (Stopwatch.GetTimestamp() - currentTicks) * TimeAverager.MillisPerTick;
-                int millis = (int)(_inactiveFrameTime.TotalMilliseconds - spentMillis);
-                if (millis > 0)
+                if (!Window.Exists || _graphicsDevice == null)
                 {
-                    Thread.Sleep(millis);
+                    return false;
                 }
+
+                WindowState windowState = Window.WindowState;
+                bool hasSurface = windowState is not WindowState.Minimized and not WindowState.Hidden;
+
+                if (time.IsActive)
+                {
+                    if (hasSurface)
+                    {
+                        DrawAndPresent();
+                    }
+                }
+                else
+                {
+                    if (hasSurface && _drawWhenUnfocused)
+                    {
+                        DrawAndPresent();
+                    }
+
+                    double spentMillis = (Stopwatch.GetTimestamp() - currentTicks) * TimeAverager.MillisPerTick;
+                    int millis = (int)(_inactiveFrameTime.TotalMilliseconds - spentMillis);
+                    if (millis > 0)
+                    {
+                        Thread.Sleep(millis);
+                    }
+                }
+                return true;
             }
-            return true;
+            finally
+            {
+                _inRun = false;
+            }
         }
 
         public void Exit()
@@ -327,7 +341,10 @@ namespace VoxelPizza.Client
 
         protected virtual void WindowExposed()
         {
-            RunOnce();
+            if (!_inRun)
+            {
+                RunOnce();
+            }
         }
 
         protected void ChangeGraphicsBackend(GraphicsBackend? preferredBackend = null)

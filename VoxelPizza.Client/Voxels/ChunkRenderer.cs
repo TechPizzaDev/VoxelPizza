@@ -24,6 +24,8 @@ namespace VoxelPizza.Client
         /// </summary>
         public const int FetchBlockMargin = 2;
 
+        private bool _useRenderRegions = true;
+
         private string _graphicsDeviceName;
         private string _graphicsBackendName;
 
@@ -105,44 +107,54 @@ namespace VoxelPizza.Client
 
         private void Dimension_ChunkAdded(Chunk chunk)
         {
-            //var mesh = new ChunkMesh(this, chunk.Position);
-            //_queuedMeshes.Enqueue(mesh);
-            //
-            //mesh.RequestBuild(chunk.Position);
-
-            RenderRegionPosition regionPosition = GetRegionPosition(chunk.Position);
-            lock (_regions)
+            if (!_useRenderRegions)
             {
-                if (!_regions.TryGetValue(regionPosition, out ChunkMeshRegion? meshRegion))
+                var mesh = new ChunkMesh(this, chunk.Position);
+                _queuedMeshes.Enqueue(mesh);
+
+                mesh.RequestBuild(chunk.Position);
+            }
+            else
+            {
+                RenderRegionPosition regionPosition = GetRegionPosition(chunk.Position);
+                lock (_regions)
                 {
-                    meshRegion = new ChunkMeshRegion(this, regionPosition, RegionSize);
-                    _regions.Add(regionPosition, meshRegion);
+                    if (!_regions.TryGetValue(regionPosition, out ChunkMeshRegion? meshRegion))
+                    {
+                        meshRegion = new ChunkMeshRegion(this, regionPosition, RegionSize);
+                        _regions.Add(regionPosition, meshRegion);
 
-                    _queuedRegions.Enqueue(meshRegion);
+                        _queuedRegions.Enqueue(meshRegion);
+                    }
+
+                    //meshRegion.RequestBuild(chunk.Position);
                 }
-
-                //meshRegion.RequestBuild(chunk.Position);
             }
         }
 
         private void Dimension_ChunkUpdated(Chunk chunk)
         {
-            //lock (_meshes)
-            //{
-            //    ChunkMesh? mesh = _meshes.Find(x => x.Position == chunk.Position);
-            //    if (mesh == null)
-            //    {
-            //        return;
-            //    }
-            //    mesh.RequestBuild(chunk.Position);
-            //}
-
-            RenderRegionPosition regionPosition = GetRegionPosition(chunk.Position);
-            lock (_regions)
+            if (!_useRenderRegions)
             {
-                if (_regions.TryGetValue(regionPosition, out ChunkMeshRegion? meshRegion))
+                lock (_meshes)
                 {
-                    meshRegion.RequestBuild(chunk.Position);
+                    ChunkMesh? mesh = _meshes.Find(x => x.Position == chunk.Position);
+                    if (mesh == null)
+                    {
+                        return;
+                    }
+                    mesh.RequestBuild(chunk.Position);
+                }
+            }
+            else
+            {
+                RenderRegionPosition regionPosition = GetRegionPosition(chunk.Position);
+                lock (_regions)
+                {
+                    if (_regions.TryGetValue(regionPosition, out ChunkMeshRegion? meshRegion))
+                    {
+                        meshRegion.RequestBuild(chunk.Position);
+                    }
                 }
             }
         }

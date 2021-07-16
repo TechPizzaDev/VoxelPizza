@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using Veldrid;
+using VoxelPizza.Collections;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client
@@ -12,9 +13,7 @@ namespace VoxelPizza.Client
     {
         private ResourceSet _chunkInfoSet;
 
-        private ChunkMeshResult _mesh;
-        private int _buildRequired;
-        private bool _uploadRequired;
+        private StoredChunkMesh _mesh;
         private int _indexCount;
         private int _vertexCount;
 
@@ -29,8 +28,8 @@ namespace VoxelPizza.Client
         public override int IndexCount => _indexCount;
         public override int VertexCount => _vertexCount;
 
-        public override bool IsBuildRequired => _buildRequired > 0;
-        public override bool IsUploadRequired => _uploadRequired;
+        public override bool IsBuildRequired => _mesh.IsBuildRequired > 0;
+        public override bool IsUploadRequired => _mesh.IsUploadRequired;
 
         public ChunkMesh(ChunkRenderer chunkRenderer, ChunkPosition position)
         {
@@ -40,10 +39,12 @@ namespace VoxelPizza.Client
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
+            _mesh.IsUploadRequired = true;
+
             ResourceFactory factory = gd.ResourceFactory;
 
             _renderInfoBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<Vector4>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+                (uint)Unsafe.SizeOf<ChunkRenderInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
 
             var chunkInfo = new ChunkRenderInfo(new Vector4(
                 Position.X * Chunk.Width,
@@ -56,8 +57,6 @@ namespace VoxelPizza.Client
             _chunkInfoSet = factory.CreateResourceSet(new ResourceSetDescription(
                 Renderer.ChunkInfoLayout,
                 _renderInfoBuffer));
-
-            RequestBuild();
         }
 
         public override void DestroyDeviceObjects()
@@ -73,7 +72,7 @@ namespace VoxelPizza.Client
 
         public override (int Total, int ToBuild, int ToUpload) GetMeshCount()
         {
-            return (1, _buildRequired != 0 ? 1 : 0, _uploadRequired ? 1 : 0);
+            return (1, _mesh.IsBuildRequired != 0 ? 1 : 0, _mesh.IsUploadRequired ? 1 : 0);
         }
 
         public override void RequestBuild(ChunkPosition position)
@@ -85,26 +84,26 @@ namespace VoxelPizza.Client
 
         private void RequestBuild()
         {
-            Interlocked.Increment(ref _buildRequired);
+            Interlocked.Increment(ref _mesh.IsBuildRequired);
         }
 
         public override bool Build(ChunkMesher mesher, BlockMemory blockMemoryBuffer)
         {
-            int buildRequired = _buildRequired;
+            int buildRequired = _mesh.IsBuildRequired;
             if (buildRequired <= 0)
             {
                 return false;
             }
 
-            _mesh.Dispose();
+            _mesh.StoredMesh.Dispose();
 
             Renderer.FetchBlockMemory(blockMemoryBuffer, Position.ToBlock());
 
-            _mesh = Renderer.ChunkMesher.Mesh(blockMemoryBuffer);
+            _mesh.StoredMesh = Renderer.ChunkMesher.Mesh(blockMemoryBuffer);
 
-            _uploadRequired = true;
+            _mesh.IsUploadRequired = true;
 
-            Interlocked.Add(ref _buildRequired, -buildRequired);
+            Interlocked.Add(ref _mesh.IsBuildRequired, -buildRequired);
             return true;
         }
 
@@ -112,78 +111,49 @@ namespace VoxelPizza.Client
             GraphicsDevice gd, CommandList uploadList, ChunkStagingMeshPool stagingMeshPool,
             out ChunkStagingMesh? stagingMesh)
         {
-            if (!_uploadRequired)
+            if (!_mesh.IsUploadRequired)
             {
                 stagingMesh = null;
                 return true;
             }
 
-            int indexCountRequired = 0;
-            int spaceVertexBytesRequired = 0;
-            int paintVertexBytesRequired = 0;
-
-            ref ChunkMeshResult mesh = ref _mesh;
-
-            int indexCount = mesh.IndexCount;
-            if (indexCount > 0)
+            SingleNonEmptyStoredChunkEnumerator chunks = new(this);
+            ChunkUploadResult result = ChunkMeshRegion.Upload(gd, stagingMeshPool, generateMetaData: false, chunks);
+            stagingMesh = result.StagingMesh;
+            if (stagingMesh == null)
             {
-                indexCountRequired += indexCount;
-                spaceVertexBytesRequired += mesh.SpaceVertexByteCount;
-                paintVertexBytesRequired += mesh.PaintVertexByteCount;
-            }
+                if (result.IsEmpty)
+                {
+                    DisposeMeshBuffers();
 
-            if (indexCountRequired <= 0)
-            {
-                DisposeMeshBuffers();
-
-                _uploadRequired = false;
-                stagingMesh = null;
-                return true;
-            }
-
-            // TODO: rent based on required bytes
-
-            if (!stagingMeshPool.TryRent(
-                out stagingMesh,
-                1))
-            {
+                    _mesh.IsUploadRequired = false;
+                    return true;
+                }
                 return false;
             }
 
-            try
-            {
-                stagingMesh.Map(
-                    gd,
-                    out MappedResource indexMap,
-                    out MappedResourceView<ChunkSpaceVertex> spaceVertexMap,
-                    out MappedResourceView<ChunkPaintVertex> paintVertexMap);
-
-                var indexMapView = new MappedResourceView<uint>(indexMap);
-                mesh.Indices.CopyTo(indexMapView.AsSpan());
-
-                mesh.SpaceVertices.CopyTo(spaceVertexMap.AsSpan());
-                mesh.PaintVertices.CopyTo(paintVertexMap.AsSpan());
-            }
-            finally
-            {
-                stagingMesh.Unmap(gd);
-                mesh.Dispose();
-            }
-
-            stagingMesh.DrawCount = 0;
-            stagingMesh.IndexCount = indexCount;
-            stagingMesh.VertexCount = spaceVertexBytesRequired / Unsafe.SizeOf<ChunkSpaceVertex>();
-
-            stagingMesh.Upload(
+            ChunkMeshRegion.ResizeDataBuffers(
                 gd.ResourceFactory,
-                uploadList,
-                ref _indexBuffer!,
+                (uint)result.IndexBytesRequired,
+                (uint)result.VertexCount,
+                ref _indexBuffer,
                 ref _spaceVertexBuffer,
                 ref _paintVertexBuffer);
 
-            _indexCount = stagingMesh.IndexCount;
-            _vertexCount = stagingMesh.VertexCount;
-            _uploadRequired = false;
+            uint srcOffset = 0;
+
+            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, _indexBuffer, 0, (uint)result.IndexBytesRequired);
+            srcOffset += (uint)result.IndexBytesRequired;
+
+            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, _spaceVertexBuffer, 0, (uint)result.SpaceVertexBytesRequired);
+            srcOffset += (uint)result.SpaceVertexBytesRequired;
+
+            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, _paintVertexBuffer, 0, (uint)result.PaintVertexBytesRequired);
+            srcOffset += (uint)result.PaintVertexBytesRequired;
+
+            _indexCount = result.IndexCount;
+            _vertexCount = result.VertexCount;
+            _mesh.IsUploadRequired = false;
             return true;
         }
 
@@ -197,7 +167,7 @@ namespace VoxelPizza.Client
             cl.SetVertexBuffer(0, _spaceVertexBuffer);
             cl.SetVertexBuffer(1, _paintVertexBuffer);
             cl.SetIndexBuffer(_indexBuffer, IndexFormat.UInt32);
-            cl.DrawIndexed(_indexBuffer.SizeInBytes / 4, 1, 0, 0, 0);
+            cl.DrawIndexed((uint)_indexCount, 1, 0, 0, 0);
         }
 
         private void DisposeMeshBuffers()
@@ -213,6 +183,31 @@ namespace VoxelPizza.Client
 
             _paintVertexBuffer?.Dispose();
             _paintVertexBuffer = null!;
+        }
+
+        private struct SingleNonEmptyStoredChunkEnumerator : IRefEnumerator<StoredChunkMesh>
+        {
+            private ChunkMesh _mesh;
+            private bool _move;
+
+            public ref StoredChunkMesh Current => ref _mesh._mesh;
+
+            public SingleNonEmptyStoredChunkEnumerator(ChunkMesh mesh)
+            {
+                _mesh = mesh ?? throw new ArgumentNullException(nameof(mesh));
+                _move = false;
+            }
+
+            public bool MoveNext()
+            {
+                if (!_move)
+                {
+                    _move = true;
+                    ref StoredChunkMesh chunk = ref _mesh._mesh;
+                    return chunk.IsUploadRequired && !chunk.StoredMesh.IsEmpty;
+                }
+                return false;
+            }
         }
     }
 }

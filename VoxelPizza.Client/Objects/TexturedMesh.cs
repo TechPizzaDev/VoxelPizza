@@ -7,10 +7,6 @@ namespace VoxelPizza.Client.Objects
 {
     public class TexturedMesh : CullRenderable
     {
-        // Useful for testing uniform bindings with an offset.
-        private static readonly bool s_useUniformOffset = false;
-        private uint _uniformOffset = 0;
-
         private readonly string _name;
         private readonly ConstructedMesh _meshData;
         private readonly ImageSharpTexture? _textureData;
@@ -72,10 +68,6 @@ namespace VoxelPizza.Client.Objects
 
         public unsafe override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
-            if (s_useUniformOffset)
-            {
-                _uniformOffset = gd.UniformBufferMinOffsetAlignment;
-            }
             ResourceFactory disposeFactory = new DisposeCollectorResourceFactory(gd.ResourceFactory, _disposeCollector);
             _vb = _meshData.CreateVertexBuffer(disposeFactory, cl);
             _vb.Name = _name + "_VB";
@@ -84,9 +76,6 @@ namespace VoxelPizza.Client.Objects
             _indexCount = _meshData.IndexCount;
 
             uint bufferSize = 128;
-            if (s_useUniformOffset)
-            { bufferSize += _uniformOffset * 2; }
-
             _worldAndInverseBuffer = disposeFactory.CreateBuffer(new BufferDescription(bufferSize, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
 
             if (_materialPropsOwned)
@@ -200,7 +189,7 @@ namespace VoxelPizza.Client.Objects
                 sc.PointLightsBuffer));
 
             _mainPerObjectRS = disposeFactory.CreateResourceSet(new ResourceSetDescription(mainPerObjectLayout,
-                new DeviceBufferRange(_worldAndInverseBuffer, _uniformOffset, 128),
+                _worldAndInverseBuffer,
                 _materialProps.UniformBuffer,
                 _texture,
                 gd.Aniso4xSampler,
@@ -236,7 +225,7 @@ namespace VoxelPizza.Client.Objects
 
                 ResourceSet worldRS = disposeFactory.CreateResourceSet(new ResourceSetDescription(
                     worldLayout,
-                    new DeviceBufferRange(_worldAndInverseBuffer, _uniformOffset, 128)));
+                    _worldAndInverseBuffer));
 
                 ret[i * 2 + 1] = worldRS;
             }
@@ -303,7 +292,7 @@ namespace VoxelPizza.Client.Objects
                 WorldAndInverse wai;
                 wai.World = _transform.GetTransformMatrix();
                 wai.InverseWorld = VdUtilities.CalculateInverseTranspose(ref wai.World);
-                cl.UpdateBuffer(_worldAndInverseBuffer, _uniformOffset * 2, ref wai);
+                cl.UpdateBuffer(_worldAndInverseBuffer, 0, ref wai);
             }
         }
 
@@ -316,8 +305,7 @@ namespace VoxelPizza.Client.Objects
 
             cl.SetPipeline(_shadowMapPipeline);
             cl.SetGraphicsResourceSet(0, _shadowMapResourceSets[shadowMapIndex * 2]);
-            uint offset = _uniformOffset;
-            cl.SetGraphicsResourceSet(1, _shadowMapResourceSets[shadowMapIndex * 2 + 1], 1, ref offset);
+            cl.SetGraphicsResourceSet(1, _shadowMapResourceSets[shadowMapIndex * 2 + 1]);
 
             cl.SetVertexBuffer(0, _vb);
             cl.SetIndexBuffer(_ib, _meshData.IndexFormat);
@@ -335,8 +323,7 @@ namespace VoxelPizza.Client.Objects
             cl.SetPipeline(_pipeline);
             cl.SetGraphicsResourceSet(0, _mainSharedRS);
             cl.SetGraphicsResourceSet(1, sc.GetCameraInfoSet(camera));
-            uint offset = _uniformOffset;
-            cl.SetGraphicsResourceSet(2, _mainPerObjectRS, 1, ref offset);
+            cl.SetGraphicsResourceSet(2, _mainPerObjectRS);
 
             cl.SetVertexBuffer(0, _vb);
             cl.SetIndexBuffer(_ib, _meshData.IndexFormat);

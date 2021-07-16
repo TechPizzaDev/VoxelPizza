@@ -3,38 +3,35 @@ using VoxelPizza.World;
 
 namespace VoxelPizza.Client
 {
-    public partial class ChunkMeshRegion
+    public struct StoredChunkMesh
     {
-        private struct StoredChunk
+        public ChunkPosition Position { get; }
+        public ChunkPosition LocalPosition { get; }
+        public bool HasValue { get; }
+
+        public ChunkRenderInfo RenderInfo;
+        public ChunkMeshResult StoredMesh;
+        public int IsBuildRequired;
+        public bool IsUploadRequired;
+
+        public StoredChunkMesh(ChunkPosition position, ChunkPosition localPosition)
         {
-            public ChunkPosition Position { get; }
-            public ChunkPosition LocalPosition { get; }
-            public bool HasValue { get; }
+            Position = position;
+            LocalPosition = localPosition;
+            HasValue = true;
 
-            public ChunkRenderInfo RenderInfo;
-            public ChunkMeshResult StoredMesh;
-            public int IsBuildRequired;
-            public bool IsUploadRequired;
-
-            public StoredChunk(ChunkPosition position, ChunkPosition localPosition)
+            RenderInfo = new ChunkRenderInfo
             {
-                Position = position;
-                LocalPosition = localPosition;
-                HasValue = true;
+                Translation = new Vector4(
+                    Position.X * Chunk.Width,
+                    Position.Y * Chunk.Height,
+                    Position.Z * Chunk.Depth,
+                    0)
+            };
 
-                RenderInfo = new ChunkRenderInfo
-                {
-                    Translation = new Vector4(
-                        Position.X * Chunk.Width,
-                        Position.Y * Chunk.Height,
-                        Position.Z * Chunk.Depth,
-                        0)
-                };
-
-                StoredMesh = default;
-                IsBuildRequired = 0;
-                IsUploadRequired = false;
-            }
+            StoredMesh = default;
+            IsBuildRequired = 0;
+            IsUploadRequired = false;
         }
     }
 }

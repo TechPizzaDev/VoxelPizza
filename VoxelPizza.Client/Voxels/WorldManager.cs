@@ -137,8 +137,8 @@ namespace VoxelPizza.Client
                         {
                             for (int i = 0; i < 5; i++)
                             {
-                                int x = rng.Next(width - off) + off;
-                                int z = rng.Next(depth - off) + off;
+                                int x = rng.Next(width - off * 2) + off;
+                                int z = rng.Next(depth - off * 2) + off;
                                 int y = rng.Next(height);
                                 Chunk? c = dimension.GetChunk(new ChunkPosition(x, y, z));
                                 if (c != null)

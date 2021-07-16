@@ -25,6 +25,8 @@ namespace VoxelPizza.Client
         public readonly Span<ChunkSpaceVertex> SpaceVertices => _spaceVertices.Span;
         public readonly Span<ChunkPaintVertex> PaintVertices => _paintVertices.Span;
 
+        public readonly bool IsEmpty => IndexByteCount == 0;
+
         public ChunkMeshResult(
             ByteStore<uint> indices,
             ByteStore<ChunkSpaceVertex> spaceVertices,

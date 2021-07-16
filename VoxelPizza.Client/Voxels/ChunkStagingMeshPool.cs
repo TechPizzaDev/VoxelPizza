@@ -8,7 +8,7 @@ namespace VoxelPizza.Client
 {
     public class ChunkStagingMeshPool : IDisposable
     {
-        private List<ChunkStagingMesh> _all = new();
+        private HashSet<ChunkStagingMesh> _all = new();
         private ConcurrentStack<ChunkStagingMesh> _pool = new();
 
         public ResourceFactory Factory { get; }
@@ -24,12 +24,12 @@ namespace VoxelPizza.Client
             Factory = factory ?? throw new ArgumentNullException(nameof(factory));
             MaxChunksPerMesh = maxChunksPerMesh;
 
-            for (int i = 0; i < count; i++)
-            {
-                var mesh = new ChunkStagingMesh(Factory, MaxChunksPerMesh);
-                _all.Add(mesh);
-                _pool.Push(mesh);
-            }
+            //for (int i = 0; i < count; i++)
+            //{
+            //    var mesh = new ChunkStagingMesh(Factory, MaxChunksPerMesh);
+            //    _all.Add(mesh);
+            //    _pool.Push(mesh);
+            //}
         }
 
         private void ThrowIsDisposed()
@@ -37,19 +37,25 @@ namespace VoxelPizza.Client
             throw new ObjectDisposedException(GetType().Name);
         }
 
-        public bool TryRent([MaybeNullWhen(false)] out ChunkStagingMesh mesh, int chunkCount)
+        public bool TryRent(
+            [MaybeNullWhen(false)] out ChunkStagingMesh mesh,
+            uint byteCount)
         {
             if (IsDisposed)
                 ThrowIsDisposed();
 
-            return _pool.TryPop(out mesh);
+            mesh = new ChunkStagingMesh(Factory, MaxChunksPerMesh, byteCount);
+            _all.Add(mesh);
+            return true;
+            //return _pool.TryPop(out mesh);
         }
 
         public void Return(ChunkStagingMesh mesh)
         {
-            if (IsDisposed)
+            //if (IsDisposed)
             {
                 mesh.Dispose();
+                _all.Remove(mesh);
                 return;
             }
             _pool.Push(mesh);

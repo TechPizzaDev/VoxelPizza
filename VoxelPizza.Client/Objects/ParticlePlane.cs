@@ -233,7 +233,7 @@ namespace VoxelPizza.Client.Objects
             DisposeCollectorResourceFactory factory = new(gd.ResourceFactory);
             _disposeCollector = factory.DisposeCollector;
 
-            (Shader vs, Shader fs, SpecializationConstant[] specs) = 
+            (Shader vs, Shader fs, SpecializationConstant[] specs) =
                 StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ParticlePlane");
 
             VertexLayoutDescription sharedVertexLayout = new VertexLayoutDescription(
@@ -277,7 +277,7 @@ namespace VoxelPizza.Client.Objects
                     specs),
                 new ResourceLayout[] { sharedLayout },
                 sc.MainSceneFramebuffer.OutputDescription);
-            _pipeline = factory.CreateGraphicsPipeline(ref pd);
+            _pipeline = factory.CreateGraphicsPipeline(pd);
 
             _cameraInfoBuffer = factory.CreateBuffer(
                 new BufferDescription((uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));

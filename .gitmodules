@@ -1,3 +1,6 @@
 [submodule "veldrid"]
 	path = veldrid
 	url = https://github.com/TechnologicalPizza/veldrid
+[submodule "LoudPizza"]
+	path = LoudPizza
+	url = https://github.com/TechnologicalPizza/LoudPizza

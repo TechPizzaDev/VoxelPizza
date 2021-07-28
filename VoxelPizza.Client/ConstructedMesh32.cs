@@ -53,7 +53,7 @@ namespace VoxelPizza.Client
                 Vector3 v1 = vertices[indices[i + 1]].Position;
                 Vector3 v2 = vertices[indices[i + 2]].Position;
 
-                if (ray.Intersects(ref v0, ref v1, ref v2, out float newDistance))
+                if (ray.Intersects(v0, v1, v2, out float newDistance))
                 {
                     if (newDistance < distance)
                     {
@@ -105,7 +105,7 @@ namespace VoxelPizza.Client
                     Vector3 v1 = vertices[indices[_indexOffset + 1]].Position;
                     Vector3 v2 = vertices[indices[_indexOffset + 2]].Position;
 
-                    if (Ray.Intersects(ref v0, ref v1, ref v2, out float distance))
+                    if (Ray.Intersects(v0, v1, v2, out float distance))
                     {
                         Current = distance;
                         return true;

@@ -15,7 +15,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veldrid.Utilities", "veldri
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veldrid.StartupUtilities", "veldrid\src\Veldrid.StartupUtilities\Veldrid.StartupUtilities.csproj", "{6D50769F-1E37-40F0-A2E6-9085633FC2B7}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veldrid.SPIRV", "veldrid-spirv\src\Veldrid.SPIRV\Veldrid.SPIRV.csproj", "{1AEF9621-C592-4676-BC84-B7F9A1E17EAE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veldrid.SPIRV", "veldrid\modules\veldrid-spirv\src\Veldrid.SPIRV\Veldrid.SPIRV.csproj", "{1AEF9621-C592-4676-BC84-B7F9A1E17EAE}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veldrid.ImGui", "veldrid\src\Veldrid.ImGui\Veldrid.ImGui.csproj", "{3201A02A-C918-4B4A-ACA6-82BFD786D7CC}"
 EndProject
@@ -47,8 +47,8 @@ Global
 		{134157D3-E48F-4151-9A8E-E9747736BA9C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{134157D3-E48F-4151-9A8E-E9747736BA9C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{134157D3-E48F-4151-9A8E-E9747736BA9C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7486C11F-9707-434C-A973-73B79BACA2E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7486C11F-9707-434C-A973-73B79BACA2E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7486C11F-9707-434C-A973-73B79BACA2E1}.Debug|Any CPU.ActiveCfg = Release|Any CPU
+		{7486C11F-9707-434C-A973-73B79BACA2E1}.Debug|Any CPU.Build.0 = Release|Any CPU
 		{7486C11F-9707-434C-A973-73B79BACA2E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7486C11F-9707-434C-A973-73B79BACA2E1}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A9ADE311-FBA0-418D-BC94-2A48F934B370}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -59,8 +59,8 @@ Global
 		{6D50769F-1E37-40F0-A2E6-9085633FC2B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6D50769F-1E37-40F0-A2E6-9085633FC2B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6D50769F-1E37-40F0-A2E6-9085633FC2B7}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1AEF9621-C592-4676-BC84-B7F9A1E17EAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1AEF9621-C592-4676-BC84-B7F9A1E17EAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1AEF9621-C592-4676-BC84-B7F9A1E17EAE}.Debug|Any CPU.ActiveCfg = Release|Any CPU
+		{1AEF9621-C592-4676-BC84-B7F9A1E17EAE}.Debug|Any CPU.Build.0 = Release|Any CPU
 		{1AEF9621-C592-4676-BC84-B7F9A1E17EAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1AEF9621-C592-4676-BC84-B7F9A1E17EAE}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3201A02A-C918-4B4A-ACA6-82BFD786D7CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU

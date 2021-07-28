@@ -22,7 +22,7 @@ namespace VoxelPizza.Client
         {
             if (!s_pipelines.TryGetValue(desc, out Pipeline? p))
             {
-                p = factory.CreateGraphicsPipeline(ref desc);
+                p = factory.CreateGraphicsPipeline(desc);
                 s_pipelines.Add(desc, p);
             }
 
@@ -33,7 +33,7 @@ namespace VoxelPizza.Client
         {
             if (!s_layouts.TryGetValue(desc, out ResourceLayout? p))
             {
-                p = factory.CreateResourceLayout(ref desc);
+                p = factory.CreateResourceLayout(desc);
                 s_layouts.Add(desc, p);
             }
 
@@ -148,7 +148,7 @@ namespace VoxelPizza.Client
         {
             if (!s_resourceSets.TryGetValue(description, out ResourceSet? ret))
             {
-                ret = factory.CreateResourceSet(ref description);
+                ret = factory.CreateResourceSet(description);
                 s_resourceSets.Add(description, ret);
             }
 

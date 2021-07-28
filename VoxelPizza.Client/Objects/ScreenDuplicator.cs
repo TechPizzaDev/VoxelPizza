@@ -41,7 +41,7 @@ namespace VoxelPizza.Client.Objects
                     specs),
                 new ResourceLayout[] { resourceLayout },
                 sc.DuplicatorFramebuffer.OutputDescription);
-            _pipeline = factory.CreateGraphicsPipeline(ref pd);
+            _pipeline = factory.CreateGraphicsPipeline(pd);
 
             float[] verts = Util.GetFullScreenQuadVerts(gd);
 

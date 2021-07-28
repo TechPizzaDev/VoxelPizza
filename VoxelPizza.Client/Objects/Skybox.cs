@@ -82,7 +82,7 @@ namespace VoxelPizza.Client.Objects
                 new ResourceLayout[] { _layout, sc.CameraInfoLayout },
                 sc.MainSceneFramebuffer.OutputDescription);
 
-            _pipeline = factory.CreateGraphicsPipeline(ref pd);
+            _pipeline = factory.CreateGraphicsPipeline(pd);
 
             _resourceSet = factory.CreateResourceSet(new ResourceSetDescription(
                 _layout,

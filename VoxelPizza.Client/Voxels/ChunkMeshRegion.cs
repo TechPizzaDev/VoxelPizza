@@ -63,8 +63,9 @@ namespace VoxelPizza.Client
             {
                 ref StoredChunkMesh storedChunk = ref _storedChunks[i];
                 if (!storedChunk.HasValue)
+                {
                     continue;
-
+                }
                 storedChunk.IsUploadRequired = true;
             }
         }
@@ -163,15 +164,17 @@ namespace VoxelPizza.Client
             {
                 ref StoredChunkMesh storedChunk = ref _storedChunks[i];
                 if (!storedChunk.HasValue)
+                {
                     continue;
-
+                }
                 storedChunk.IsUploadRequired = true;
                 _uploadRequired = true;
 
                 int chunkBuildRequired = storedChunk.IsBuildRequired;
                 if (storedChunk.IsBuildRequired == 0)
+                {
                     continue;
-
+                }
                 storedChunk.StoredMesh.Dispose();
 
                 Renderer.FetchBlockMemory(blockMemoryBuffer, storedChunk.Position.ToBlock());
@@ -206,8 +209,8 @@ namespace VoxelPizza.Client
                 return true;
             }
 
-            NonEmptyStoredChunkEnumerator chunks = new(_storedChunks);
-            ChunkUploadResult result = Upload(gd, stagingMeshPool, generateMetaData: true, chunks);
+            StoredChunksToUploadEnumerator meshes = new(_storedChunks);
+            ChunkUploadResult result = Upload(gd, stagingMeshPool, generateMetaData: true, meshes);
             stagingMesh = result.StagingMesh;
             if (stagingMesh == null)
             {
@@ -281,6 +284,10 @@ namespace VoxelPizza.Client
             while (meshesToIterate.MoveNext())
             {
                 ref readonly ChunkMeshResult mesh = ref meshesToIterate.Current.StoredMesh;
+                if (mesh.IsEmpty)
+                {
+                    continue;
+                }
 
                 if (generateMetaData)
                 {
@@ -295,6 +302,12 @@ namespace VoxelPizza.Client
 
             if (indexBytesRequired <= 0)
             {
+                TMeshes meshesToClear = meshes;
+                while (meshesToClear.MoveNext())
+                {
+                    ref StoredChunkMesh storedChunk = ref meshesToClear.Current;
+                    storedChunk.IsUploadRequired = false;
+                }
                 return default;
             }
 
@@ -331,7 +344,14 @@ namespace VoxelPizza.Client
                 while (meshesToUpload.MoveNext())
                 {
                     ref StoredChunkMesh storedChunk = ref meshesToUpload.Current;
+                    storedChunk.IsUploadRequired = false;
+
                     ref readonly ChunkMeshResult mesh = ref storedChunk.StoredMesh;
+                    if (mesh.IsEmpty)
+                    {
+                        continue;
+                    }
+
                     uint indexCount = (uint)mesh.IndexCount;
 
                     if (generateMetaData)
@@ -367,8 +387,6 @@ namespace VoxelPizza.Client
                     drawIndex++;
                     indexOffset += indexCount;
                     vertexOffset += mesh.VertexCount;
-
-                    storedChunk.IsUploadRequired = false;
                 }
             }
             finally

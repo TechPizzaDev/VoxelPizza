@@ -24,12 +24,12 @@ namespace VoxelPizza.Client
             Factory = factory ?? throw new ArgumentNullException(nameof(factory));
             MaxChunksPerMesh = maxChunksPerMesh;
 
-            //for (int i = 0; i < count; i++)
-            //{
-            //    var mesh = new ChunkStagingMesh(Factory, MaxChunksPerMesh);
-            //    _all.Add(mesh);
-            //    _pool.Push(mesh);
-            //}
+            for (int i = 0; i < count; i++)
+            {
+                var mesh = new ChunkStagingMesh(Factory, maxChunksPerMesh, 1024 * 1024 * 16);
+                _all.Add(mesh);
+                _pool.Push(mesh);
+            }
         }
 
         private void ThrowIsDisposed()
@@ -44,15 +44,15 @@ namespace VoxelPizza.Client
             if (IsDisposed)
                 ThrowIsDisposed();
 
-            mesh = new ChunkStagingMesh(Factory, MaxChunksPerMesh, byteCount);
-            _all.Add(mesh);
-            return true;
-            //return _pool.TryPop(out mesh);
+            //mesh = new ChunkStagingMesh(Factory, MaxChunksPerMesh, byteCount);
+            //_all.Add(mesh);
+            //return true;
+            return _pool.TryPop(out mesh);
         }
 
         public void Return(ChunkStagingMesh mesh)
         {
-            //if (IsDisposed)
+            if (IsDisposed)
             {
                 mesh.Dispose();
                 _all.Remove(mesh);

@@ -125,10 +125,12 @@ namespace VoxelPizza.Client.Objects
 
             float halfRange = range / 2f;
             BoundingBox box = new BoundingBox(
-                new Vector3(-halfRange, 0, -halfRange),
-                new Vector3(halfRange, 0, halfRange));
+                new Vector3(-halfRange, 1, -halfRange),
+                new Vector3(halfRange, -1, halfRange));
 
-            Ray ray = new Ray(Camera.Position, Camera.LookDirection);
+            Vector3 direction = Camera.ScreenToWorld(InputTracker.MousePosition);
+            Ray ray = new Ray(Camera.Position, direction);
+
             bool intersect = ray.Intersects(box, out float distance);
             Vector3 raypoint = ray.GetPoint(distance);
             Vector4 raypoint4 = new(raypoint, 1);
@@ -233,7 +235,7 @@ namespace VoxelPizza.Client.Objects
             DisposeCollectorResourceFactory factory = new(gd.ResourceFactory);
             _disposeCollector = factory.DisposeCollector;
 
-            (Shader vs, Shader fs, SpecializationConstant[] specs) = 
+            (Shader vs, Shader fs, SpecializationConstant[] specs) =
                 StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ParticlePlane");
 
             VertexLayoutDescription sharedVertexLayout = new VertexLayoutDescription(
@@ -277,7 +279,7 @@ namespace VoxelPizza.Client.Objects
                     specs),
                 new ResourceLayout[] { sharedLayout },
                 sc.MainSceneFramebuffer.OutputDescription);
-            _pipeline = factory.CreateGraphicsPipeline(ref pd);
+            _pipeline = factory.CreateGraphicsPipeline(pd);
 
             _cameraInfoBuffer = factory.CreateBuffer(
                 new BufferDescription((uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));

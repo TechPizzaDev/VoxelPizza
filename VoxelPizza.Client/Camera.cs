@@ -16,6 +16,7 @@ namespace VoxelPizza.Client
         private Matrix4x4 _viewMatrix;
         private Matrix4x4 _inverseViewMatrix;
         private Matrix4x4 _projectionMatrix;
+        private Matrix4x4 _inverseProjectionMatrix;
 
         private Vector3 _position = new Vector3(0, 3, 0);
         private Vector3 _lookDirection = new Vector3(0, -.3f, -1f);
@@ -73,6 +74,8 @@ namespace VoxelPizza.Client
         public float FieldOfView => _fov;
         public float NearDistance => _near;
 
+        public float ViewWidth => _windowWidth;
+        public float ViewHeight => _windowHeight;
         public float AspectRatio => _windowWidth / _windowHeight;
 
         public float Yaw { get => _yaw; set { _yaw = value; UpdateViewMatrix(); } }
@@ -178,7 +181,7 @@ namespace VoxelPizza.Client
                 Sdl2Native.SDL_WarpMouseInWindow(_window.SdlWindowHandle, (int)_mousePressedPos.X, (int)_mousePressedPos.Y);
                 _mousePressed = false;
             }
-             
+
             if (Controller != null)
             {
                 float controllerRightX = Controller.GetAxis(SDL_GameControllerAxis.RightX);
@@ -219,6 +222,7 @@ namespace VoxelPizza.Client
                 _windowWidth / _windowHeight,
                 _near,
                 _far);
+            Matrix4x4.Invert(_projectionMatrix, out _inverseProjectionMatrix);
             ProjectionChanged?.Invoke(this);
         }
 
@@ -230,6 +234,22 @@ namespace VoxelPizza.Client
             _viewMatrix = Matrix4x4.CreateLookAt(_position, _position + _lookDirection, Vector3.UnitY);
             Matrix4x4.Invert(_viewMatrix, out _inverseViewMatrix);
             ViewChanged?.Invoke(this);
+        }
+
+        public Vector3 ScreenToWorld(Vector2 position)
+        {
+            float x = (2f * position.X) / _windowWidth - 1f;
+            float y = 1f - (2f * position.Y) / _windowHeight;
+            Vector4 rayClip = new Vector4(x, y, -1f, 1f);
+
+            Vector4 rayEye = Vector4.Transform(rayClip, _inverseProjectionMatrix);
+            rayEye.Z = -1f;
+            rayEye.W = 0f;
+
+            Vector4 rayDirection = Vector4.Transform(rayEye, _inverseViewMatrix);
+            rayDirection = Vector4.Normalize(rayDirection);
+
+            return new Vector3(rayDirection.X, rayDirection.Y, rayDirection.Z);
         }
 
         public CameraInfo GetCameraInfo() => new CameraInfo

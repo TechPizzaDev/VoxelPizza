@@ -434,9 +434,9 @@ namespace VoxelPizza.Client
             if (gd.IsDepthRangeZeroToOne)
             {
                 FrustumHelpers.ComputePerspectiveFrustumCorners(
-                    ref viewPos,
-                    ref viewDir,
-                    ref unitY,
+                    viewPos,
+                    viewDir,
+                    unitY,
                     camera.FieldOfView,
                     far,
                     near,
@@ -446,9 +446,9 @@ namespace VoxelPizza.Client
             else
             {
                 FrustumHelpers.ComputePerspectiveFrustumCorners(
-                    ref viewPos,
-                    ref viewDir,
-                    ref unitY,
+                    viewPos,
+                    viewDir,
+                    unitY,
                     camera.FieldOfView,
                     near,
                     far,

@@ -125,10 +125,12 @@ namespace VoxelPizza.Client.Objects
 
             float halfRange = range / 2f;
             BoundingBox box = new BoundingBox(
-                new Vector3(-halfRange, 0, -halfRange),
-                new Vector3(halfRange, 0, halfRange));
+                new Vector3(-halfRange, 1, -halfRange),
+                new Vector3(halfRange, -1, halfRange));
 
-            Ray ray = new Ray(Camera.Position, Camera.LookDirection);
+            Vector3 direction = Camera.ScreenToWorld(InputTracker.MousePosition);
+            Ray ray = new Ray(Camera.Position, direction);
+
             bool intersect = ray.Intersects(box, out float distance);
             Vector3 raypoint = ray.GetPoint(distance);
             Vector4 raypoint4 = new(raypoint, 1);

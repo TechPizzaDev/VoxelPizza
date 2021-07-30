@@ -10,6 +10,7 @@ namespace VoxelPizza.Client
 {
     public partial class ChunkBorderRenderer : Renderable, IUpdateable
     {
+        private GeometryBatch<VertexPosition<RgbaByte>> _cameraBatch;
         private GeometryBatch<VertexPosition<RgbaByte>> _chunkBatch;
         private GeometryBatch<VertexPosition<RgbaByte>> _chunkRegionBatch;
         private GeometryBatch<VertexPosition<RgbaByte>> _renderRegionBatch;
@@ -25,6 +26,7 @@ namespace VoxelPizza.Client
 
         public ChunkRenderer ChunkRenderer { get; }
 
+        public bool DrawCameraBounds { get; set; }
         public bool DrawChunks { get; set; }
         public bool DrawChunkRegions { get; set; }
         public bool DrawRenderRegions { get; set; }
@@ -35,6 +37,9 @@ namespace VoxelPizza.Client
         public ChunkBorderRenderer(ChunkRenderer chunkRenderer)
         {
             ChunkRenderer = chunkRenderer ?? throw new ArgumentNullException(nameof(chunkRenderer));
+
+            uint cameraQuadCap = 128;
+            _cameraBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * cameraQuadCap, 4 * cameraQuadCap);
 
             uint chunkQuadCap = 1024 * 32;
             _chunkBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * chunkQuadCap, 4 * chunkQuadCap);
@@ -112,6 +117,7 @@ namespace VoxelPizza.Client
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
+            _cameraBatch.CreateDeviceObjects(gd, cl, sc);
             _chunkBatch.CreateDeviceObjects(gd, cl, sc);
             _chunkRegionBatch.CreateDeviceObjects(gd, cl, sc);
             _renderRegionBatch.CreateDeviceObjects(gd, cl, sc);
@@ -154,6 +160,7 @@ namespace VoxelPizza.Client
             _batchDepthPipeline.Dispose();
             _batchDepthLessPipeline.Dispose();
 
+            _cameraBatch.DestroyDeviceObjects();
             _chunkBatch.DestroyDeviceObjects();
             _chunkRegionBatch.DestroyDeviceObjects();
             _renderRegionBatch.DestroyDeviceObjects();
@@ -170,7 +177,7 @@ namespace VoxelPizza.Client
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
         {
-            if (!DrawChunks && !DrawChunkRegions && !DrawRenderRegions)
+            if (!DrawCameraBounds && !DrawChunks && !DrawChunkRegions && !DrawRenderRegions)
             {
                 return;
             }
@@ -185,6 +192,12 @@ namespace VoxelPizza.Client
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
             cl.SetFullViewport(0);
             cl.SetGraphicsResourceSet(0, sc.GetCameraInfoSet(renderCamera));
+
+            if (DrawCameraBounds)
+            {
+                UpdateCameraBatch();
+                _cameraBatch.Submit(cl);
+            }
 
             if (DrawChunks)
                 _chunkBatch.Submit(cl);
@@ -221,7 +234,47 @@ namespace VoxelPizza.Client
             }
         }
 
-        private unsafe void UpdateChunkBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
+        private unsafe void UpdateCameraBatch()
+        {
+            _cameraBatch.Begin();
+
+            Camera? camera = ChunkRenderer.CullCamera;
+
+            BoundingFrustum cullFrustum = new(camera.ViewMatrix * camera.ProjectionMatrix);
+            cullFrustum.GetCorners(out FrustumCorners corners);
+
+            _cameraBatch.AppendQuad(
+                new VertexPosition<RgbaByte>() { Position = corners.FarTopRight, Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarTopLeft, Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarBottomLeft, Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarBottomRight, Data = RgbaByte.White });
+
+            _cameraBatch.AppendQuad(
+                new VertexPosition<RgbaByte>() { Position = corners.NearTopLeft, Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarTopLeft, Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarBottomLeft, Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.NearBottomLeft, Data = RgbaByte.White });
+
+            _cameraBatch.AppendQuad(
+                new VertexPosition<RgbaByte>() { Position = corners.NearTopRight, Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarTopRight, Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarBottomRight, Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.NearBottomRight, Data = RgbaByte.White });
+
+            //var reserve= _cameraBatch.ReserveUnsafe(3, 3);
+
+            //reserve.Indices[0] = 0;
+            //reserve.Indices[1] = 1;
+            //reserve.Indices[2] = 2;
+            //
+            //reserve.Vertices[0] = new VertexPosition<RgbaByte>() { Position = new Vector3(0, 0, 0), Data = RgbaByte.White };
+            //reserve.Vertices[1] = new VertexPosition<RgbaByte>() { Position = new Vector3(20, 0, 0), Data = RgbaByte.White };
+            //reserve.Vertices[2] = new VertexPosition<RgbaByte>() { Position = new Vector3(0, 20, 0), Data = RgbaByte.White };
+
+            _cameraBatch.End();
+        }
+
+        private void UpdateChunkBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
         {
             float lineWidth = 0.125f;
             RgbaByte color0 = new(0, 1, 0, 255);
@@ -240,7 +293,7 @@ namespace VoxelPizza.Client
             _chunkBatch.End();
         }
 
-        private unsafe void UpdateChunkRegionBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
+        private void UpdateChunkRegionBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
         {
             float lineWidth = 0.175f;
             RgbaByte color0 = new(0, 127, 255, 255);
@@ -259,7 +312,7 @@ namespace VoxelPizza.Client
             _chunkRegionBatch.End();
         }
 
-        private unsafe void UpdateRenderRegionBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
+        private void UpdateRenderRegionBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
         {
             float lineWidth = 0.175f;
             RgbaByte color0 = new(0, 127, 255, 255);
@@ -271,7 +324,7 @@ namespace VoxelPizza.Client
             _renderRegionBatch.Begin();
 
             foreach (RenderRegionPosition chunkRegion in _renderRegions)
-            { 
+            {
                 Vector3 position = chunkRegion.ToBlock(regionSize);
                 UpdateBatchItem(_renderRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
             }

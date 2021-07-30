@@ -74,18 +74,30 @@ namespace VoxelPizza.Client
                         else
                             chunk.Generate();
 
-                        if (y >= 0 && x >= off && z >= off &&
-                            x < width - off &&
-                            z < depth - off)
-                        {
-                            chunk.InvokeUpdate();
-                        }
+                        //if (y >= 0 && x >= off && z >= off &&
+                        //    x < width - off &&
+                        //    z < depth - off)
+                        //{
+                        //    chunk.InvokeUpdate();
+                        //}
 
                         count++;
                         if (count == 1)
                         {
                             //Thread.Sleep(1);
                             count = 0;
+                        }
+                    }
+
+                    foreach (var (x, y, z) in list)
+                    {
+                        Chunk? chunk = dimension.GetChunk(new(x, y, z));
+
+                        if (y >= 0 && x >= off && z >= off &&
+                            x < width - off &&
+                            z < depth - off)
+                        {
+                            chunk?.InvokeUpdate();
                         }
                     }
 
@@ -135,7 +147,7 @@ namespace VoxelPizza.Client
                         Random rng = new Random(1234);
                         while (true)
                         {
-                            for (int i = 0; i < 5; i++)
+                            for (int i = 0; i < 2; i++)
                             {
                                 int x = rng.Next(width - off * 2) + off;
                                 int z = rng.Next(depth - off * 2) + off;

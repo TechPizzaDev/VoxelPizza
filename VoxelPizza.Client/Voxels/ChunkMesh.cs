@@ -117,7 +117,7 @@ namespace VoxelPizza.Client
                 return true;
             }
 
-            SingleNonEmptyStoredChunkEnumerator chunks = new(this);
+            StoredChunkToUploadEnumerator chunks = new(this);
             ChunkUploadResult result = ChunkMeshRegion.Upload(gd, stagingMeshPool, generateMetaData: false, chunks);
             stagingMesh = result.StagingMesh;
             if (stagingMesh == null)
@@ -125,8 +125,6 @@ namespace VoxelPizza.Client
                 if (result.IsEmpty)
                 {
                     DisposeMeshBuffers();
-
-                    _mesh.IsUploadRequired = false;
                     return true;
                 }
                 return false;
@@ -185,14 +183,14 @@ namespace VoxelPizza.Client
             _paintVertexBuffer = null!;
         }
 
-        private struct SingleNonEmptyStoredChunkEnumerator : IRefEnumerator<StoredChunkMesh>
+        private struct StoredChunkToUploadEnumerator : IRefEnumerator<StoredChunkMesh>
         {
             private ChunkMesh _mesh;
             private bool _move;
 
             public ref StoredChunkMesh Current => ref _mesh._mesh;
 
-            public SingleNonEmptyStoredChunkEnumerator(ChunkMesh mesh)
+            public StoredChunkToUploadEnumerator(ChunkMesh mesh)
             {
                 _mesh = mesh ?? throw new ArgumentNullException(nameof(mesh));
                 _move = false;
@@ -204,7 +202,7 @@ namespace VoxelPizza.Client
                 {
                     _move = true;
                     ref StoredChunkMesh chunk = ref _mesh._mesh;
-                    return chunk.IsUploadRequired && !chunk.StoredMesh.IsEmpty;
+                    return chunk.IsUploadRequired;
                 }
                 return false;
             }

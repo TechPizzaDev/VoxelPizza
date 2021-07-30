@@ -3,7 +3,7 @@ using VoxelPizza.Collections;
 
 namespace VoxelPizza.Client
 {
-    public struct NonEmptyStoredChunkEnumerator : IRefEnumerator<StoredChunkMesh>
+    public struct StoredChunksToUploadEnumerator : IRefEnumerator<StoredChunkMesh>
     {
         private StoredChunkMesh[] _storedChunks;
         private int _index;
@@ -11,7 +11,7 @@ namespace VoxelPizza.Client
 
         public ref StoredChunkMesh Current => ref _storedChunks[_index];
 
-        public NonEmptyStoredChunkEnumerator(StoredChunkMesh[] storedChunks) 
+        public StoredChunksToUploadEnumerator(StoredChunkMesh[] storedChunks) 
         {
             _storedChunks = storedChunks ?? throw new ArgumentNullException(nameof(storedChunks));
             _index = -1;
@@ -25,7 +25,7 @@ namespace VoxelPizza.Client
             for (; i < storedChunks.Length; i++)
             {
                 ref StoredChunkMesh chunk = ref storedChunks[i];
-                if (chunk.IsUploadRequired && !chunk.StoredMesh.IsEmpty)
+                if (chunk.IsUploadRequired)
                 {
                     _index = i;
                     _offset = i + 1;

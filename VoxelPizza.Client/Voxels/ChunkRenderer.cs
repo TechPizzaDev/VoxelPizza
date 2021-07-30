@@ -87,7 +87,7 @@ namespace VoxelPizza.Client
             RegionSize = regionSize;
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
-            _uploadReady = new bool[32];
+            _uploadReady = new bool[16];
             _uploadLists = new CommandList[_uploadReady.Length];
             _uploadFences = new Fence[_uploadReady.Length];
             _uploadSubmittedMeshes = new List<ChunkStagingMesh>[_uploadReady.Length];
@@ -112,7 +112,7 @@ namespace VoxelPizza.Client
                 var mesh = new ChunkMesh(this, chunk.Position);
                 _queuedMeshes.Enqueue(mesh);
 
-                mesh.RequestBuild(chunk.Position);
+                //mesh.RequestBuild(chunk.Position);
             }
             else
             {

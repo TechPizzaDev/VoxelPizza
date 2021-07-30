@@ -29,6 +29,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veldrid.OpenGLBindings", "v
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veldrid.MetalBindings", "veldrid\src\Veldrid.MetalBindings\Veldrid.MetalBindings.csproj", "{5FA1917C-5E16-4E1C-9913-C140995CF62B}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LoudPizza", "LoudPizza\LoudPizza\LoudPizza.csproj", "{249E020A-1E86-4A08-84C9-31309CC795B2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -87,6 +89,10 @@ Global
 		{5FA1917C-5E16-4E1C-9913-C140995CF62B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5FA1917C-5E16-4E1C-9913-C140995CF62B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5FA1917C-5E16-4E1C-9913-C140995CF62B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{249E020A-1E86-4A08-84C9-31309CC795B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{249E020A-1E86-4A08-84C9-31309CC795B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{249E020A-1E86-4A08-84C9-31309CC795B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{249E020A-1E86-4A08-84C9-31309CC795B2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

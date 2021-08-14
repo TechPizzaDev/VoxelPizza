@@ -9,7 +9,7 @@ namespace VoxelPizza.Client
             SDL_version version;
             Sdl2Native.SDL_GetVersion(&version);
 
-            var app = new VoxelPizza();
+            using var app = new VoxelPizza();
             app.Run();
         }
     }

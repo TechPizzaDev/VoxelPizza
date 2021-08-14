@@ -126,7 +126,7 @@ namespace VoxelPizza.Client
 
             VertexLayoutDescription vertexLayout = new(
                 new VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3),
-                new VertexElementDescription("Color", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Byte4));
+                new VertexElementDescription("Color", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Byte4_Norm));
 
             (Shader colorVs, Shader colorFs, SpecializationConstant[] mainSpecs) =
                 StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ColorMain");
@@ -153,6 +153,10 @@ namespace VoxelPizza.Client
 
             pipelineDesc.DepthStencilState = DepthStencilStateDescription.Disabled;
             _batchDepthLessPipeline = factory.CreateGraphicsPipeline(pipelineDesc);
+
+            _chunksNeedUpdate = true;
+            _chunkRegionsNeedUpdate = true;
+            _renderRegionsNeedUpdate = true;
         }
 
         public override void DestroyDeviceObjects()

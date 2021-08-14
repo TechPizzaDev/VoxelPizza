@@ -15,10 +15,9 @@ namespace VoxelPizza.Client
         {
             if (!IsDisposed)
             {
-                IsDisposed = true;
+                DestroyDeviceObjects();
 
-                if (disposing)
-                    DestroyDeviceObjects();
+                IsDisposed = true;
             }
         }
 

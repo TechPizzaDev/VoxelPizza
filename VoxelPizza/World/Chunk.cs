@@ -125,21 +125,22 @@ namespace VoxelPizza.World
             {
                 for (int y = 0; y < Height; y++)
                 {
-                    double fac = (Y * Height + y) / 1024.0;
+                    //double fac = (Y * Height + y) / 1024.0;
+                    int blockY = chunkY + y;
 
                     for (int z = 0; z < Depth; z++)
                     {
+                        int blockZ = chunkZ + z;
+                        float cos = 64 * (MathF.Cos(blockZ / 16f) + 1) * 0.5f;
+
                         for (int x = 0; x < Width; x++)
                         {
                             //if (rng.NextDouble() > 0.025 * fac * 4)
                             //    continue;
 
                             int blockX = chunkX + x;
-                            int blockY = chunkY + y;
-                            int blockZ = chunkZ + z;
 
                             float sin = 64 * (MathF.Sin(blockX / 16f) + 1) * 0.5f;
-                            float cos = 64 * (MathF.Cos(blockZ / 16f) + 1) * 0.5f;
 
                             ref uint block = ref Unsafe.Add(ref blockRef, GetIndex(x, y, z));
 

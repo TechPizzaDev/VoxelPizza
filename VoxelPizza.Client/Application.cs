@@ -8,7 +8,7 @@ using Veldrid.StartupUtilities;
 
 namespace VoxelPizza.Client
 {
-    public abstract unsafe class Application
+    public abstract unsafe class Application : IDisposable
     {
         private Sdl2Window _window;
         private GraphicsDevice _graphicsDevice;
@@ -28,6 +28,7 @@ namespace VoxelPizza.Client
 
         public TimeAverager TimeAverager { get; private set; }
 
+        public bool IsDisposed { get; private set; }
         public bool IsActive { get; private set; }
 
         public bool AlwaysRecreateWindow { get; set; } = true;
@@ -358,6 +359,25 @@ namespace VoxelPizza.Client
 
         protected virtual void DisposeGraphicsDeviceObjects()
         {
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!IsDisposed)
+            {
+                IsDisposed = true;
+            }
+        }
+
+        ~Application()
+        {
+            Dispose(disposing: false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

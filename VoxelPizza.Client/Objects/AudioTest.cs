@@ -117,7 +117,16 @@ namespace VoxelPizza.Client
             ////Span<short> noiseSpan = new Span<short>(noise, 44100);
             //wav.loadRawWave(noise, (uint)length, 10000, 1);
 
-            byte[] bytes = File.ReadAllBytes("black apple.raw");
+            byte[] bytes;
+            try
+            {
+                bytes = File.ReadAllBytes("black apple.raw");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                bytes = Array.Empty<byte>();
+            }
             float[] next = new float[bytes.Length / 4];
             fixed (byte* srcPtr = bytes)
             fixed (float* dst = next)
@@ -143,7 +152,7 @@ namespace VoxelPizza.Client
             Handle groupHandle = soloud.createVoiceGroup();
             soloud.addVoiceToGroup(groupHandle, voiceHandle);
 
-            soloud.setVolume(groupHandle, 0.02f);
+            soloud.setVolume(groupHandle, 0.0f);
             soloud.setLooping(groupHandle, true);
             soloud.setRelativePlaySpeed(groupHandle, 1.2f);
 

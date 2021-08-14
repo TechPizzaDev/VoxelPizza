@@ -255,8 +255,8 @@ namespace VoxelPizza.Client
             audioTest.soloud.update3dAudio();
 
             var t = audioTest.soloud.getStreamPosition(audioTest.voicehandle);
-            audioTest.soloud.seek(audioTest.voicehandle, t + LoudPizza.Time.FromSeconds(0.01));
-
+            //audioTest.soloud.seek(audioTest.voicehandle, t + LoudPizza.Time.FromSeconds(0.01));
+            
             //_sc.DirectionalLight.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Sin(time.TotalSeconds));
 
             if (InputTracker.GetKeyDown(Key.F11))
@@ -800,6 +800,7 @@ namespace VoxelPizza.Client
             Stopwatch sw = Stopwatch.StartNew();
             for (int i = 0; i < numTimes; i++)
             {
+                GraphicsDevice.WaitForIdle();
                 DisposeGraphicsDeviceObjects();
                 CreateGraphicsDeviceObjects();
             }
@@ -936,6 +937,14 @@ namespace VoxelPizza.Client
         {
             bool isFullscreen = Window.WindowState == WindowState.BorderlessFullScreen;
             Window.WindowState = isFullscreen ? WindowState.Normal : WindowState.BorderlessFullScreen;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            ChunkRenderer.Dispose();
+            ChunkBorderRenderer.Dispose();
+
+            base.Dispose(disposing);
         }
     }
 }

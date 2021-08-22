@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -29,15 +30,8 @@ namespace VoxelPizza.Client
         private string _graphicsDeviceName;
         private string _graphicsBackendName;
 
-        private int _regionBuildLimit = 8;
-        private int _meshBuildLimit = 32;
-
-        private bool[] _uploadReady;
-        private CommandList[] _uploadLists;
-        private Fence[] _uploadFences;
         private ChunkStagingMeshPool _stagingMeshPool;
-        private List<ChunkStagingMesh>[] _uploadSubmittedMeshes;
-        private BlockMemory _blockMemory;
+        private ChunkRendererWorker[] _workers;
 
         private DeviceBuffer _worldInfoBuffer;
         private DeviceBuffer _textureAtlasBuffer;
@@ -45,8 +39,6 @@ namespace VoxelPizza.Client
         private Pipeline _directPipeline;
         private Pipeline _indirectPipeline;
         private ResourceSet _sharedSet;
-
-        private AutoResetEvent frameEvent = new(false);
 
         private List<ChunkMesh> _visibleMeshBuffer = new();
         private List<ChunkMesh> _meshes = new();
@@ -87,18 +79,19 @@ namespace VoxelPizza.Client
             RegionSize = regionSize;
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
-            _uploadReady = new bool[16];
-            _uploadLists = new CommandList[_uploadReady.Length];
-            _uploadFences = new Fence[_uploadReady.Length];
-            _uploadSubmittedMeshes = new List<ChunkStagingMesh>[_uploadReady.Length];
-
-            _blockMemory = new BlockMemory(
-                GetBlockMemoryInnerSize(),
-                GetBlockMemoryOuterSize());
-
-            for (int i = 0; i < _uploadReady.Length; i++)
+            _stagingMeshPool = new ChunkStagingMeshPool(16);
+            _workers = new ChunkRendererWorker[4];
+            
+            for (int i = 0; i < _workers.Length; i++)
             {
-                _uploadSubmittedMeshes[i] = new List<ChunkStagingMesh>();
+                var blockMemory = new BlockMemory(
+                    GetBlockMemoryInnerSize(),
+                    GetBlockMemoryOuterSize());
+
+                _workers[i] = new ChunkRendererWorker(ChunkMesher, blockMemory, _stagingMeshPool)
+                {
+                    WorkerName = $"Chunk Renderer Worker {i + 1}"
+                };
             }
 
             dimension.ChunkAdded += Dimension_ChunkAdded;
@@ -174,15 +167,12 @@ namespace VoxelPizza.Client
 
             ResourceFactory factory = gd.ResourceFactory;
 
-            for (int i = 0; i < _uploadReady.Length; i++)
-            {
-                _uploadReady[i] = true;
-                _uploadLists[i] = factory.CreateCommandList();
-                _uploadFences[i] = factory.CreateFence(false);
-                _uploadSubmittedMeshes[i].Clear();
-            }
+            _stagingMeshPool.CreateDeviceObjects(gd, cl, sc);
 
-            _stagingMeshPool = new ChunkStagingMeshPool(factory, RegionSize.Volume, _uploadReady.Length);
+            for (int i = 0; i < _workers.Length; i++)
+            {
+                _workers[i].CreateDeviceObjects(gd, cl, sc);
+            }
 
             ChunkSharedLayout = factory.CreateResourceLayout(
                 new ResourceLayoutDescription(
@@ -309,6 +299,11 @@ namespace VoxelPizza.Client
 
         public override void DestroyDeviceObjects()
         {
+            foreach (ChunkRendererWorker worker in _workers)
+            {
+                worker.DestroyDeviceObjects();
+            }
+
             lock (_meshes)
             {
                 foreach (ChunkMesh mesh in _meshes)
@@ -325,14 +320,7 @@ namespace VoxelPizza.Client
                 }
             }
 
-            for (int i = 0; i < _uploadReady.Length; i++)
-            {
-                _uploadReady[i] = false;
-                _uploadLists[i].Dispose();
-                _uploadFences[i].Dispose();
-            }
-
-            _stagingMeshPool.Dispose();
+            _stagingMeshPool.DestroyDeviceObjects();
             ChunkSharedLayout.Dispose();
             ChunkInfoLayout.Dispose();
             _directPipeline.Dispose();
@@ -453,6 +441,8 @@ namespace VoxelPizza.Client
         {
             using var profilerToken = sc.Profiler.Push();
 
+            Vector3 origin = cullOrigin.GetValueOrDefault();
+
             lock (_regions)
             {
                 if (cullFrustum.HasValue)
@@ -478,36 +468,23 @@ namespace VoxelPizza.Client
                     }
                 }
             }
+
+            if (cullOrigin.HasValue)
+            {
+                visibleRegions.Sort((x, y) =>
+                {
+                    float a = ManhattanDistance(x.Position.ToBlock(RegionSize), origin);
+                    float b = ManhattanDistance(y.Position.ToBlock(RegionSize), origin);
+                    return a.CompareTo(b);
+                });
+            }
         }
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
         {
             using var profilerToken = sc.Profiler.Push();
 
-            for (int i = 0; i < _uploadFences.Length; i++)
-            {
-                Fence fence = _uploadFences[i];
-                if (fence.Signaled)
-                {
-                    List<ChunkStagingMesh>? submittedMeshes = _uploadSubmittedMeshes[i];
-                    foreach (ChunkStagingMesh mesh in submittedMeshes)
-                    {
-                        _stagingMeshPool.Return(mesh);
-                    }
-                    submittedMeshes.Clear();
-
-                    gd.ResetFence(fence);
-                    _uploadReady[i] = true;
-                }
-            }
-
             cl.UpdateBuffer(_worldInfoBuffer, 0, _worldInfo);
-
-            for (int i = 0; i < _uploadLists.Length; i++)
-            {
-                if (_uploadReady[i])
-                    _uploadLists[i].Begin();
-            }
 
             lock (_meshes)
             {
@@ -546,20 +523,6 @@ namespace VoxelPizza.Client
                 RenderMeshes(gd, cl, sc, renderCameraInfoSet, cullOrigin, cullFrustum);
                 RenderRegions(gd, cl, sc, renderCameraInfoSet, cullOrigin, cullFrustum);
             }
-
-            for (int i = 0; i < _uploadLists.Length; i++)
-            {
-                if (_uploadReady[i])
-                {
-                    CommandList uploadList = _uploadLists[i];
-                    uploadList.End();
-
-                    gd.SubmitCommands(uploadList, _uploadFences[i]);
-                    _uploadReady[i] = false;
-                }
-            }
-
-            frameEvent.Set();
         }
 
         private void RenderRegions(
@@ -577,61 +540,54 @@ namespace VoxelPizza.Client
             cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
-            int uploadCount = Render(gd, cl, sc, ref _regionBuildLimit, visibleRegions.GetEnumerator());
-            _regionBuildLimit += uploadCount;
+            Render(gd, cl, sc, visibleRegions.GetEnumerator());
+        }
+
+        public static List<List<T>> SplitList<T>(List<T> elements, int splitCount)
+        {
+            var list = new List<List<T>>();
+
+            int elementsPerList = elements.Count / splitCount;
+
+            if (elements.Count > splitCount)
+            {
+                for (int i = 0; i < splitCount; i++)
+                {
+                    list.Add(elements.GetRange(i * elementsPerList, Math.Min(elementsPerList, elements.Count - i)));
+                }
+            }
+
+            if (list.Count > 0)
+                list[^1].AddRange(elements.GetRange(splitCount * elementsPerList, elements.Count - splitCount * elementsPerList));
+
+            return list;
         }
 
         long lastbytesum = 0;
 
-        private int Render<TMeshes>(
-            GraphicsDevice gd, CommandList cl, SceneContext sc, ref int maxBuilds, TMeshes meshes)
+        private void Render<TMeshes>(
+            GraphicsDevice gd, CommandList cl, SceneContext sc, TMeshes meshes)
             where TMeshes : IEnumerator<ChunkMeshBase>
         {
             using var profilerToken = sc.Profiler.Push();
 
-            bool[] uploadReady = _uploadReady;
-            int uploadOffset = 0;
-            int uploadCount = 0;
-            bool canUploadMore = true;
+            List<ChunkMeshBase> tmpMeshes = new List<ChunkMeshBase>();
+            var meshesToBuild = meshes;
+            while (meshesToBuild.MoveNext())
+            {
+                ChunkMeshBase mesh = meshesToBuild.Current;
+                tmpMeshes.Add(mesh);
+            }
+
+            var splits = SplitList(tmpMeshes, _workers.Length);
+            for (int i = 0; i < splits.Count; i++)
+            {
+                _workers[i].Signal(splits[i].GetEnumerator());
+            }
 
             while (meshes.MoveNext())
             {
-                ChunkMeshBase? mesh = meshes.Current;
-
-                if (maxBuilds > 0)
-                {
-                    if (mesh.IsBuildRequired && mesh.Build(ChunkMesher, _blockMemory))
-                    {
-                        maxBuilds--;
-                    }
-                }
-
-                if (canUploadMore && mesh.IsUploadRequired)
-                {
-                    for (int j = 0; j < uploadReady.Length; j++)
-                    {
-                        int uploadIndex = (j + uploadOffset) % uploadReady.Length;
-
-                        if (uploadReady[uploadIndex])
-                        {
-                            if (mesh.Upload(gd, _uploadLists[uploadIndex], _stagingMeshPool, out ChunkStagingMesh? stagingMesh))
-                            {
-                                uploadCount++;
-
-                                if (stagingMesh != null)
-                                {
-                                    _uploadSubmittedMeshes[uploadIndex].Add(stagingMesh);
-                                    uploadOffset++;
-                                }
-                            }
-                            else
-                            {
-                                canUploadMore = false;
-                            }
-                            break;
-                        }
-                    }
-                }
+                ChunkMeshBase mesh = meshes.Current;
 
                 mesh.Render(cl);
 
@@ -646,8 +602,6 @@ namespace VoxelPizza.Client
             if (lastbytesum != ss)
                 Console.WriteLine(ss);
             lastbytesum = ss;
-
-            return uploadCount;
         }
 
         private void RenderMeshes(
@@ -665,8 +619,7 @@ namespace VoxelPizza.Client
             cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
-            int uploadCount = Render(gd, cl, sc, ref _meshBuildLimit, visibleMeshes.GetEnumerator());
-            _meshBuildLimit += uploadCount;
+            Render(gd, cl, sc, visibleMeshes.GetEnumerator());
         }
 
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)
@@ -785,6 +738,18 @@ namespace VoxelPizza.Client
                 innerSize.W + doubleMargin,
                 innerSize.H + doubleMargin,
                 innerSize.D + doubleMargin);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+
+            foreach (ChunkRendererWorker worker in _workers)
+            {
+                worker.Dispose();
+            }
+
+            _stagingMeshPool.Dispose();
         }
     }
 

@@ -8,6 +8,8 @@ namespace VoxelPizza.Client
         public abstract int IndexCount { get; }
         public abstract int VertexCount { get; }
 
+        public object WorkerMutex { get; } = new object();
+
         public abstract bool IsBuildRequired { get; }
         public abstract bool IsUploadRequired { get; }
 
@@ -20,6 +22,8 @@ namespace VoxelPizza.Client
         public abstract bool Upload(
             GraphicsDevice gd, CommandList uploadList, ChunkStagingMeshPool stagingMeshPool,
             out ChunkStagingMesh? stagingMesh);
+
+        public abstract void UploadFinished();
 
         public abstract void Render(CommandList cl);
     }

@@ -130,14 +130,16 @@ namespace VoxelPizza.Client
                 return false;
             }
 
-            ChunkMeshRegion.ResizeDataBuffers(
-                gd.ResourceFactory,
-                (uint)result.IndexBytesRequired,
-                (uint)result.VertexCount,
-                ref _indexBuffer,
-                ref _spaceVertexBuffer,
-                ref _paintVertexBuffer);
+            throw new NotImplementedException();
 
+            //ChunkMeshRegion.ResizeDataBuffers(
+            //    gd.ResourceFactory,
+            //    (uint)result.IndexBytesRequired,
+            //    (uint)result.VertexCount,
+            //    ref _indexBuffer,
+            //    ref _spaceVertexBuffer,
+            //    ref _paintVertexBuffer);
+            //
             uint srcOffset = 0;
 
             uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, _indexBuffer, 0, (uint)result.IndexBytesRequired);
@@ -153,6 +155,11 @@ namespace VoxelPizza.Client
             _vertexCount = result.VertexCount;
             _mesh.IsUploadRequired = false;
             return true;
+        }
+
+        public override void UploadFinished()
+        {
+
         }
 
         public override void Render(CommandList cl)

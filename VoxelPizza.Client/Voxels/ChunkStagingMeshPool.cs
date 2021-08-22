@@ -6,27 +6,16 @@ using Veldrid;
 
 namespace VoxelPizza.Client
 {
-    public class ChunkStagingMeshPool : IDisposable
+    public class ChunkStagingMeshPool : GraphicsResource
     {
         private HashSet<ChunkStagingMesh> _all = new();
         private ConcurrentStack<ChunkStagingMesh> _pool = new();
 
-        public ResourceFactory Factory { get; }
-        public uint MaxChunksPerMesh { get; }
-
-        public bool IsDisposed { get; private set; }
-
-        public ChunkStagingMeshPool(ResourceFactory factory, uint maxChunksPerMesh, int count)
+        public ChunkStagingMeshPool(int count)
         {
-            if (maxChunksPerMesh < 0)
-                throw new ArgumentOutOfRangeException(nameof(maxChunksPerMesh));
-
-            Factory = factory ?? throw new ArgumentNullException(nameof(factory));
-            MaxChunksPerMesh = maxChunksPerMesh;
-
             for (int i = 0; i < count; i++)
             {
-                var mesh = new ChunkStagingMesh(Factory, maxChunksPerMesh, 1024 * 1024 * 16);
+                var mesh = new ChunkStagingMesh(1024 * 1024 * 16);
                 _all.Add(mesh);
                 _pool.Push(mesh);
             }
@@ -37,51 +26,63 @@ namespace VoxelPizza.Client
             throw new ObjectDisposedException(GetType().Name);
         }
 
+        public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
+        {
+            foreach (ChunkStagingMesh mesh in _all)
+            {
+                mesh.CreateDeviceObjects(gd, cl, sc);
+            }
+        }
+
+        public override void DestroyDeviceObjects()
+        {
+            foreach (ChunkStagingMesh mesh in _all)
+            {
+                mesh.DestroyDeviceObjects();
+            }
+        }
+
         public bool TryRent(
             [MaybeNullWhen(false)] out ChunkStagingMesh mesh,
             uint byteCount)
         {
             if (IsDisposed)
+            {
                 ThrowIsDisposed();
+            }
 
-            //mesh = new ChunkStagingMesh(Factory, MaxChunksPerMesh, byteCount);
-            //_all.Add(mesh);
-            //return true;
             return _pool.TryPop(out mesh);
         }
 
         public void Return(ChunkStagingMesh mesh)
         {
+            if (mesh == null)
+            {
+                return;
+            }
+
             if (IsDisposed)
             {
                 mesh.Dispose();
-                _all.Remove(mesh);
                 return;
             }
+
             _pool.Push(mesh);
         }
 
-        protected virtual void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
-            if (!IsDisposed)
+            if (disposing)
             {
-                if (disposing)
+                foreach (ChunkStagingMesh mesh in _all)
                 {
-                    foreach (ChunkStagingMesh? mesh in _all)
-                    {
-                        mesh.Dispose();
-                    }
-                    _pool.Clear();
+                    mesh.Dispose();
                 }
-
-                IsDisposed = true;
+                _all.Clear();
+                _pool.Clear();
             }
-        }
 
-        public void Dispose()
-        {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
+            base.Dispose(disposing);
         }
     }
 }

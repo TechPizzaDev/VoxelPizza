@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -17,27 +16,59 @@ namespace VoxelPizza.Client
 
     public partial class ChunkMeshRegion : ChunkMeshBase
     {
-        private DeviceBuffer _indirectBuffer;
-        private DeviceBuffer _renderInfoBuffer;
-        private DeviceBuffer _indexBuffer;
-        private DeviceBuffer _spaceVertexBuffer;
-        private DeviceBuffer _paintVertexBuffer;
+        struct MeshBuffers
+        {
+            public DeviceBuffer _indirectBuffer;
+            public DeviceBuffer _renderInfoBuffer;
+            public DeviceBuffer _indexBuffer;
+            public DeviceBuffer _spaceVertexBuffer;
+            public DeviceBuffer _paintVertexBuffer;
+
+            public int DrawCount;
+            public int IndexCount;
+            public int VertexCount;
+
+            public void Dispose()
+            {
+                DrawCount = 0;
+                IndexCount = 0;
+                VertexCount = 0;
+
+                _indirectBuffer?.Dispose();
+                _indirectBuffer = null!;
+
+                _renderInfoBuffer?.Dispose();
+                _renderInfoBuffer = null!;
+
+                _indexBuffer?.Dispose();
+                _indexBuffer = null!;
+
+                _spaceVertexBuffer?.Dispose();
+                _spaceVertexBuffer = null!;
+
+                _paintVertexBuffer?.Dispose();
+                _paintVertexBuffer = null!;
+            }
+        }
+
+        private MeshBuffers _currentMesh;
+        private Queue<MeshBuffers> _meshesInTransfer = new Queue<MeshBuffers>();
+        private Queue<MeshBuffers> _meshesForUpload = new Queue<MeshBuffers>();
+        private readonly object _uploadMutex = new object();
 
         private Stopwatch _buildWatch = new();
         private StoredChunkMesh[] _storedChunks;
         private int _buildRequired;
         private bool _uploadRequired;
-        private int _indexCount;
-        private int _vertexCount;
 
         public ChunkRenderer Renderer { get; }
         public RenderRegionPosition Position { get; }
         public Size3 Size { get; }
 
-        public int DrawCount { get; private set; }
+        public int DrawCount => _currentMesh.DrawCount;
 
-        public override int IndexCount => _indexCount;
-        public override int VertexCount => _vertexCount;
+        public override int IndexCount => _currentMesh.IndexCount;
+        public override int VertexCount => _currentMesh.VertexCount;
 
         public override bool IsBuildRequired => _buildRequired > 0;
         public override bool IsUploadRequired => _uploadRequired;
@@ -72,20 +103,19 @@ namespace VoxelPizza.Client
 
         public override void DestroyDeviceObjects()
         {
-            _indirectBuffer?.Dispose();
-            _indirectBuffer = null!;
+            lock (_uploadMutex)
+            {
+                _currentMesh.Dispose();
 
-            _renderInfoBuffer?.Dispose();
-            _renderInfoBuffer = null!;
-
-            _indexBuffer?.Dispose();
-            _indexBuffer = null!;
-
-            _spaceVertexBuffer?.Dispose();
-            _spaceVertexBuffer = null!;
-
-            _paintVertexBuffer?.Dispose();
-            _paintVertexBuffer = null!;
+                while (_meshesInTransfer.TryDequeue(out MeshBuffers meshBuffers))
+                {
+                    meshBuffers.Dispose();
+                }
+                while (_meshesForUpload.TryDequeue(out MeshBuffers meshBuffers))
+                {
+                    meshBuffers.Dispose();
+                }
+            }
         }
 
         public ChunkPosition GetLocalChunkPosition(ChunkPosition position)
@@ -134,17 +164,20 @@ namespace VoxelPizza.Client
             int toBuild = 0;
             int toUpload = 0;
 
-            for (int i = 0; i < _storedChunks.Length; i++)
+            StoredChunkMesh[] storedChunks = _storedChunks;
+            for (int i = 0; i < storedChunks.Length; i++)
             {
-                ref StoredChunkMesh storedChunk = ref _storedChunks[i];
+                ref StoredChunkMesh storedChunk = ref storedChunks[i];
                 if (storedChunk.HasValue)
+                {
                     total++;
 
-                if (storedChunk.IsBuildRequired > 0)
-                    toBuild++;
+                    if (storedChunk.IsBuildRequired > 0)
+                        toBuild++;
 
-                if (storedChunk.IsUploadRequired)
-                    toUpload++;
+                    if (storedChunk.IsUploadRequired)
+                        toUpload++;
+                }
             }
 
             return (total, toBuild, toUpload);
@@ -160,15 +193,18 @@ namespace VoxelPizza.Client
 
             int c = 0;
 
-            for (int i = 0; i < _storedChunks.Length; i++)
+            bool needsUpload = false;
+
+            StoredChunkMesh[] storedChunks = _storedChunks;
+            for (int i = 0; i < storedChunks.Length; i++)
             {
-                ref StoredChunkMesh storedChunk = ref _storedChunks[i];
+                ref StoredChunkMesh storedChunk = ref storedChunks[i];
                 if (!storedChunk.HasValue)
                 {
                     continue;
                 }
                 storedChunk.IsUploadRequired = true;
-                _uploadRequired = true;
+                needsUpload = true;
 
                 int chunkBuildRequired = storedChunk.IsBuildRequired;
                 if (storedChunk.IsBuildRequired == 0)
@@ -188,6 +224,11 @@ namespace VoxelPizza.Client
 
                 storedChunk.StoredMesh = result;
                 Interlocked.Add(ref storedChunk.IsBuildRequired, -chunkBuildRequired);
+            }
+
+            if (needsUpload)
+            {
+                _uploadRequired = true;
             }
 
             //if (c != 0)
@@ -216,55 +257,95 @@ namespace VoxelPizza.Client
             {
                 if (result.IsEmpty)
                 {
-                    _indexBuffer?.Dispose();
-                    _spaceVertexBuffer?.Dispose();
-                    _paintVertexBuffer?.Dispose();
-
-                    DrawCount = 0;
-                    _indexCount = 0;
-                    _vertexCount = 0;
-                    _uploadRequired = false;
+                    lock (_uploadMutex)
+                    {
+                        // Enqueue an empty mesh to clear the current mesh.
+                        _meshesForUpload.Enqueue(default);
+                        _uploadRequired = false;
+                    }
                     return true;
                 }
                 return false;
             }
+            stagingMesh.Owner = this;
 
-            ResizeMetaDataBuffers(
-                gd.ResourceFactory,
-                stagingMesh.MaxChunkCount,
-                ref _indirectBuffer,
-                ref _renderInfoBuffer);
+            MeshBuffers mesh;
 
-            ResizeDataBuffers(
-                gd.ResourceFactory,
-                (uint)result.IndexBytesRequired,
-                (uint)result.VertexCount,
-                ref _indexBuffer,
-                ref _spaceVertexBuffer,
-                ref _paintVertexBuffer);
+            var factory = gd.ResourceFactory;
+
+            uint indirectSizeInBytes = (uint)(Unsafe.SizeOf<IndirectDrawIndexedArguments>() * result.DrawCount);
+
+            mesh._indirectBuffer = factory.CreateBuffer(new BufferDescription()
+            {
+                SizeInBytes = indirectSizeInBytes,
+                Usage = BufferUsage.IndirectBuffer,
+            });
+
+            uint renderInfoSizeInBytes = (uint)(Unsafe.SizeOf<ChunkRenderInfo>() * result.DrawCount);
+            mesh._renderInfoBuffer = factory.CreateBuffer(new BufferDescription()
+            {
+                SizeInBytes = renderInfoSizeInBytes,
+                Usage = BufferUsage.VertexBuffer,
+            });
+
+            uint indexSizeInBytes = (uint)result.IndexBytesRequired;
+            mesh._indexBuffer = factory.CreateBuffer(new BufferDescription()
+            {
+                SizeInBytes = indexSizeInBytes,
+                Usage = BufferUsage.IndexBuffer,
+            });
+
+            uint spaceVertexSizeInBytes = (uint)(result.VertexCount * Unsafe.SizeOf<ChunkSpaceVertex>());
+            mesh._spaceVertexBuffer = factory.CreateBuffer(new BufferDescription()
+            {
+                SizeInBytes = spaceVertexSizeInBytes,
+                Usage = BufferUsage.VertexBuffer,
+            });
+
+            uint paintVertexSizeInBytes = (uint)(result.VertexCount * Unsafe.SizeOf<ChunkPaintVertex>());
+            mesh._paintVertexBuffer = factory.CreateBuffer(new BufferDescription()
+            {
+                SizeInBytes = paintVertexSizeInBytes,
+                Usage = BufferUsage.VertexBuffer,
+            });
 
             uint srcOffset = 0;
 
-            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, _indirectBuffer, 0, (uint)result.IndirectBytesRequired);
+            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, mesh._indirectBuffer, 0, (uint)result.IndirectBytesRequired);
             srcOffset += (uint)result.IndirectBytesRequired;
 
-            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, _renderInfoBuffer, 0, (uint)result.RenderInfoBytesRequired);
+            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, mesh._renderInfoBuffer, 0, (uint)result.RenderInfoBytesRequired);
             srcOffset += (uint)result.RenderInfoBytesRequired;
 
-            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, _indexBuffer, 0, (uint)result.IndexBytesRequired);
+            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, mesh._indexBuffer, 0, (uint)result.IndexBytesRequired);
             srcOffset += (uint)result.IndexBytesRequired;
 
-            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, _spaceVertexBuffer, 0, (uint)result.SpaceVertexBytesRequired);
+            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, mesh._spaceVertexBuffer, 0, (uint)result.SpaceVertexBytesRequired);
             srcOffset += (uint)result.SpaceVertexBytesRequired;
 
-            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, _paintVertexBuffer, 0, (uint)result.PaintVertexBytesRequired);
+            uploadList.CopyBuffer(stagingMesh.Buffer, srcOffset, mesh._paintVertexBuffer, 0, (uint)result.PaintVertexBytesRequired);
             srcOffset += (uint)result.PaintVertexBytesRequired;
 
-            DrawCount = result.DrawCount;
-            _indexCount = result.IndexCount;
-            _vertexCount = result.VertexCount;
+            mesh.DrawCount = result.DrawCount;
+            mesh.IndexCount = result.IndexCount;
+            mesh.VertexCount = result.VertexCount;
+
             _uploadRequired = false;
+
+            lock (_uploadMutex)
+            {
+                _meshesInTransfer.Enqueue(mesh);
+            }
             return true;
+        }
+
+        public override void UploadFinished()
+        {
+            lock (_uploadMutex)
+            {
+                MeshBuffers transferredBuffers = _meshesInTransfer.Dequeue();
+                _meshesForUpload.Enqueue(transferredBuffers);
+            }
         }
 
         public static unsafe ChunkUploadResult Upload<TMeshes>(
@@ -407,85 +488,30 @@ namespace VoxelPizza.Client
 
         public override void Render(CommandList cl)
         {
-            if (DrawCount == 0 || _indirectBuffer == null || _indexBuffer == null)
+            lock (_uploadMutex)
+            {
+                while (_meshesForUpload.TryDequeue(out MeshBuffers pendingBuffers))
+                {
+                    _currentMesh.Dispose();
+
+                    _currentMesh = pendingBuffers;
+                }
+            }
+            DrawMesh(cl, _currentMesh);
+        }
+
+        private static void DrawMesh(CommandList cl, in MeshBuffers mesh)
+        {
+            if (mesh.DrawCount == 0 || mesh._indirectBuffer == null || mesh._indexBuffer == null)
+            {
                 return;
-
-            cl.SetIndexBuffer(_indexBuffer, IndexFormat.UInt32);
-            cl.SetVertexBuffer(0, _spaceVertexBuffer);
-            cl.SetVertexBuffer(1, _paintVertexBuffer);
-            cl.SetVertexBuffer(2, _renderInfoBuffer);
-            cl.DrawIndexedIndirect(_indirectBuffer, 0, (uint)DrawCount, (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>());
-        }
-
-        public static void ResizeMetaDataBuffers(
-            ResourceFactory factory,
-            uint chunkCount,
-            ref DeviceBuffer indirectBuffer,
-            ref DeviceBuffer renderInfoBuffer)
-        {
-            uint indirectSizeInBytes = (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>() * chunkCount;
-            if (indirectBuffer == null || indirectBuffer.SizeInBytes < indirectSizeInBytes)
-            {
-                indirectBuffer?.Dispose();
-                indirectBuffer = factory.CreateBuffer(new BufferDescription()
-                {
-                    SizeInBytes = indirectSizeInBytes,
-                    Usage = BufferUsage.IndirectBuffer,
-                });
             }
 
-            uint renderInfoSizeInBytes = (uint)Unsafe.SizeOf<ChunkRenderInfo>() * chunkCount;
-            if (renderInfoBuffer == null || renderInfoBuffer.SizeInBytes < renderInfoSizeInBytes)
-            {
-                renderInfoBuffer?.Dispose();
-                renderInfoBuffer = factory.CreateBuffer(new BufferDescription()
-                {
-                    SizeInBytes = renderInfoSizeInBytes,
-                    Usage = BufferUsage.VertexBuffer,
-                });
-            }
-        }
-
-        public static void ResizeDataBuffers(
-            ResourceFactory factory,
-            uint indexByteCount,
-            uint vertexCount,
-            ref DeviceBuffer indexBuffer,
-            ref DeviceBuffer spaceVertexBuffer,
-            ref DeviceBuffer paintVertexBuffer)
-        {
-            uint indexSizeInBytes = indexByteCount;
-            //if (indexBuffer == null || indexBuffer.SizeInBytes < indexSizeInBytes)
-            {
-                indexBuffer?.Dispose();
-                indexBuffer = factory.CreateBuffer(new BufferDescription()
-                {
-                    SizeInBytes = indexSizeInBytes,
-                    Usage = BufferUsage.IndexBuffer,
-                });
-            }
-
-            uint spaceVertexSizeInBytes = (uint)(vertexCount * Unsafe.SizeOf<ChunkSpaceVertex>());
-            //if (spaceVertexBuffer == null || spaceVertexBuffer.SizeInBytes < spaceVertexSizeInBytes)
-            {
-                spaceVertexBuffer?.Dispose();
-                spaceVertexBuffer = factory.CreateBuffer(new BufferDescription()
-                {
-                    SizeInBytes = spaceVertexSizeInBytes,
-                    Usage = BufferUsage.VertexBuffer,
-                });
-            }
-
-            uint paintVertexSizeInBytes = (uint)(vertexCount * Unsafe.SizeOf<ChunkPaintVertex>());
-            //if (paintVertexBuffer == null || paintVertexBuffer.SizeInBytes < paintVertexSizeInBytes)
-            {
-                paintVertexBuffer?.Dispose();
-                paintVertexBuffer = factory.CreateBuffer(new BufferDescription()
-                {
-                    SizeInBytes = paintVertexSizeInBytes,
-                    Usage = BufferUsage.VertexBuffer,
-                });
-            }
+            cl.SetIndexBuffer(mesh._indexBuffer, IndexFormat.UInt32);
+            cl.SetVertexBuffer(0, mesh._spaceVertexBuffer);
+            cl.SetVertexBuffer(1, mesh._paintVertexBuffer);
+            cl.SetVertexBuffer(2, mesh._renderInfoBuffer);
+            cl.DrawIndexedIndirect(mesh._indirectBuffer, 0, (uint)mesh.DrawCount, (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>());
         }
     }
 }

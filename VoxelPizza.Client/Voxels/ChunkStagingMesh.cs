@@ -1,28 +1,29 @@
-﻿using System;
-using Veldrid;
+﻿using Veldrid;
 
 namespace VoxelPizza.Client
 {
-    public class ChunkStagingMesh : IDisposable
+    public class ChunkStagingMesh : GraphicsResource
     {
-        public uint MaxChunkCount { get; }
+        public uint ByteCount { get; }
 
         public DeviceBuffer Buffer { get; private set; }
+        public ChunkMeshBase? Owner { get; set; }
 
-        public ChunkStagingMesh(ResourceFactory factory, uint maxChunkCount, uint byteCount)
+        public ChunkStagingMesh(uint byteCount)
         {
-            if (factory == null)
-                throw new ArgumentNullException(nameof(factory));
-            MaxChunkCount = maxChunkCount;
-
-            Buffer = factory.CreateBuffer(new BufferDescription(byteCount, BufferUsage.Staging));
+            ByteCount = byteCount;
         }
 
         public static long totalbytesum = 0;
 
-        public void Dispose()
+        public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
-            Buffer.Dispose();
+            Buffer = gd.ResourceFactory.CreateBuffer(new BufferDescription(ByteCount, BufferUsage.Staging));
+        }
+
+        public override void DestroyDeviceObjects()
+        {
+            Buffer?.Dispose();
             Buffer = null!;
         }
     }

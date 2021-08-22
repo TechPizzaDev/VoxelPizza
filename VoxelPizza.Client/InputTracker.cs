@@ -47,22 +47,22 @@ namespace VoxelPizza.Client
             MousePosition = snapshot.MousePosition;
             MouseDelta = window.MouseDelta;
 
-            for (int i = 0; i < snapshot.KeyEvents.Count; i++)
+            for (int i = 0; i < snapshot.KeyEvents.Length; i++)
             {
                 KeyEvent ke = snapshot.KeyEvents[i];
                 if (ke.Down)
                 {
-                    KeyDown(ke.Key);
+                    KeyDown(ke.Physical);
                 }
                 else
                 {
-                    KeyUp(ke.Key);
+                    KeyUp(ke.Physical);
                 }
             }
 
-            for (int i = 0; i < snapshot.MouseEvents.Count; i++)
+            for (int i = 0; i < snapshot.MouseEvents.Length; i++)
             {
-                MouseEvent me = snapshot.MouseEvents[i];
+                MouseButtonEvent me = snapshot.MouseEvents[i];
                 if (me.Down)
                 {
                     MouseDown(me.MouseButton);

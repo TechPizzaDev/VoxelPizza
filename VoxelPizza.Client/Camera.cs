@@ -88,13 +88,13 @@ namespace VoxelPizza.Client
             float deltaSeconds = time.DeltaSeconds;
 
             float sprintFactor = 2.5f;
-            if (InputTracker.GetKey(Key.ControlLeft))
+            if (InputTracker.GetKey(Key.LeftControl))
             {
                 sprintFactor = 0.5f;
             }
             else
             {
-                if (InputTracker.GetKey(Key.ShiftLeft))
+                if (InputTracker.GetKey(Key.LeftShift))
                     sprintFactor += 7.5f;
                 if (InputTracker.GetKey(Key.Space))
                     sprintFactor += 25f;

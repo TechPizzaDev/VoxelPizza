@@ -6,18 +6,18 @@ using Veldrid;
 
 namespace VoxelPizza.Client
 {
-    public class ChunkStagingMeshPool : GraphicsResource
+    public class CommandListFencePool : GraphicsResource
     {
-        private List<ChunkStagingMesh> _all = new();
-        private ConcurrentStack<ChunkStagingMesh> _pool = new();
+        private List<CommandListFence> _all = new();
+        private ConcurrentStack<CommandListFence> _pool = new();
 
-        public ChunkStagingMeshPool(int count)
+        public CommandListFencePool(int count)
         {
             for (int i = 0; i < count; i++)
             {
-                var mesh = new ChunkStagingMesh(1024 * 1024 * 16);
-                _all.Add(mesh);
-                _pool.Push(mesh);
+                var item = new CommandListFence();
+                _all.Add(item);
+                _pool.Push(item);
             }
         }
 
@@ -28,55 +28,53 @@ namespace VoxelPizza.Client
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
-            foreach (ChunkStagingMesh mesh in _all)
+            foreach (CommandListFence item in _all)
             {
-                mesh.CreateDeviceObjects(gd, cl, sc);
+                item.CreateDeviceObjects(gd, cl, sc);
             }
         }
 
         public override void DestroyDeviceObjects()
         {
-            foreach (ChunkStagingMesh mesh in _all)
+            foreach (CommandListFence item in _all)
             {
-                mesh.DestroyDeviceObjects();
+                item.DestroyDeviceObjects();
             }
         }
 
-        public bool TryRent(
-            [MaybeNullWhen(false)] out ChunkStagingMesh mesh,
-            uint byteCount)
+        public bool TryRent([MaybeNullWhen(false)] out CommandListFence item)
         {
             if (IsDisposed)
             {
                 ThrowIsDisposed();
             }
 
-            return _pool.TryPop(out mesh);
+            return _pool.TryPop(out item);
         }
 
-        public void Return(ChunkStagingMesh mesh)
+        public void Return(CommandListFence item)
         {
-            if (mesh == null)
+            if (item == null)
             {
                 return;
             }
 
             if (IsDisposed)
             {
-                mesh.Dispose();
+                item.Dispose();
                 return;
             }
 
-            _pool.Push(mesh);
+            _pool.Push(item);
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                foreach (ChunkStagingMesh mesh in _all)
+                foreach (CommandListFence item in _all)
                 {
-                    mesh.Dispose();
+                    item.Dispose();
                 }
                 _all.Clear();
                 _pool.Clear();

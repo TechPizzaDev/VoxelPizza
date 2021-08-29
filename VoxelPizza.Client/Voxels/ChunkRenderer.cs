@@ -31,6 +31,7 @@ namespace VoxelPizza.Client
         private string _graphicsBackendName;
 
         private ChunkStagingMeshPool _stagingMeshPool;
+        private CommandListFencePool _commandListFencePool;
         private ChunkRendererWorker[] _workers;
 
         private DeviceBuffer _worldInfoBuffer;
@@ -80,6 +81,7 @@ namespace VoxelPizza.Client
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
             _stagingMeshPool = new ChunkStagingMeshPool(16);
+            _commandListFencePool = new CommandListFencePool(16);
             _workers = new ChunkRendererWorker[4];
             
             for (int i = 0; i < _workers.Length; i++)
@@ -88,7 +90,7 @@ namespace VoxelPizza.Client
                     GetBlockMemoryInnerSize(),
                     GetBlockMemoryOuterSize());
 
-                _workers[i] = new ChunkRendererWorker(ChunkMesher, blockMemory, _stagingMeshPool)
+                _workers[i] = new ChunkRendererWorker(ChunkMesher, blockMemory, _stagingMeshPool, _commandListFencePool)
                 {
                     WorkerName = $"Chunk Renderer Worker {i + 1}"
                 };
@@ -168,6 +170,7 @@ namespace VoxelPizza.Client
             ResourceFactory factory = gd.ResourceFactory;
 
             _stagingMeshPool.CreateDeviceObjects(gd, cl, sc);
+            _commandListFencePool.CreateDeviceObjects(gd, cl, sc);
 
             for (int i = 0; i < _workers.Length; i++)
             {
@@ -321,6 +324,8 @@ namespace VoxelPizza.Client
             }
 
             _stagingMeshPool.DestroyDeviceObjects();
+            _commandListFencePool.DestroyDeviceObjects();
+
             ChunkSharedLayout.Dispose();
             ChunkInfoLayout.Dispose();
             _directPipeline.Dispose();
@@ -750,6 +755,7 @@ namespace VoxelPizza.Client
             }
 
             _stagingMeshPool.Dispose();
+            _commandListFencePool.Dispose();
         }
     }
 

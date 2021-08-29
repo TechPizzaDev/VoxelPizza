@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using Veldrid;
@@ -8,24 +9,28 @@ namespace VoxelPizza.Client
 {
     public class ChunkRendererWorker : GraphicsResource
     {
+        struct Submission
+        {
+            public CommandListFence CLF;
+            public ChunkStagingMesh Mesh;
+        }
+
         private ChunkMesher _mesher;
         private BlockMemory _blockMemory;
         private ChunkStagingMeshPool _stagingMeshPool;
+        private CommandListFencePool _commandListFencePool;
         private string? _workerName;
 
         private Queue<ChunkMeshBase> _meshes;
-        private List<ChunkStagingMesh> _submittedStagingMeshes;
+        private List<Submission> _submissions;
         private ManualResetEventSlim _workEvent;
         private ManualResetEventSlim _exitEvent;
 
         private bool _submitRequested;
-        private bool _wait;
         private bool _executing;
         private Thread _thread;
 
         private GraphicsDevice _gd;
-        private CommandList _uploadList;
-        private Fence _uploadFence;
 
         public string? WorkerName
         {
@@ -38,14 +43,20 @@ namespace VoxelPizza.Client
             }
         }
 
-        public ChunkRendererWorker(ChunkMesher mesher, BlockMemory blockMemory, ChunkStagingMeshPool stagingMeshPool)
+        public ChunkRendererWorker(
+            ChunkMesher mesher,
+            BlockMemory blockMemory,
+            ChunkStagingMeshPool stagingMeshPool,
+            CommandListFencePool commandListFencePool)
         {
             _mesher = mesher ?? throw new ArgumentNullException(nameof(mesher));
             _blockMemory = blockMemory ?? throw new ArgumentNullException(nameof(blockMemory));
             _stagingMeshPool = stagingMeshPool ?? throw new ArgumentNullException(nameof(stagingMeshPool));
+            _commandListFencePool = commandListFencePool ?? throw new ArgumentNullException(nameof(commandListFencePool));
 
             _meshes = new Queue<ChunkMeshBase>();
-            _submittedStagingMeshes = new List<ChunkStagingMesh>();
+            _submissions = new List<Submission>();
+
             _workEvent = new ManualResetEventSlim();
             _exitEvent = new ManualResetEventSlim();
         }
@@ -54,10 +65,6 @@ namespace VoxelPizza.Client
         {
             _gd = gd ?? throw new ArgumentNullException(nameof(gd));
 
-            _uploadList = _gd.ResourceFactory.CreateCommandList();
-            _uploadFence = _gd.ResourceFactory.CreateFence(false);
-
-            _wait = false;
             _executing = true;
             _thread = new Thread(WorkerThread);
             _thread.Name = _workerName;
@@ -79,20 +86,26 @@ namespace VoxelPizza.Client
             {
                 throw new Exception("Failed to terminate worker thread.");
             }
-            
-            //_wait = true;
 
-            _uploadList?.Dispose();
-            _uploadList = null!;
-
-            _uploadFence?.Dispose();
-            _uploadFence = null!;
-
-            foreach (ChunkStagingMesh? mesh in _submittedStagingMeshes)
+            foreach (Submission submission in _submissions)
             {
-                _stagingMeshPool.Return(mesh);
+                _gd.WaitForFence(submission.CLF.Fence, TimeSpan.FromSeconds(10));
+
+                if (submission.Mesh != null)
+                {
+                    _stagingMeshPool.Return(submission.Mesh);
+                }
+                _commandListFencePool.Return(submission.CLF);
             }
-            _submittedStagingMeshes.Clear();
+            _submissions.Clear();
+
+            if (clf != null)
+            {
+                clf.CommandList.End();
+
+                _commandListFencePool.Return(clf);
+                clf = null;
+            }
         }
 
         public void Signal<TMeshes>(TMeshes meshes)
@@ -111,19 +124,12 @@ namespace VoxelPizza.Client
             _workEvent.Set();
         }
 
-        private bool ProcessMesh(ChunkMeshBase mesh)
+        private bool ProcessMesh(CommandList cl, ChunkMeshBase mesh, out ChunkStagingMesh? stagingMesh)
         {
             // TODO: Track result?
             _ = mesh.Build(_mesher, _blockMemory);
 
-            if (mesh.Upload(_gd, _uploadList, _stagingMeshPool, out ChunkStagingMesh? stagingMesh))
-            {
-                if (stagingMesh != null)
-                {
-                    _submittedStagingMeshes.Add(stagingMesh);
-                }
-            }
-            else
+            if (!mesh.Upload(_gd, cl, _stagingMeshPool, out stagingMesh))
             {
                 // We ran out of staging meshes.
                 return false;
@@ -137,43 +143,60 @@ namespace VoxelPizza.Client
             return true;
         }
 
+        private CommandListFence? clf;
+
         private void ProcessMeshQueue()
         {
-            // TODO: WaitForFence?
-            if (!_wait)
+            if (clf == null)
             {
-                _uploadList.Begin();
-
-                while (TryDequeue(out ChunkMeshBase? mesh))
+                if (!_commandListFencePool.TryRent(out clf))
                 {
-                    if (!Monitor.TryEnter(mesh.WorkerMutex))
-                    {
-                        // A worker is already processing this mesh.
-                        continue;
-                    }
+                    return;
+                }
+                clf.CommandList.Begin();
+            }
 
-                    try
+            while (TryDequeue(out ChunkMeshBase? mesh))
+            {
+                if (!Monitor.TryEnter(mesh.WorkerMutex))
+                {
+                    // A worker is already processing this mesh.
+                    continue;
+                }
+
+                try
+                {
+                    _ = ProcessMesh(clf.CommandList, mesh, out ChunkStagingMesh? stagingMesh);
+
+                    if (stagingMesh != null)
                     {
-                        if (!ProcessMesh(mesh))
+                        clf.CommandList.End();
+
+                        clf.Fence.Reset();
+                        _gd.SubmitCommands(clf.CommandList, clf.Fence);
+
+                        _submissions.Add(new Submission { CLF = clf, Mesh = stagingMesh });
+
+                        if (!_commandListFencePool.TryRent(out clf))
                         {
                             break;
                         }
-
-                        if (!_executing)
-                        {
-                            return;
-                        }
-                    }
-                    finally
-                    {
-                        Monitor.Exit(mesh.WorkerMutex);
+                        clf.CommandList.Begin();
                     }
                 }
-
-                _uploadList.End();
-
-                _gd.SubmitCommands(_uploadList, _uploadFence);
-                _wait = true;
+                catch
+                {
+                    if (clf != null)
+                    {
+                        clf.CommandList.End();
+                        _commandListFencePool.Return(clf);
+                    }
+                    throw;
+                }
+                finally
+                {
+                    Monitor.Exit(mesh.WorkerMutex);
+                }
             }
 
             if (_meshes.Count == 0)
@@ -195,29 +218,32 @@ namespace VoxelPizza.Client
             do
             {
                 _workEvent.Wait();
-                if (!_executing)
-                {
-                    break;
-                }
 
-                if (_uploadFence.Signaled)
+                bool sleep = true;
+
+                for (int i = _submissions.Count; i-- > 0;)
                 {
-                    foreach (ChunkStagingMesh mesh in _submittedStagingMeshes)
+                    if (!_executing)
                     {
-                        mesh.Owner?.UploadFinished();
-                        mesh.Owner = null;
-
-                        _stagingMeshPool.Return(mesh);
+                        break;
                     }
-                    _submittedStagingMeshes.Clear();
 
-                    _uploadFence.Reset();
-                    _wait = false;
+                    Submission submission = _submissions[i];
+                    if (submission.CLF.Fence.Signaled)
+                    {
+                        submission.Mesh.Owner?.UploadFinished();
+                        submission.Mesh.Owner = null;
+
+                        _stagingMeshPool.Return(submission.Mesh);
+                        _commandListFencePool.Return(submission.CLF);
+
+                        _submissions.RemoveAt(i);
+                        sleep = false;
+                    }
                 }
-                else
-                {
+
+                if (sleep)
                     Thread.Sleep(1);
-                }
 
                 ProcessMeshQueue();
             }

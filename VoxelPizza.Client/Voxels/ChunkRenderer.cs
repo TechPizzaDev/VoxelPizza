@@ -81,9 +81,9 @@ namespace VoxelPizza.Client
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
             _stagingMeshPool = new ChunkStagingMeshPool(16);
-            _commandListFencePool = new CommandListFencePool(16);
+            _commandListFencePool = new CommandListFencePool(20);
             _workers = new ChunkRendererWorker[4];
-            
+
             for (int i = 0; i < _workers.Length; i++)
             {
                 var blockMemory = new BlockMemory(
@@ -639,6 +639,7 @@ namespace VoxelPizza.Client
 
         public unsafe void FetchBlockMemory(BlockMemory memory, BlockPosition origin)
         {
+            ref uint data = ref MemoryMarshal.GetArrayDataReference(memory.Data);
             Size3 outerSize = memory.OuterSize;
             Size3 innerSize = memory.InnerSize;
             uint xOffset = (outerSize.W - innerSize.W) / 2;
@@ -682,9 +683,9 @@ namespace VoxelPizza.Client
                                     z + outerOriginZ)
                                     + outerOriginX;
 
-                                ref uint destination = ref memory.Data[outerBaseIndex];
+                                ref uint destination = ref Unsafe.Add(ref data, outerBaseIndex);
 
-                                chunk.GetBlockRowUnsafe(
+                                chunk.GetBlockRow(
                                     innerOriginX,
                                     y + innerOriginY,
                                     z + innerOriginZ,

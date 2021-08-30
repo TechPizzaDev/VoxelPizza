@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using VoxelPizza.Collections;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
-    public class Chunk : RefCounted
+    public class Chunk : RefCounted, IBlockStorage
     {
         public const int Width = 16;
         public const int Depth = 16;
@@ -14,6 +14,7 @@ namespace VoxelPizza.World
         public static Size3 Size => new(Width, Height, Depth);
 
         public uint[] Blocks;
+        public BlockStorage Storage;
 
         public event ChunkAction? Updated;
 
@@ -32,7 +33,8 @@ namespace VoxelPizza.World
             Region = region ?? throw new ArgumentNullException(nameof(region));
             Position = position;
 
-            Blocks = new uint[Height * Depth * Width];
+            //Blocks = new uint[Height * Depth * Width];
+            Storage = new BlockStorage(0);
         }
 
         public void InvokeUpdate()
@@ -40,55 +42,19 @@ namespace VoxelPizza.World
             Updated?.Invoke(this);
         }
 
-        public void GetBlockRowUnsafe(nint x, nint y, nint z, ref uint destination, uint length)
+        public void GetBlockRow(nint index, ref uint destination, uint length)
         {
-            ref uint blocksBase = ref MemoryMarshal.GetArrayDataReference(Blocks);
-            ref byte blocks = ref Unsafe.As<uint, byte>(ref Unsafe.Add(ref blocksBase, GetIndex(x, y, z)));
-            ref byte dst = ref Unsafe.As<uint, byte>(ref destination);
-
-            Unsafe.CopyBlockUnaligned(ref dst, ref blocks, length * sizeof(uint));
+            Storage.GetBlockRow(index, ref destination, length);
         }
 
-        public void GetBlockSideRowUnsafe(nint y, nint x, ref uint destination)
+        public void GetBlockRow(nint x, nint y, nint z, ref uint destination, uint length)
         {
-            ref uint blocks = ref MemoryMarshal.GetArrayDataReference(Blocks);
-
-            Unsafe.Add(ref destination, 0) = Unsafe.Add(ref blocks, GetIndex(x, y, 0));
-            Unsafe.Add(ref destination, 1) = Unsafe.Add(ref blocks, GetIndex(x, y, 1));
-            Unsafe.Add(ref destination, 2) = Unsafe.Add(ref blocks, GetIndex(x, y, 2));
-            Unsafe.Add(ref destination, 3) = Unsafe.Add(ref blocks, GetIndex(x, y, 3));
-            Unsafe.Add(ref destination, 4) = Unsafe.Add(ref blocks, GetIndex(x, y, 4));
-            Unsafe.Add(ref destination, 5) = Unsafe.Add(ref blocks, GetIndex(x, y, 5));
-            Unsafe.Add(ref destination, 6) = Unsafe.Add(ref blocks, GetIndex(x, y, 6));
-            Unsafe.Add(ref destination, 7) = Unsafe.Add(ref blocks, GetIndex(x, y, 7));
-            Unsafe.Add(ref destination, 8) = Unsafe.Add(ref blocks, GetIndex(x, y, 8));
-            Unsafe.Add(ref destination, 9) = Unsafe.Add(ref blocks, GetIndex(x, y, 9));
-            Unsafe.Add(ref destination, 10) = Unsafe.Add(ref blocks, GetIndex(x, y, 10));
-            Unsafe.Add(ref destination, 11) = Unsafe.Add(ref blocks, GetIndex(x, y, 11));
-            Unsafe.Add(ref destination, 12) = Unsafe.Add(ref blocks, GetIndex(x, y, 12));
-            Unsafe.Add(ref destination, 13) = Unsafe.Add(ref blocks, GetIndex(x, y, 13));
-            Unsafe.Add(ref destination, 14) = Unsafe.Add(ref blocks, GetIndex(x, y, 14));
-            Unsafe.Add(ref destination, 15) = Unsafe.Add(ref blocks, GetIndex(x, y, 15));
+            Storage.GetBlockRow(x, y, z, ref destination, length);
         }
 
-        public void GetBlockRow(int x, int y, int z, Span<uint> destination)
+        public void SetBlockLayer(nint y, uint value)
         {
-            Blocks.AsSpan(GetIndex(x, y, z), destination.Length).CopyTo(destination);
-        }
-
-        public void GetBlockLayer(int y, Span<uint> destination)
-        {
-            Blocks.AsSpan(GetIndex(0, y, 0), Width * Depth).CopyTo(destination);
-        }
-
-        public void SetBlockLayer(int y, ReadOnlySpan<uint> source)
-        {
-            source.Slice(0, Width * Depth).CopyTo(Blocks.AsSpan(GetIndex(0, y, 0), Width * Depth));
-        }
-
-        public void SetBlockLayer(int y, uint source)
-        {
-            Blocks.AsSpan(GetIndex(0, y, 0), Width * Depth).Fill(source);
+            Storage.SetBlockLayer(y, value);
         }
 
         public uint GetBlock(int x, int y, int z)
@@ -106,10 +72,23 @@ namespace VoxelPizza.World
             return Blocks[index];
         }
 
+        public void SetBlock(nint x, nint y, nint z, uint value)
+        {
+            Storage.SetBlock(x, y, z, value);
+        }
+
+        public void SetBlock(nint index, uint value)
+        {
+            Storage.SetBlock(index, value);
+        }
+
         public void Generate()
         {
-            uint[] blocks = Blocks;
-            ref uint blockRef = ref blocks[0];
+            //uint[] blocks = Blocks;
+            //ref uint blockRef = ref blocks[0];
+            byte[] blocks8 = Storage._inlineStorage;
+            ref byte blockRef8 = ref blocks8[0];
+            ref ushort blockRef16 = ref Unsafe.As<byte, ushort>(ref blockRef8);
 
             int seed = 17;
             seed = seed * 31 + X;
@@ -142,12 +121,19 @@ namespace VoxelPizza.World
 
                             float sin = 64 * (MathF.Sin(blockX / 16f) + 1) * 0.5f;
 
-                            ref uint block = ref Unsafe.Add(ref blockRef, GetIndex(x, y, z));
+                            nint i = GetIndex(x, y, z);
 
+                            //ref uint block = ref Unsafe.Add(ref blockRef, i);
+                            ref byte block8 = ref Unsafe.Add(ref blockRef8, i);
+                            ref ushort block16 = ref Unsafe.Add(ref blockRef16, i);
+                            
+                            uint v = 0;
                             if ((sin + cos) * 0.5f >= blockY)
-                                block = (uint)rng.Next(1024) + 1;
-                            else
-                                block = 0;
+                                v = (uint)rng.Next(255) + 1;
+
+                            //block = v;
+                            block8 = v > 255 ? (byte)255 : (byte)v;
+                            //block16 = v > ushort.MaxValue ? ushort.MaxValue : (ushort)v;
                         }
                     }
                 }
@@ -170,7 +156,7 @@ namespace VoxelPizza.World
                     {
                         for (int x = 0; x < Width; x++)
                         {
-                            Unsafe.Add(ref blockRef, GetIndex(x, z, z)) = (uint)(y + 1);
+                            //Unsafe.Add(ref blockRef, GetIndex(x, z, z)) = (uint)(y + 1);
                         }
                     }
                 }
@@ -184,7 +170,7 @@ namespace VoxelPizza.World
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static nint GetIndex(nint x, nint y, nint z)
+        public nint GetIndex(nint x, nint y, nint z)
         {
             return GetIndexBase(Depth, Width, y, z) + x;
         }

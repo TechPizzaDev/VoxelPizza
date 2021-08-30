@@ -9,16 +9,17 @@ namespace VoxelPizza.Client
 {
     public class ChunkRendererWorker : GraphicsResource
     {
-        struct Submission
+        class Submission
         {
-            public CommandListFence CLF;
-            public ChunkStagingMesh Mesh;
+            public CommandListFence CLF = null!;
+            public List<ChunkStagingMesh> Meshes = new();
         }
 
         private ChunkMesher _mesher;
         private BlockMemory _blockMemory;
         private ChunkStagingMeshPool _stagingMeshPool;
         private CommandListFencePool _commandListFencePool;
+        private Stack<Submission> _submissionPool;
         private string? _workerName;
 
         private Queue<ChunkMeshBase> _meshes;
@@ -26,11 +27,11 @@ namespace VoxelPizza.Client
         private ManualResetEventSlim _workEvent;
         private ManualResetEventSlim _exitEvent;
 
-        private bool _submitRequested;
         private bool _executing;
         private Thread _thread;
 
         private GraphicsDevice _gd;
+        private Submission? _currentSubmission;
 
         public string? WorkerName
         {
@@ -42,6 +43,8 @@ namespace VoxelPizza.Client
                     _thread.Name = _workerName;
             }
         }
+
+        public int MaxUploadsPerCommandList { get; set; } = 4;
 
         public ChunkRendererWorker(
             ChunkMesher mesher,
@@ -56,6 +59,7 @@ namespace VoxelPizza.Client
 
             _meshes = new Queue<ChunkMeshBase>();
             _submissions = new List<Submission>();
+            _submissionPool = new Stack<Submission>();
 
             _workEvent = new ManualResetEventSlim();
             _exitEvent = new ManualResetEventSlim();
@@ -87,25 +91,20 @@ namespace VoxelPizza.Client
                 throw new Exception("Failed to terminate worker thread.");
             }
 
+            if (_currentSubmission != null)
+            {
+                _currentSubmission.CLF.CommandList.End();
+                ClearSubmission(_currentSubmission);
+                _currentSubmission = null;
+            }
+
             foreach (Submission submission in _submissions)
             {
                 _gd.WaitForFence(submission.CLF.Fence, TimeSpan.FromSeconds(10));
 
-                if (submission.Mesh != null)
-                {
-                    _stagingMeshPool.Return(submission.Mesh);
-                }
-                _commandListFencePool.Return(submission.CLF);
+                ClearSubmission(submission);
             }
             _submissions.Clear();
-
-            if (clf != null)
-            {
-                clf.CommandList.End();
-
-                _commandListFencePool.Return(clf);
-                clf = null;
-            }
         }
 
         public void Signal<TMeshes>(TMeshes meshes)
@@ -135,26 +134,47 @@ namespace VoxelPizza.Client
                 return false;
             }
 
-            if (_submitRequested)
-            {
-                return false;
-            }
-
             return true;
         }
 
-        private CommandListFence? clf;
+        private void FlushSubmission(ref Submission? submission)
+        {
+            Debug.Assert(submission != null);
+
+            CommandListFence clf = submission.CLF;
+            clf.CommandList.End();
+
+            clf.Fence.Reset();
+            _gd.SubmitCommands(clf.CommandList, clf.Fence);
+
+            _submissions.Add(submission);
+            submission = null;
+        }
+
+        private bool TryRentSubmission(ref Submission? submission)
+        {
+            if (submission != null)
+                return true;
+
+            if (_commandListFencePool.TryRent(out CommandListFence? clf))
+            {
+                if (!_submissionPool.TryPop(out submission))
+                    submission = new Submission();
+
+                submission.CLF = clf;
+
+                clf.CommandList.Begin();
+                return true;
+            }
+            submission = null;
+            return false;
+        }
 
         private void ProcessMeshQueue()
         {
-            if (clf == null)
-            {
-                if (!_commandListFencePool.TryRent(out clf))
-                {
-                    return;
-                }
-                clf.CommandList.Begin();
-            }
+            ref Submission? sub = ref _currentSubmission;
+            if (!TryRentSubmission(ref sub))
+                return;
 
             while (TryDequeue(out ChunkMeshBase? mesh))
             {
@@ -166,30 +186,35 @@ namespace VoxelPizza.Client
 
                 try
                 {
-                    _ = ProcessMesh(clf.CommandList, mesh, out ChunkStagingMesh? stagingMesh);
+                    Debug.Assert(sub != null);
+
+                    bool success = ProcessMesh(sub.CLF.CommandList, mesh, out ChunkStagingMesh? stagingMesh);
+                    if (!success)
+                    {
+                        if (sub.Meshes.Count > 0)
+                            FlushSubmission(ref sub);
+                        break;
+                    }
 
                     if (stagingMesh != null)
                     {
-                        clf.CommandList.End();
+                        sub.Meshes.Add(stagingMesh);
 
-                        clf.Fence.Reset();
-                        _gd.SubmitCommands(clf.CommandList, clf.Fence);
-
-                        _submissions.Add(new Submission { CLF = clf, Mesh = stagingMesh });
-
-                        if (!_commandListFencePool.TryRent(out clf))
+                        if (sub.Meshes.Count >= MaxUploadsPerCommandList)
                         {
-                            break;
+                            FlushSubmission(ref sub);
+                            if (!TryRentSubmission(ref sub))
+                                return;
                         }
-                        clf.CommandList.Begin();
                     }
                 }
                 catch
                 {
-                    if (clf != null)
+                    if (sub != null)
                     {
-                        clf.CommandList.End();
-                        _commandListFencePool.Return(clf);
+                        sub.CLF.CommandList.End();
+                        ClearSubmission(sub);
+                        sub = null;
                     }
                     throw;
                 }
@@ -197,6 +222,11 @@ namespace VoxelPizza.Client
                 {
                     Monitor.Exit(mesh.WorkerMutex);
                 }
+            }
+
+            if (sub != null && sub.Meshes.Count > 0)
+            {
+                FlushSubmission(ref sub);
             }
 
             if (_meshes.Count == 0)
@@ -231,11 +261,7 @@ namespace VoxelPizza.Client
                     Submission submission = _submissions[i];
                     if (submission.CLF.Fence.Signaled)
                     {
-                        submission.Mesh.Owner?.UploadFinished();
-                        submission.Mesh.Owner = null;
-
-                        _stagingMeshPool.Return(submission.Mesh);
-                        _commandListFencePool.Return(submission.CLF);
+                        ClearSubmission(submission);
 
                         _submissions.RemoveAt(i);
                         sleep = false;
@@ -250,6 +276,24 @@ namespace VoxelPizza.Client
             while (_executing);
 
             _exitEvent.Set();
+        }
+
+        private void ClearSubmission(Submission submission)
+        {
+            Debug.Assert(submission != null);
+
+            foreach (ChunkStagingMesh mesh in submission.Meshes)
+            {
+                mesh.Owner?.UploadFinished();
+                mesh.Owner = null;
+                _stagingMeshPool.Return(mesh);
+            }
+            submission.Meshes.Clear();
+
+            _commandListFencePool.Return(submission.CLF);
+
+            submission.CLF = null!;
+            _submissionPool.Push(submission);
         }
 
         protected override void Dispose(bool disposing)

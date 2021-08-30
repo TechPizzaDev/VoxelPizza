@@ -27,7 +27,7 @@ namespace VoxelPizza.Client
                 {
                     Thread.Sleep(1000);
 
-                    int width = 32;
+                    int width = 64;
                     int depth = width;
                     int height = 4;
 
@@ -157,7 +157,7 @@ namespace VoxelPizza.Client
                                 {
                                     try
                                     {
-                                        c.Blocks[rng.Next(c.Blocks.Length)] = (uint)rng.Next(128);
+                                        c.SetBlock(rng.Next(16 * 16 * 16), (uint)rng.Next(128));
 
                                         c.InvokeUpdate();
                                     }

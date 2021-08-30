@@ -343,6 +343,11 @@ namespace VoxelPizza.Client
         {
             lock (_uploadMutex)
             {
+                while (_meshesForUpload.TryDequeue(out MeshBuffers pendingBuffers))
+                {
+                    pendingBuffers.Dispose();
+                }
+
                 MeshBuffers transferredBuffers = _meshesInTransfer.Dequeue();
                 _meshesForUpload.Enqueue(transferredBuffers);
             }
@@ -490,7 +495,8 @@ namespace VoxelPizza.Client
         {
             lock (_uploadMutex)
             {
-                while (_meshesForUpload.TryDequeue(out MeshBuffers pendingBuffers))
+                // We should never have more than one pending mesh to upload.
+                if (_meshesForUpload.TryDequeue(out MeshBuffers pendingBuffers))
                 {
                     _currentMesh.Dispose();
 

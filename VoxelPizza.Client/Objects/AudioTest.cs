@@ -107,7 +107,6 @@ namespace VoxelPizza.Client
             //soloud.postinit_internal(48000, 2048, default, 2);
             //float* buffer = stackalloc float[4096];
 
-            Wav wav = new Wav();
             //int length = 10000;
             //float* noise = stackalloc float[length];
             //for (int i = 0; i < length; i++)
@@ -117,6 +116,7 @@ namespace VoxelPizza.Client
             ////Span<short> noiseSpan = new Span<short>(noise, 44100);
             //wav.loadRawWave(noise, (uint)length, 10000, 1);
 
+            AudioBuffer wav = new AudioBuffer();
             byte[] bytes;
             try
             {
@@ -141,20 +141,32 @@ namespace VoxelPizza.Client
                     dst2[i] = src[i * 2 + 1];
                 }
 
-                wav.loadRawWave((float*)dst, (uint)next.Length, 48000, 2, false);
-                wav.set3dAttenuator(LinearDistanceAudioAttenuator.Instance);
+                wav.loadRawWave((float*)dst, (uint)next.Length, 44100, 2, false);
             }
 
-            //uint voiceHandle = soloud.play(wav, 1, 0, false);
-            Handle voiceHandle = soloud.play3d(wav, 0, 0, 0);
+            AudioSource asrc = wav;
+
+            try
+            {
+                asrc = new Mp3Stream(File.OpenRead("streamtest.mp3"), false);
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
+
+            asrc.set3dAttenuator(LinearDistanceAudioAttenuator.Instance);
+
+            //uint voiceHandle = soloud.play(asrc, 1, 0, false);
+            Handle voiceHandle = soloud.play3d(asrc, 0, 0, 0);
             voicehandle = voiceHandle;
 
             Handle groupHandle = soloud.createVoiceGroup();
             soloud.addVoiceToGroup(groupHandle, voiceHandle);
 
-            soloud.setVolume(groupHandle, 0.0f);
+            soloud.setVolume(groupHandle, 0.05f);
             soloud.setLooping(groupHandle, true);
-            soloud.setRelativePlaySpeed(groupHandle, 1.2f);
+            soloud.setRelativePlaySpeed(groupHandle, 4f);
 
             //soloud.set3dSourceMinMaxDistance(groupHandle, 1, 100);
 

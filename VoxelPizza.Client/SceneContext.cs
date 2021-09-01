@@ -170,6 +170,8 @@ namespace VoxelPizza.Client
                 cameraInfoBuffer.Value.Dispose();
             }
             CameraInfoBuffers.Clear();
+
+            CameraInfoLayout.Dispose();
         }
 
         public void AddCamera(Camera camera)

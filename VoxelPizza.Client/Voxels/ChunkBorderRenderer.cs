@@ -288,10 +288,13 @@ namespace VoxelPizza.Client
 
             _chunkBatch.Begin();
 
-            foreach (ChunkPosition chunk in _chunks)
+            lock (_chunks)
             {
-                Vector3 position = chunk.ToBlock();
-                UpdateBatchItem(_chunkBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
+                foreach (ChunkPosition chunk in _chunks)
+                {
+                    Vector3 position = chunk.ToBlock();
+                    UpdateBatchItem(_chunkBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
+                }
             }
 
             _chunkBatch.End();
@@ -307,10 +310,13 @@ namespace VoxelPizza.Client
 
             _chunkRegionBatch.Begin();
 
-            foreach (ChunkRegionPosition chunkRegion in _chunkRegions)
+            lock (_chunkRegions)
             {
-                Vector3 position = chunkRegion.ToChunk().ToBlock();
-                UpdateBatchItem(_chunkRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
+                foreach (ChunkRegionPosition chunkRegion in _chunkRegions)
+                {
+                    Vector3 position = chunkRegion.ToChunk().ToBlock();
+                    UpdateBatchItem(_chunkRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
+                }
             }
 
             _chunkRegionBatch.End();
@@ -327,10 +333,13 @@ namespace VoxelPizza.Client
 
             _renderRegionBatch.Begin();
 
-            foreach (RenderRegionPosition chunkRegion in _renderRegions)
+            lock (_renderRegions)
             {
-                Vector3 position = chunkRegion.ToBlock(regionSize);
-                UpdateBatchItem(_renderRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
+                foreach (RenderRegionPosition chunkRegion in _renderRegions)
+                {
+                    Vector3 position = chunkRegion.ToBlock(regionSize);
+                    UpdateBatchItem(_renderRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
+                }
             }
 
             _renderRegionBatch.End();

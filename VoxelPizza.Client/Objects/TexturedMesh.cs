@@ -76,7 +76,7 @@ namespace VoxelPizza.Client.Objects
             _indexCount = _meshData.IndexCount;
 
             uint bufferSize = 128;
-            _worldAndInverseBuffer = disposeFactory.CreateBuffer(new BufferDescription(bufferSize, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            _worldAndInverseBuffer = disposeFactory.CreateBuffer(new BufferDescription(bufferSize, BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
 
             if (_materialPropsOwned)
             {

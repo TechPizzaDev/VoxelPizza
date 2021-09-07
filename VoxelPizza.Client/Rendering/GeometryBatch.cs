@@ -88,12 +88,12 @@ namespace VoxelPizza.Client
             {
                 indexBuffer = factory.CreateBuffer(new BufferDescription(
                     IndicesPerBuffer * sizeof(uint),
-                    BufferUsage.IndexBuffer | BufferUsage.Dynamic));
+                    BufferUsage.IndexBuffer | BufferUsage.DynamicWrite));
                 _indexBuffers.Add(indexBuffer);
 
                 vertexBuffer = factory.CreateBuffer(new BufferDescription(
                     VerticesPerBuffer * (uint)Unsafe.SizeOf<TVertex>(),
-                    BufferUsage.VertexBuffer | BufferUsage.Dynamic));
+                    BufferUsage.VertexBuffer | BufferUsage.DynamicWrite));
                 _vertexBuffers.Add(vertexBuffer);
             }
             else

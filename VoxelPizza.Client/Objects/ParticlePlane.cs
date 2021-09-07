@@ -282,7 +282,7 @@ namespace VoxelPizza.Client.Objects
             _pipeline = factory.CreateGraphicsPipeline(pd);
 
             _cameraInfoBuffer = factory.CreateBuffer(
-                new BufferDescription((uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+                new BufferDescription((uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
 
             _vb = factory.CreateBuffer(
                 new BufferDescription((uint)s_quadVertices.SizeInBytes(), BufferUsage.VertexBuffer));
@@ -292,10 +292,10 @@ namespace VoxelPizza.Client.Objects
                 new BufferDescription((uint)s_quadIndices.SizeInBytes(), BufferUsage.IndexBuffer));
             cl.UpdateBuffer(_ib, 0, s_quadIndices);
 
-            _instanceStaticVb = factory.CreateBuffer(new BufferDescription(particlesStatic.SizeInBytes(), BufferUsage.VertexBuffer | BufferUsage.Dynamic));
+            _instanceStaticVb = factory.CreateBuffer(new BufferDescription(particlesStatic.SizeInBytes(), BufferUsage.VertexBuffer | BufferUsage.DynamicWrite));
             cl.UpdateBuffer(_instanceStaticVb, 0, particlesStatic);
 
-            _instanceDynamicVb = factory.CreateBuffer(new BufferDescription(particlesDynamic.SizeInBytes(), BufferUsage.VertexBuffer | BufferUsage.Dynamic));
+            _instanceDynamicVb = factory.CreateBuffer(new BufferDescription(particlesDynamic.SizeInBytes(), BufferUsage.VertexBuffer | BufferUsage.DynamicWrite));
 
             ResourceSetDescription resourceSetDescription = new ResourceSetDescription(sharedLayout, new[] { _cameraInfoBuffer });
             _sharedResourceSet = factory.CreateResourceSet(resourceSetDescription);

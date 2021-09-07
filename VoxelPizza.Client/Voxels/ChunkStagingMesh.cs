@@ -18,7 +18,8 @@ namespace VoxelPizza.Client
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
-            Buffer = gd.ResourceFactory.CreateBuffer(new BufferDescription(ByteCount, BufferUsage.Staging));
+            Buffer = gd.ResourceFactory.CreateBuffer(new BufferDescription(ByteCount, BufferUsage.StagingWrite));
+            Buffer.Name = nameof(ChunkStagingMesh);
         }
 
         public override void DestroyDeviceObjects()

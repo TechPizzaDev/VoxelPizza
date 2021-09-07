@@ -78,14 +78,14 @@ namespace VoxelPizza.Client
         public virtual void CreateGraphicsDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
             ResourceFactory factory = gd.ResourceFactory;
-            LightViewProjectionBuffer0 = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            LightViewProjectionBuffer0 = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
             LightViewProjectionBuffer0.Name = "LightViewProjectionBuffer0";
-            LightViewProjectionBuffer1 = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            LightViewProjectionBuffer1 = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
             LightViewProjectionBuffer1.Name = "LightViewProjectionBuffer1";
-            LightViewProjectionBuffer2 = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            LightViewProjectionBuffer2 = factory.CreateBuffer(new BufferDescription(64, BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
             LightViewProjectionBuffer2.Name = "LightViewProjectionBuffer2";
-            DepthLimitsBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<DepthCascadeLimits>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
-            LightInfoBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<DirectionalLightInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+            DepthLimitsBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<DepthCascadeLimits>(), BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
+            LightInfoBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<DirectionalLightInfo>(), BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
             PointLightsBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<PointLightsInfo.Blittable>(), BufferUsage.UniformBuffer));
             PointLightsInfo pli = new PointLightsInfo();
             pli.PointLights = new PointLightInfo[4]
@@ -120,7 +120,7 @@ namespace VoxelPizza.Client
             foreach (Camera camera in Cameras)
             {
                 var cameraInfoBuffer = factory.CreateBuffer(new BufferDescription(
-                    (uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.Dynamic));
+                    (uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
 
                 var cameraInfoSet = factory.CreateResourceSet(new ResourceSetDescription(
                     CameraInfoLayout, cameraInfoBuffer));

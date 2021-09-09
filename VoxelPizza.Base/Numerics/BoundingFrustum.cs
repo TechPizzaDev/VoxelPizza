@@ -1,5 +1,7 @@
 ﻿using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 
 namespace VoxelPizza.Numerics
 {
@@ -107,43 +109,78 @@ namespace VoxelPizza.Numerics
 
             ContainmentType result = ContainmentType.Contains;
 
+            Vector128<float> boxMin = Vector128.AsVector128(box.Min);
+            Vector128<float> boxMax = Vector128.AsVector128(box.Max);
+
             for (nint i = 0; i < 6 * Unsafe.SizeOf<Plane>(); i += Unsafe.SizeOf<Plane>())
             {
-                Plane plane = Unsafe.AddByteOffset(ref Unsafe.AsRef(Left), i);
+                ref Plane plane = ref Unsafe.AddByteOffset(ref Unsafe.AsRef(Left), i);
 
-                Vector3 positive = box.Min;
-                Vector3 negative = box.Max;
+                if (Sse.IsSupported)
+                {
+                    Vector128<float> normal = Vector128.AsVector128(plane.Normal);
 
-                if (plane.Normal.X >= 0)
-                {
-                    positive.X = box.Max.X;
-                    negative.X = box.Min.X;
-                }
-                if (plane.Normal.Y >= 0)
-                {
-                    positive.Y = box.Max.Y;
-                    negative.Y = box.Min.Y;
-                }
-                if (plane.Normal.Z >= 0)
-                {
-                    positive.Z = box.Max.Z;
-                    negative.Z = box.Min.Z;
-                }
+                    var compare = Sse.CompareGreaterThanOrEqual(normal, Vector128<float>.Zero);
+                    var positive = Sse.Or(Sse.AndNot(compare, boxMin), Sse.And(compare, boxMax));
+                    var negative = Sse.Or(Sse.AndNot(compare, boxMax), Sse.And(compare, boxMin));
 
-                // If the positive vertex is outside (behind plane), the box is disjoint.
-                float positiveDistance = Plane.DotCoordinate(plane, positive);
-                if (positiveDistance < 0)
-                {
-                    return ContainmentType.Disjoint;
-                }
+                    // If the positive vertex is outside (behind plane), the box is disjoint.
+                    float positiveDistance = plane.D + Vector4.Dot(
+                        Vector128.AsVector4(normal), Vector128.AsVector4(positive));
 
-                // If the negative vertex is outside (behind plane), the box is intersecting.
-                // Because the above check failed, the positive vertex is in front of the plane,
-                // and the negative vertex is behind. Thus, the box is intersecting this plane.
-                float negativeDistance = Plane.DotCoordinate(plane, negative);
-                if (negativeDistance < 0)
+                    if (positiveDistance < 0)
+                    {
+                        return ContainmentType.Disjoint;
+                    }
+
+                    // If the negative vertex is outside (behind plane), the box is intersecting.
+                    // Because the above check failed, the positive vertex is in front of the plane,
+                    // and the negative vertex is behind. Thus, the box is intersecting this plane.
+                    float negativeDistance = plane.D + Vector4.Dot(
+                        Vector128.AsVector4(normal), Vector128.AsVector4(negative));
+
+                    if (negativeDistance < 0)
+                    {
+                        result = ContainmentType.Intersects;
+                    }
+                }
+                else
                 {
-                    result = ContainmentType.Intersects;
+                    Vector4 normal = new Vector4(plane.Normal, 0);
+                    Vector4 positive = new Vector4(box.Min, 0);
+                    Vector4 negative = new Vector4(box.Max, 0);
+
+                    if (normal.X >= 0)
+                    {
+                        positive.X = box.Max.X;
+                        negative.X = box.Min.X;
+                    }
+                    if (normal.Y >= 0)
+                    {
+                        positive.Y = box.Max.Y;
+                        negative.Y = box.Min.Y;
+                    }
+                    if (normal.Z >= 0)
+                    {
+                        positive.Z = box.Max.Z;
+                        negative.Z = box.Min.Z;
+                    }
+
+                    // If the positive vertex is outside (behind plane), the box is disjoint.
+                    float positiveDistance = plane.D + Vector4.Dot(normal, positive);
+                    if (positiveDistance < 0)
+                    {
+                        return ContainmentType.Disjoint;
+                    }
+
+                    // If the negative vertex is outside (behind plane), the box is intersecting.
+                    // Because the above check failed, the positive vertex is in front of the plane,
+                    // and the negative vertex is behind. Thus, the box is intersecting this plane.
+                    float negativeDistance = plane.D + Vector4.Dot(normal, negative);
+                    if (negativeDistance < 0)
+                    {
+                        result = ContainmentType.Intersects;
+                    }
                 }
             }
 

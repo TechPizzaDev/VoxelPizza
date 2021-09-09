@@ -7,60 +7,60 @@ namespace VoxelPizza.Numerics
 {
     public struct BoundingFrustum
     {
-        public Plane Left;
-        public Plane Right;
-        public Plane Bottom;
-        public Plane Top;
-        public Plane Near;
-        public Plane Far;
+        public Plane4 Left;
+        public Plane4 Right;
+        public Plane4 Bottom;
+        public Plane4 Top;
+        public Plane4 Near;
+        public Plane4 Far;
 
         public BoundingFrustum(Matrix4x4 m)
         {
             // Plane computations: http://gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
-            Left = Plane.Normalize(
-                new Plane(
+            Left = Plane4.Normalize(
+                new Plane4(
                     m.M14 + m.M11,
                     m.M24 + m.M21,
                     m.M34 + m.M31,
                     m.M44 + m.M41));
 
-            Right = Plane.Normalize(
-                new Plane(
+            Right = Plane4.Normalize(
+                new Plane4(
                     m.M14 - m.M11,
                     m.M24 - m.M21,
                     m.M34 - m.M31,
                     m.M44 - m.M41));
 
-            Bottom = Plane.Normalize(
-                new Plane(
+            Bottom = Plane4.Normalize(
+                new Plane4(
                     m.M14 + m.M12,
                     m.M24 + m.M22,
                     m.M34 + m.M32,
                     m.M44 + m.M42));
 
-            Top = Plane.Normalize(
-                new Plane(
+            Top = Plane4.Normalize(
+                new Plane4(
                     m.M14 - m.M12,
                     m.M24 - m.M22,
                     m.M34 - m.M32,
                     m.M44 - m.M42));
 
-            Near = Plane.Normalize(
-                new Plane(
+            Near = Plane4.Normalize(
+                new Plane4(
                     m.M13,
                     m.M23,
                     m.M33,
                     m.M43));
 
-            Far = Plane.Normalize(
-                new Plane(
+            Far = Plane4.Normalize(
+                new Plane4(
                     m.M14 - m.M13,
                     m.M24 - m.M23,
                     m.M34 - m.M33,
                     m.M44 - m.M43));
         }
 
-        public BoundingFrustum(Plane left, Plane right, Plane bottom, Plane top, Plane near, Plane far)
+        public BoundingFrustum(Plane4 left, Plane4 right, Plane4 bottom, Plane4 top, Plane4 near, Plane4 far)
         {
             Left = left;
             Right = right;
@@ -71,14 +71,14 @@ namespace VoxelPizza.Numerics
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly ContainmentType Contains(Vector3 point)
+        public readonly ContainmentType Contains(Vector4 point)
         {
-            if (Plane.DotCoordinate(Left, point) < 0 ||
-                Plane.DotCoordinate(Right, point) < 0 ||
-                Plane.DotCoordinate(Bottom, point) < 0 ||
-                Plane.DotCoordinate(Top, point) < 0 ||
-                Plane.DotCoordinate(Near, point) < 0 ||
-                Plane.DotCoordinate(Far, point) < 0)
+            if (Plane4.DotCoordinate(Left, point) < 0 ||
+                Plane4.DotCoordinate(Right, point) < 0 ||
+                Plane4.DotCoordinate(Bottom, point) < 0 ||
+                Plane4.DotCoordinate(Top, point) < 0 ||
+                Plane4.DotCoordinate(Near, point) < 0 ||
+                Plane4.DotCoordinate(Far, point) < 0)
             {
                 return ContainmentType.Disjoint;
             }
@@ -86,15 +86,21 @@ namespace VoxelPizza.Numerics
             return ContainmentType.Contains;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public readonly ContainmentType Contains(Vector3 point)
+        {
+            return Contains(new Vector4(point, 0));
+        }
+
         public readonly ContainmentType Contains(BoundingSphere sphere)
         {
             ContainmentType result = ContainmentType.Contains;
 
-            for (nint i = 0; i < 6 * Unsafe.SizeOf<Plane>(); i += Unsafe.SizeOf<Plane>())
+            for (nint i = 0; i < 6 * Unsafe.SizeOf<Plane4>(); i += Unsafe.SizeOf<Plane4>())
             {
-                Plane plane = Unsafe.AddByteOffset(ref Unsafe.AsRef(Left), i);
+                Plane4 plane = Unsafe.AddByteOffset(ref Unsafe.AsRef(Left), i);
 
-                float distance = Plane.DotCoordinate(plane, sphere.Center);
+                float distance = Plane4.DotCoordinate(plane, sphere.Center);
                 if (distance < -sphere.Radius)
                     return ContainmentType.Disjoint;
                 else if (distance < sphere.Radius)
@@ -112,9 +118,9 @@ namespace VoxelPizza.Numerics
             Vector128<float> boxMin = Vector128.AsVector128(box.Min);
             Vector128<float> boxMax = Vector128.AsVector128(box.Max);
 
-            for (nint i = 0; i < 6 * Unsafe.SizeOf<Plane>(); i += Unsafe.SizeOf<Plane>())
+            for (nint i = 0; i < 6 * Unsafe.SizeOf<Plane4>(); i += Unsafe.SizeOf<Plane4>())
             {
-                ref Plane plane = ref Unsafe.AddByteOffset(ref Unsafe.AsRef(Left), i);
+                ref Plane4 plane = ref Unsafe.AddByteOffset(ref Unsafe.AsRef(Left), i);
 
                 if (Sse.IsSupported)
                 {
@@ -146,9 +152,9 @@ namespace VoxelPizza.Numerics
                 }
                 else
                 {
-                    Vector4 normal = new Vector4(plane.Normal, 0);
-                    Vector4 positive = new Vector4(box.Min, 0);
-                    Vector4 negative = new Vector4(box.Max, 0);
+                    Vector4 normal = plane.Normal;
+                    Vector4 positive = box.Min;
+                    Vector4 negative = box.Max;
 
                     if (normal.X >= 0)
                     {
@@ -242,16 +248,42 @@ namespace VoxelPizza.Numerics
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void PlaneIntersection(in Plane p1, in Plane p2, in Plane p3, out Vector3 intersection)
+        private static void PlaneIntersection(in Plane4 p1, in Plane4 p2, in Plane4 p3, out Vector4 intersection)
         {
             // Formula: http://geomalgorithms.com/a05-_intersect-1.html
             // The formula assumes that there is only a single intersection point.
             // Because of the way the frustum planes are constructed, this should be guaranteed.
             intersection =
-                (-(p1.D * Vector3.Cross(p2.Normal, p3.Normal))
-                - (p2.D * Vector3.Cross(p3.Normal, p1.Normal))
-                - (p3.D * Vector3.Cross(p1.Normal, p2.Normal)))
-                / Vector3.Dot(p1.Normal, Vector3.Cross(p2.Normal, p3.Normal));
+                (-(p1.D * Cross(p2.Normal, p3.Normal))
+                - (p2.D * Cross(p3.Normal, p1.Normal))
+                - (p3.D * Cross(p1.Normal, p2.Normal)))
+                / Vector4.Dot(p1.Normal, Cross(p2.Normal, p3.Normal));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector4 Cross(Vector4 vector1, Vector4 vector2)
+        {
+            if (Sse.IsSupported)
+            {
+                var v1 = Vector128.AsVector128(vector1);
+                var v2 = Vector128.AsVector128(vector2);
+
+                var left1 = Sse.Shuffle(v1, v1, 0b11_00_10_01);
+                var left2 = Sse.Shuffle(v2, v2, 0b11_01_00_10);
+
+                var right1 = Sse.Shuffle(v1, v1, 0b11_01_00_10);
+                var right2 = Sse.Shuffle(v2, v2, 0b11_00_10_01);
+
+                return Vector128.AsVector4(Sse.Subtract(
+                    Sse.Multiply(left1, left2),
+                    Sse.Multiply(right1, right2)));
+            }
+
+            return new Vector4(
+                (vector1.Y * vector2.Z) - (vector1.Z * vector2.Y),
+                (vector1.Z * vector2.X) - (vector1.X * vector2.Z),
+                (vector1.X * vector2.Y) - (vector1.Y * vector2.X),
+                0);
         }
     }
 }

@@ -64,6 +64,11 @@ namespace VoxelPizza.Numerics
             return new Vector3(size.W, size.H, size.D);
         }
 
+        public static implicit operator Vector4(Size3 size)
+        {
+            return new Vector4(size.W, size.H, size.D, 0);
+        }
+
         public static Size3 operator *(Size3 left, Size3 right)
         {
             return new Size3(left.W * right.W, left.H * right.H, left.D * right.D);

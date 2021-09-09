@@ -65,6 +65,11 @@ namespace VoxelPizza.World
         {
             return new Vector3(position.X, position.Y, position.Z);
         }
+        
+        public static implicit operator Vector4(BlockPosition position)
+        {
+            return new Vector4(position.X, position.Y, position.Z, 0);
+        }
 
         public static bool operator ==(BlockPosition left, BlockPosition right)
         {

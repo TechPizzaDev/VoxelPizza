@@ -4,13 +4,13 @@ namespace VoxelPizza.Numerics
 {
     public struct FrustumCorners
     {
-        public Vector3 NearTopLeft;
-        public Vector3 NearTopRight;
-        public Vector3 NearBottomLeft;
-        public Vector3 NearBottomRight;
-        public Vector3 FarTopLeft;
-        public Vector3 FarTopRight;
-        public Vector3 FarBottomLeft;
-        public Vector3 FarBottomRight;
+        public Vector4 NearTopLeft;
+        public Vector4 NearTopRight;
+        public Vector4 NearBottomLeft;
+        public Vector4 NearBottomRight;
+        public Vector4 FarTopLeft;
+        public Vector4 FarTopRight;
+        public Vector4 FarBottomLeft;
+        public Vector4 FarBottomRight;
     }
 }

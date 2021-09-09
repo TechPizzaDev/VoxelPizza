@@ -7,13 +7,19 @@ namespace VoxelPizza.Numerics
 {
     public struct BoundingBox : IEquatable<BoundingBox>
     {
-        public Vector3 Min;
-        public Vector3 Max;
+        public Vector4 Min;
+        public Vector4 Max;
 
-        public BoundingBox(Vector3 min, Vector3 max)
+        public BoundingBox(Vector4 min, Vector4 max)
         {
             Min = min;
             Max = max;
+        }
+
+        public BoundingBox(Vector3 min, Vector3 max)
+        {
+            Min = new Vector4(min, 0);
+            Max = new Vector4(max, 0);
         }
 
         public readonly ContainmentType Contains(in BoundingBox other)
@@ -36,12 +42,12 @@ namespace VoxelPizza.Numerics
             }
         }
 
-        public readonly Vector3 GetCenter()
+        public readonly Vector4 GetCenter()
         {
             return (Max + Min) / 2f;
         }
 
-        public readonly Vector3 GetDimensions()
+        public readonly Vector4 GetDimensions()
         {
             return Max - Min;
         }
@@ -50,29 +56,29 @@ namespace VoxelPizza.Numerics
         {
             box.GetCorners(out AlignedBoxCorners corners);
 
-            Vector3 min = Vector3.Transform(corners.NearTopLeft, mat);
-            Vector3 max = Vector3.Transform(corners.NearTopLeft, mat);
+            Vector4 min = Vector4.Transform(corners.NearTopLeft, mat);
+            Vector4 max = Vector4.Transform(corners.NearTopLeft, mat);
 
-            min = Vector3.Min(min, Vector3.Transform(corners.NearTopRight, mat));
-            max = Vector3.Max(max, Vector3.Transform(corners.NearTopRight, mat));
+            min = Vector4.Min(min, Vector4.Transform(corners.NearTopRight, mat));
+            max = Vector4.Max(max, Vector4.Transform(corners.NearTopRight, mat));
 
-            min = Vector3.Min(min, Vector3.Transform(corners.NearBottomLeft, mat));
-            max = Vector3.Max(max, Vector3.Transform(corners.NearBottomLeft, mat));
+            min = Vector4.Min(min, Vector4.Transform(corners.NearBottomLeft, mat));
+            max = Vector4.Max(max, Vector4.Transform(corners.NearBottomLeft, mat));
 
-            min = Vector3.Min(min, Vector3.Transform(corners.NearBottomRight, mat));
-            max = Vector3.Max(max, Vector3.Transform(corners.NearBottomRight, mat));
+            min = Vector4.Min(min, Vector4.Transform(corners.NearBottomRight, mat));
+            max = Vector4.Max(max, Vector4.Transform(corners.NearBottomRight, mat));
 
-            min = Vector3.Min(min, Vector3.Transform(corners.FarTopLeft, mat));
-            max = Vector3.Max(max, Vector3.Transform(corners.FarTopLeft, mat));
+            min = Vector4.Min(min, Vector4.Transform(corners.FarTopLeft, mat));
+            max = Vector4.Max(max, Vector4.Transform(corners.FarTopLeft, mat));
 
-            min = Vector3.Min(min, Vector3.Transform(corners.FarTopRight, mat));
-            max = Vector3.Max(max, Vector3.Transform(corners.FarTopRight, mat));
+            min = Vector4.Min(min, Vector4.Transform(corners.FarTopRight, mat));
+            max = Vector4.Max(max, Vector4.Transform(corners.FarTopRight, mat));
 
-            min = Vector3.Min(min, Vector3.Transform(corners.FarBottomLeft, mat));
-            max = Vector3.Max(max, Vector3.Transform(corners.FarBottomLeft, mat));
+            min = Vector4.Min(min, Vector4.Transform(corners.FarBottomLeft, mat));
+            max = Vector4.Max(max, Vector4.Transform(corners.FarBottomLeft, mat));
 
-            min = Vector3.Min(min, Vector3.Transform(corners.FarBottomRight, mat));
-            max = Vector3.Max(max, Vector3.Transform(corners.FarBottomRight, mat));
+            min = Vector4.Min(min, Vector4.Transform(corners.FarBottomRight, mat));
+            max = Vector4.Max(max, Vector4.Transform(corners.FarBottomRight, mat));
 
             return new BoundingBox(min, max);
         }
@@ -87,7 +93,7 @@ namespace VoxelPizza.Numerics
             int vertexCount = vertices.Length / vertexStride;
             if (vertexCount < 1)
             {
-                return new BoundingBox(offset, offset);
+                return new BoundingBox(new Vector4(offset, 0), new Vector4(offset, 0));
             }
 
             ref byte vertexBytes = ref MemoryMarshal.GetReference(vertices);
@@ -118,7 +124,9 @@ namespace VoxelPizza.Numerics
                     max.Z = pos.Z;
             }
 
-            return new BoundingBox((min * scale) + offset, (max * scale) + offset);
+            return new BoundingBox(
+                new Vector4((min * scale) + offset, 0),
+                new Vector4((max * scale) + offset, 0));
         }
 
         public static BoundingBox CreateFromVertices(
@@ -147,7 +155,9 @@ namespace VoxelPizza.Numerics
                     max.Z = pos.Z;
             }
 
-            return new BoundingBox((min * scale) + offset, (max * scale) + offset);
+            return new BoundingBox(
+                new Vector4((min * scale) + offset, 0),
+                new Vector4((max * scale) + offset, 0));
         }
 
         public static BoundingBox CreateFromVertices(ReadOnlySpan<Vector3> vertices)
@@ -158,8 +168,8 @@ namespace VoxelPizza.Numerics
         public static BoundingBox Combine(BoundingBox box1, BoundingBox box2)
         {
             return new BoundingBox(
-                Vector3.Min(box1.Min, box2.Min),
-                Vector3.Max(box1.Max, box2.Max));
+                Vector4.Min(box1.Min, box2.Min),
+                Vector4.Max(box1.Max, box2.Max));
         }
 
         public static bool operator ==(BoundingBox first, BoundingBox second)
@@ -197,15 +207,15 @@ namespace VoxelPizza.Numerics
 
         public readonly void GetCorners(out AlignedBoxCorners corners)
         {
-            corners.NearBottomLeft = new Vector3(Min.X, Min.Y, Max.Z);
-            corners.NearBottomRight = new Vector3(Max.X, Min.Y, Max.Z);
-            corners.NearTopLeft = new Vector3(Min.X, Max.Y, Max.Z);
-            corners.NearTopRight = new Vector3(Max.X, Max.Y, Max.Z);
+            corners.NearBottomLeft = new Vector4(Min.X, Min.Y, Max.Z, 0);
+            corners.NearBottomRight = new Vector4(Max.X, Min.Y, Max.Z, 0);
+            corners.NearTopLeft = new Vector4(Min.X, Max.Y, Max.Z, 0);
+            corners.NearTopRight = Max;
 
-            corners.FarBottomLeft = new Vector3(Min.X, Min.Y, Min.Z);
-            corners.FarBottomRight = new Vector3(Max.X, Min.Y, Min.Z);
-            corners.FarTopLeft = new Vector3(Min.X, Max.Y, Min.Z);
-            corners.FarTopRight = new Vector3(Max.X, Max.Y, Min.Z);
+            corners.FarBottomLeft = Min;
+            corners.FarBottomRight = new Vector4(Max.X, Min.Y, Min.Z, 0);
+            corners.FarTopLeft = new Vector4(Min.X, Max.Y, Min.Z, 0);
+            corners.FarTopRight = new Vector4(Max.X, Max.Y, Min.Z, 0);
         }
 
         public readonly AlignedBoxCorners GetCorners()

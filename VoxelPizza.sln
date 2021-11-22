@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30804.86
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31912.275
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.Client", "VoxelPizza.Client\VoxelPizza.Client.csproj", "{92C5C61C-5D81-492D-8AE2-E056AC6E712D}"
 EndProject
@@ -30,6 +30,11 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Veldrid.MetalBindings", "veldrid\src\Veldrid.MetalBindings\Veldrid.MetalBindings.csproj", "{5FA1917C-5E16-4E1C-9913-C140995CF62B}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LoudPizza", "LoudPizza\LoudPizza\LoudPizza.csproj", "{249E020A-1E86-4A08-84C9-31309CC795B2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{B58B7370-0795-49E5-9949-0E333F0BB642}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

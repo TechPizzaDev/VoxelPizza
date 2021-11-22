@@ -16,6 +16,7 @@ namespace VoxelPizza.World
         private Chunk?[] _chunks;
         private ReaderWriterLockSlim _chunkLock = new();
         private ChunkAction _cachedChunkUpdated;
+        private RefCountedAction _cachedChunkRefZeroed;
 
         public Dimension Dimension { get; }
         public ChunkRegionPosition Position { get; }
@@ -30,7 +31,9 @@ namespace VoxelPizza.World
             Position = position;
 
             _chunks = new Chunk?[Width * Height * Depth];
+
             _cachedChunkUpdated = Chunk_ChunkUpdated;
+            _cachedChunkRefZeroed = Chunk_RefCountZero;
         }
 
         private void Chunk_ChunkUpdated(Chunk chunk)
@@ -44,12 +47,8 @@ namespace VoxelPizza.World
             try
             {
                 Chunk? chunk = _chunks[index];
-                if (chunk != null)
-                {
-                    chunk.IncrementRef();
-                    return chunk;
-                }
-                return null;
+                chunk?.IncrementRef();
+                return chunk;
             }
             finally
             {
@@ -77,6 +76,7 @@ namespace VoxelPizza.World
             Chunk? chunk = GetLocalChunk(index);
             if (chunk != null)
             {
+                // GetLocalChunk increments refcount
                 return chunk;
             }
 
@@ -85,7 +85,10 @@ namespace VoxelPizza.World
             {
                 chunk = new Chunk(this, position);
                 chunk.Updated += _cachedChunkUpdated;
+                chunk.IncrementRef(RefCountType.Container);
+
                 _chunks[index] = chunk;
+                ChunkAdded?.Invoke(chunk);
             }
             finally
             {
@@ -93,21 +96,56 @@ namespace VoxelPizza.World
             }
 
             chunk.IncrementRef();
-            ChunkAdded?.Invoke(chunk);
             return chunk;
         }
 
-        public int GetChunkIndex(ChunkPosition localPosition)
+        public bool RemoveChunk(ChunkPosition position)
         {
-            return (localPosition.Y * (int)Size.D + localPosition.Z) * (int)Size.W + localPosition.X;
+            ChunkPosition localPosition = GetLocalChunkPosition(position);
+            int index = GetChunkIndex(localPosition);
+
+            _chunkLock.EnterWriteLock();
+            try
+            {
+                Chunk? chunk = _chunks[index];
+                if (chunk == null)
+                    return false;
+
+                chunk.RefZeroed += _cachedChunkRefZeroed;
+                
+                // Invoke event before decrementing ref to let
+                // others delay the unload.
+                ChunkRemoved?.Invoke(chunk);
+
+                chunk.DecrementRef(RefCountType.Container);
+
+                _chunks[index] = null;
+                return true;
+            }
+            finally
+            {
+                _chunkLock.ExitWriteLock();
+            }
         }
 
-        public ChunkPosition GetLocalChunkPosition(ChunkPosition position)
+        private void Chunk_RefCountZero(RefCounted instance)
+        {
+            Chunk chunk = (Chunk)instance;
+
+            chunk.Updated -= _cachedChunkUpdated;
+        }
+
+        public static int GetChunkIndex(ChunkPosition localPosition)
+        {
+            return (localPosition.Y * Depth + localPosition.Z) * Width + localPosition.X;
+        }
+
+        public static ChunkPosition GetLocalChunkPosition(ChunkPosition position)
         {
             return new ChunkPosition(
-                (int)((uint)position.X % Size.W),
-                (int)((uint)position.Y % Size.H),
-                (int)((uint)position.Z % Size.D));
+                (int)((uint)position.X % Width),
+                (int)((uint)position.Y % Height),
+                (int)((uint)position.Z % Depth));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -248,22 +248,22 @@ namespace VoxelPizza.Client
             cullFrustum.GetCorners(out FrustumCorners corners);
 
             _cameraBatch.AppendQuad(
-                new VertexPosition<RgbaByte>() { Position = corners.FarTopRight, Data = RgbaByte.White },
-                new VertexPosition<RgbaByte>() { Position = corners.FarTopLeft, Data = RgbaByte.White },
-                new VertexPosition<RgbaByte>() { Position = corners.FarBottomLeft, Data = RgbaByte.White },
-                new VertexPosition<RgbaByte>() { Position = corners.FarBottomRight, Data = RgbaByte.White });
+                new VertexPosition<RgbaByte>() { Position = corners.FarTopRight.ToVector3(), Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarTopLeft.ToVector3(), Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarBottomLeft.ToVector3(), Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarBottomRight.ToVector3(), Data = RgbaByte.White });
 
             _cameraBatch.AppendQuad(
-                new VertexPosition<RgbaByte>() { Position = corners.NearTopLeft, Data = RgbaByte.White },
-                new VertexPosition<RgbaByte>() { Position = corners.FarTopLeft, Data = RgbaByte.White },
-                new VertexPosition<RgbaByte>() { Position = corners.FarBottomLeft, Data = RgbaByte.White },
-                new VertexPosition<RgbaByte>() { Position = corners.NearBottomLeft, Data = RgbaByte.White });
+                new VertexPosition<RgbaByte>() { Position = corners.NearTopLeft.ToVector3(), Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarTopLeft.ToVector3(), Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarBottomLeft.ToVector3(), Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.NearBottomLeft.ToVector3(), Data = RgbaByte.White });
 
             _cameraBatch.AppendQuad(
-                new VertexPosition<RgbaByte>() { Position = corners.NearTopRight, Data = RgbaByte.White },
-                new VertexPosition<RgbaByte>() { Position = corners.FarTopRight, Data = RgbaByte.White },
-                new VertexPosition<RgbaByte>() { Position = corners.FarBottomRight, Data = RgbaByte.White },
-                new VertexPosition<RgbaByte>() { Position = corners.NearBottomRight, Data = RgbaByte.White });
+                new VertexPosition<RgbaByte>() { Position = corners.NearTopRight.ToVector3(), Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarTopRight.ToVector3(), Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.FarBottomRight.ToVector3(), Data = RgbaByte.White },
+                new VertexPosition<RgbaByte>() { Position = corners.NearBottomRight.ToVector3(), Data = RgbaByte.White });
 
             //var reserve= _cameraBatch.ReserveUnsafe(3, 3);
 

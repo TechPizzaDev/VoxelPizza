@@ -7,7 +7,7 @@
         public TextureAnimation TextureAnimation => _vertex.TexAnimation0;
         public uint TextureRegion => _vertex.TexRegion0;
 
-        public int MaxVertices => 4 * 6;
+        public uint MaxVertices => 4 * 6;
 
         public CubePaintVertexGenerator(TextureAnimation textureAnimation, uint textureRegion)
         {

@@ -71,7 +71,8 @@ namespace VoxelPizza.Client
         // clipPlane is in camera space
         public static void CalculateObliqueMatrixPerspective(ref Matrix4x4 projection, Matrix4x4 view, Plane clipPlane)
         {
-            Matrix4x4 invTransposeView = VdUtilities.CalculateInverseTranspose(view);
+            Matrix4x4.Invert(view, out Matrix4x4 invertedView);
+            Matrix4x4 invTransposeView = Matrix4x4.Transpose(invertedView);
             
             Vector4 clipV4 = new(clipPlane.Normal, clipPlane.D);
             clipV4 = Vector4.Transform(clipV4, invTransposeView);

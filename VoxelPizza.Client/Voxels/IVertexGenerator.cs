@@ -6,7 +6,7 @@
         /// <summary>
         /// The maximum amount of vertices generated per contract.
         /// </summary>
-        int MaxVertices { get; }
+        uint MaxVertices { get; }
 
         void AppendFirst(ref ByteStore<T> store);
         void AppendLast(ref ByteStore<T> store);

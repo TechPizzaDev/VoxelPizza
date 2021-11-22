@@ -4,7 +4,7 @@ namespace VoxelPizza.Client
 {
     public unsafe readonly struct CubeIndexGenerator : ICubeIndexGenerator<uint>
     {
-        public int MaxIndices => 6 * 6;
+        public uint MaxIndices => 6 * 6;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AppendQuad(ref ByteStore<uint> store, ref uint vertexOffset)

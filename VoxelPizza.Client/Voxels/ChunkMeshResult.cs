@@ -6,7 +6,7 @@ namespace VoxelPizza.Client
     public struct ChunkMeshResult
     {
         private IntPtr _backingBuffer;
-        private int _backingByteCount;
+        private uint _backingByteCount;
 
         private ByteStore<uint> _indices;
         private ByteStore<ChunkSpaceVertex> _spaceVertices;
@@ -14,12 +14,12 @@ namespace VoxelPizza.Client
 
         public HeapPool? Pool { get; private set; }
 
-        public readonly int IndexCount => _indices.Count;
-        public readonly int VertexCount => _spaceVertices.Count;
+        public readonly uint IndexCount => _indices.Count;
+        public readonly uint VertexCount => _spaceVertices.Count;
 
-        public readonly int IndexByteCount => _indices.ByteCount;
-        public readonly int SpaceVertexByteCount => _spaceVertices.ByteCount;
-        public readonly int PaintVertexByteCount => _paintVertices.ByteCount;
+        public readonly uint IndexByteCount => _indices.ByteCount;
+        public readonly uint SpaceVertexByteCount => _spaceVertices.ByteCount;
+        public readonly uint PaintVertexByteCount => _paintVertices.ByteCount;
 
         public readonly Span<uint> Indices => _indices.Span;
         public readonly Span<ChunkSpaceVertex> SpaceVertices => _spaceVertices.Span;
@@ -50,21 +50,21 @@ namespace VoxelPizza.Client
             if (pool == null)
                 throw new ArgumentNullException(nameof(pool));
 
-            int indexByteCount = indices.ByteCount;
-            int spaceByteCount = spaceVertices.ByteCount;
-            int paintByteCount = paintVertices.ByteCount;
+            uint indexByteCount = indices.ByteCount;
+            uint spaceByteCount = spaceVertices.ByteCount;
+            uint paintByteCount = paintVertices.ByteCount;
 
-            int minByteCapacity = indexByteCount + spaceByteCount + paintByteCount;
+            uint minByteCapacity = indexByteCount + spaceByteCount + paintByteCount;
             if (minByteCapacity == 0)
                 return default;
 
-            int indexPoolBlockSize = pool.GetBlockSize(indexByteCount);
-            int spacePoolBlockSize = pool.GetBlockSize(spaceByteCount);
-            int paintPoolBlockSize = pool.GetBlockSize(paintByteCount);
+            uint indexPoolBlockSize = pool.GetBlockSize(indexByteCount);
+            uint spacePoolBlockSize = pool.GetBlockSize(spaceByteCount);
+            uint paintPoolBlockSize = pool.GetBlockSize(paintByteCount);
             HeapPool.Segment poolSegment = pool.GetSegment(minByteCapacity);
 
-            int splitBlocksTotalSize = indexPoolBlockSize + spacePoolBlockSize + paintPoolBlockSize;
-            int unifiedBlockTotalSize = poolSegment.BlockSize;
+            uint splitBlocksTotalSize = indexPoolBlockSize + spacePoolBlockSize + paintPoolBlockSize;
+            uint unifiedBlockTotalSize = poolSegment.BlockSize;
             float sizeReductionFactor = splitBlocksTotalSize / (float)unifiedBlockTotalSize;
             if (sizeReductionFactor < 1)
             {
@@ -77,9 +77,9 @@ namespace VoxelPizza.Client
             var spacePtr = (ChunkSpaceVertex*)(bytePtr + indexByteCount);
             var paintPtr = (ChunkPaintVertex*)(bytePtr + indexByteCount + spaceByteCount);
 
-            Unsafe.CopyBlockUnaligned(indexPtr, indices.Buffer, (uint)indexByteCount);
-            Unsafe.CopyBlockUnaligned(spacePtr, spaceVertices.Buffer, (uint)spaceByteCount);
-            Unsafe.CopyBlockUnaligned(paintPtr, paintVertices.Buffer, (uint)paintByteCount);
+            Unsafe.CopyBlockUnaligned(indexPtr, indices.Buffer, indexByteCount);
+            Unsafe.CopyBlockUnaligned(spacePtr, spaceVertices.Buffer, spaceByteCount);
+            Unsafe.CopyBlockUnaligned(paintPtr, paintVertices.Buffer, paintByteCount);
 
             ByteStore<uint> resultIndices = new(pool, indexPtr, indexByteCount);
             resultIndices.MoveByteHead(indexByteCount);
@@ -104,6 +104,10 @@ namespace VoxelPizza.Client
             {
                 Pool.Return(_backingByteCount, _backingBuffer);
                 _backingBuffer = IntPtr.Zero;
+
+                _indices.Clear();
+                _spaceVertices.Clear();
+                _paintVertices.Clear();
             }
             else
             {

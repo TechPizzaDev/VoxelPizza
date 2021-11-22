@@ -33,6 +33,14 @@ namespace VoxelPizza.World
                 ChunkRegion.Depth * Z);
         }
 
+        public readonly ChunkPosition OffsetLocalChunk(ChunkPosition localChunkPosition)
+        {
+            return new ChunkPosition(
+                localChunkPosition.X + ChunkRegion.Width * X,
+                localChunkPosition.Y + ChunkRegion.Height * Y,
+                localChunkPosition.Z + ChunkRegion.Depth * Z);
+        }
+
         public readonly bool Equals(ChunkRegionPosition other)
         {
             return X == other.X

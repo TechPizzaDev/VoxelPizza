@@ -7,7 +7,8 @@ namespace VoxelPizza.Client
         public uint ByteCount { get; }
 
         public DeviceBuffer Buffer { get; private set; }
-        public ChunkMeshBase? Owner { get; set; }
+        public ChunkMeshRegion? Owner { get; set; }
+        public ChunkMeshBuffers? MeshBuffers { get; set; }
 
         public ChunkStagingMesh(uint byteCount)
         {

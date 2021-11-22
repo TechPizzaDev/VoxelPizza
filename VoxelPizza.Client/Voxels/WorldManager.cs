@@ -15,30 +15,100 @@ namespace VoxelPizza.Client
         public Dimension CreateDimension()
         {
             Dimension dimension = new Dimension();
-            CreateTestWorld(dimension);
             return dimension;
         }
 
-        private Task CreateTestWorld(Dimension dimension)
+        public Task CreateTestWorld(Dimension dimension, bool async)
         {
-            return Task.Run(() =>
+            void action()
             {
                 try
                 {
-                    Thread.Sleep(1000);
+                    if (async)
+                        Thread.Sleep(1000);
 
-                    int width = 64;
+                    int width = 48;
                     int depth = width;
-                    int height = 4;
+                    int height = 32;
+
+                    ChunkPosition lastPos = new ChunkPosition(0, 0, 0);
+                    HashSet<ChunkPosition> allChunks = new();
+                    HashSet<ChunkPosition> newChunks = new();
+                    HashSet<ChunkPosition> currentChunks = new();
+
+                    while (true)
+                    {
+                        if (lastPos == dimension.PlayerChunkPosition)
+                        {
+                            Thread.Sleep(1);
+                            continue;
+                        }
+                        lastPos = dimension.PlayerChunkPosition;
+
+                        for (int y = 0; y < height; y++)
+                        {
+                            for (int z = 0; z < depth; z++)
+                            {
+                                for (int x = 0; x < width; x++)
+                                {
+                                    var pos = new ChunkPosition(
+                                        x + lastPos.X - width / 2,
+                                        y + lastPos.Y - height / 2,
+                                        z + lastPos.Z - depth / 2);
+
+                                    if (allChunks.Add(pos))
+                                        newChunks.Add(pos);
+
+                                    currentChunks.Add(pos);
+                                }
+                            }
+                        }
+
+                        foreach (ChunkPosition pos in newChunks)
+                        {
+                            Chunk chunk = dimension.CreateChunk(pos);
+                            try
+                            {
+                                if (pos.Y >= 0 && pos.Y <= 3)
+                                {
+                                    chunk.Generate();
+                                    //chunk.SetBlockLayer(0, 10);
+                                    chunk.InvokeUpdate();
+                                }
+                                else
+                                {
+                                    //chunk.SetBlockLayer(15, 1);
+                                }
+                            }
+                            finally
+                            {
+                                chunk.DecrementRef();
+                            }
+                        }
+                        newChunks.Clear();
+
+                        foreach (ChunkPosition pos in allChunks)
+                        {
+                            if (!currentChunks.Contains(pos))
+                            {
+                                allChunks.Remove(pos);
+
+                                dimension.RemoveChunk(pos);
+                            }
+                        }
+                        currentChunks.Clear();
+
+                    }
+                    return;
 
                     var list = new List<(int x, int y, int z)>();
 
-                    int off = 1;
-                    for (int y = -off; y < height; y++)
+                    int off = 0;
+                    for (int x = 0; x < width; x++)
                     {
-                        for (int z = 0; z < depth; z++)
+                        for (int y = -1; y < height; y++)
                         {
-                            for (int x = 0; x < width; x++)
+                            for (int z = 0; z < depth; z++)
                             {
                                 list.Add((x, y, z));
                             }
@@ -81,23 +151,33 @@ namespace VoxelPizza.Client
                         //    chunk.InvokeUpdate();
                         //}
 
-                        count++;
-                        if (count == 1)
-                        {
-                            //Thread.Sleep(1);
-                            count = 0;
-                        }
-                    }
-
-                    foreach (var (x, y, z) in list)
-                    {
-                        Chunk? chunk = dimension.GetChunk(new(x, y, z));
-
                         if (y >= 0 && x >= off && z >= off &&
                             x < width - off &&
                             z < depth - off)
                         {
                             chunk?.InvokeUpdate();
+                        }
+
+                        count++;
+                        if (count == width * height)
+                        {
+                            Thread.Sleep(1000);
+                            count = 0;
+                        }
+                    }
+
+                    if (false)
+                    {
+                        foreach (var (x, y, z) in list)
+                        {
+                            Chunk? chunk = dimension.GetChunk(new(x, y, z));
+
+                            if (y >= 0 && x >= off && z >= off &&
+                                x < width - off &&
+                                z < depth - off)
+                            {
+                                chunk?.InvokeUpdate();
+                            }
                         }
                     }
 
@@ -142,7 +222,7 @@ namespace VoxelPizza.Client
                         Environment.Exit(0);
                     }
 
-                    if (true)
+                    if (false)
                     {
                         Random rng = new Random(1234);
                         while (true)
@@ -176,7 +256,17 @@ namespace VoxelPizza.Client
                 {
                     Console.WriteLine(ex);
                 }
-            });
+            }
+
+            if (async)
+            {
+                return Task.Run(action);
+            }
+            else
+            {
+                action();
+                return Task.CompletedTask;
+            }
         }
     }
 }

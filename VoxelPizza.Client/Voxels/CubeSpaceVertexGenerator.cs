@@ -18,7 +18,7 @@ namespace VoxelPizza.Client
         public readonly float Y1;
         public readonly float Z1;
 
-        public int MaxVertices => 4 * 6;
+        public uint MaxVertices => 4 * 6;
 
         public CubeSpaceVertexGenerator(float x, float y, float z)
         {

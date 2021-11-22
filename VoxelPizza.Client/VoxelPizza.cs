@@ -119,6 +119,8 @@ namespace VoxelPizza.Client
             _scene.AddUpdateable(ChunkRenderer);
             _scene.AddRenderable(ChunkRenderer);
 
+            _worldManager.CreateTestWorld(_currentDimension, true);
+
             ChunkBorderRenderer = new ChunkBorderRenderer(ChunkRenderer);
             _scene.AddUpdateable(ChunkBorderRenderer);
             _scene.AddRenderable(ChunkBorderRenderer);
@@ -256,7 +258,7 @@ namespace VoxelPizza.Client
 
             var t = audioTest.soloud.getStreamPosition(audioTest.voicehandle);
             //audioTest.soloud.seek(audioTest.voicehandle, t + LoudPizza.Time.FromSeconds(0.01));
-            
+
             //_sc.DirectionalLight.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Sin(time.TotalSeconds));
 
             if (InputTracker.GetKeyDown(Key.F11))
@@ -339,6 +341,16 @@ namespace VoxelPizza.Client
             DrawMainMenu();
 
             DrawProfiler(frameSets);
+
+            if (ImGui.Begin("ChunkRenderer control"))
+            {
+                if (ImGui.Button("Reupload chunks"))
+                {
+                    ChunkRenderer.ReuploadAll();
+                }
+
+                ImGui.End();
+            }
         }
 
         private void DrawMainMenu()

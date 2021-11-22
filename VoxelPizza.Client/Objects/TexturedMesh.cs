@@ -291,7 +291,8 @@ namespace VoxelPizza.Client.Objects
 
                 WorldAndInverse wai;
                 wai.World = _transform.GetTransformMatrix();
-                wai.InverseWorld = VdUtilities.CalculateInverseTranspose(ref wai.World);
+                Matrix4x4.Invert(wai.World, out Matrix4x4 invertedWorld);
+                wai.InverseWorld = Matrix4x4.Transpose(invertedWorld);
                 cl.UpdateBuffer(_worldAndInverseBuffer, 0, ref wai);
             }
         }

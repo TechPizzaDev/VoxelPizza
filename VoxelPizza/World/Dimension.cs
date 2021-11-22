@@ -15,6 +15,8 @@ namespace VoxelPizza.World
         private ChunkAction _cachedChunkUpdated;
         private ChunkAction _cachedChunkRemoved;
 
+        public ChunkPosition PlayerChunkPosition;
+
         public event ChunkAction? ChunkAdded;
         public event ChunkAction? ChunkUpdated;
         public event ChunkAction? ChunkRemoved;
@@ -67,6 +69,7 @@ namespace VoxelPizza.World
             ChunkRegion? region = GetRegion(position);
             if (region != null)
             {
+                // GetRegion increments refcount
                 return region;
             }
 
@@ -77,8 +80,10 @@ namespace VoxelPizza.World
                 region.ChunkAdded += _cachedChunkAdded;
                 region.ChunkUpdated += _cachedChunkUpdated;
                 region.ChunkRemoved += _cachedChunkRemoved;
+                region.IncrementRef(RefCountType.Container);
 
                 _regions.Add(region.Position, region);
+                RegionAdded?.Invoke(region);
             }
             finally
             {
@@ -86,7 +91,6 @@ namespace VoxelPizza.World
             }
 
             region.IncrementRef();
-            RegionAdded?.Invoke(region);
             return region;
         }
 
@@ -117,6 +121,21 @@ namespace VoxelPizza.World
             try
             {
                 return region.CreateChunk(position);
+            }
+            finally
+            {
+                region.DecrementRef();
+            }
+        }
+
+        public bool RemoveChunk(ChunkPosition position)
+        {
+            ChunkRegionPosition regionPosition = position.ToRegion();
+
+            ChunkRegion region = CreateRegion(regionPosition);
+            try
+            {
+                return region.RemoveChunk(position);
             }
             finally
             {

@@ -64,7 +64,7 @@ namespace VoxelPizza.Client
             // TODO: chunk/draw layers (seperate mesh provider arrays per layer)?
             //       e.g. this could allow for vertices (including custom) for a "gas" or "fluid" layer 
 
-            int storePrepareCapacity = 1024;
+            uint storePrepareCapacity = 1024;
             var indexStore = new ByteStore<uint>(Pool, storePrepareCapacity * 6);
             var spaceVertexStore = new ByteStore<ChunkSpaceVertex>(Pool, storePrepareCapacity * 4);
             var paintVertexStore = new ByteStore<ChunkPaintVertex>(Pool, storePrepareCapacity * 4);

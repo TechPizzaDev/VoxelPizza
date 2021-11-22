@@ -10,9 +10,11 @@ namespace VoxelPizza
         {
             private Stack<IntPtr> _pooled = new();
 
-            public int BlockSize { get; }
+            public uint BlockSize { get; }
 
-            public Segment(int blockSize)
+            public uint Count => (uint)_pooled.Count;
+
+            public Segment(uint blockSize)
             {
                 BlockSize = blockSize;
             }
@@ -28,7 +30,7 @@ namespace VoxelPizza
                 }
 
                 //Console.WriteLine("allocating " + BlockSize);
-                return Marshal.AllocHGlobal(BlockSize);
+                return Marshal.AllocHGlobal((int)BlockSize);
             }
 
             public void Free(IntPtr buffer)

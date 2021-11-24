@@ -1,4 +1,4 @@
-﻿namespace VoxelPizza.Client
+namespace VoxelPizza.Client
 {
     public interface IIndexGenerator<T>
         where T : unmanaged

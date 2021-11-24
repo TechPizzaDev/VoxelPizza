@@ -1,4 +1,4 @@
-﻿
+
 namespace VoxelPizza.Numerics
 {
     public enum ContainmentType

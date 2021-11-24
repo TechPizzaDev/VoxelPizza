@@ -1,4 +1,4 @@
-﻿
+
 namespace VoxelPizza.Client
 {
     public interface IUpdateable

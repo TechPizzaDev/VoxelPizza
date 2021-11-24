@@ -1,4 +1,4 @@
-﻿namespace VoxelPizza.Client
+namespace VoxelPizza.Client
 {
     public interface ICubeVertexGenerator<T> : IVertexGenerator<T>
         where T : unmanaged

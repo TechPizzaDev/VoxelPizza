@@ -1,4 +1,4 @@
-﻿namespace VoxelPizza.Client
+namespace VoxelPizza.Client
 {
     public readonly struct TextureAnimation
     {

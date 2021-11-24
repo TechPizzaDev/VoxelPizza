@@ -1,4 +1,4 @@
-﻿using Veldrid.Utilities;
+using Veldrid.Utilities;
 
 namespace VoxelPizza.Client
 {

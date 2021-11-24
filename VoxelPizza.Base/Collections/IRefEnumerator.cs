@@ -1,4 +1,4 @@
-﻿
+
 namespace VoxelPizza.Collections
 {
     public interface IRefEnumerator<T>

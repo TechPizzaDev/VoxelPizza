@@ -1,4 +1,4 @@
-﻿namespace VoxelPizza.Client
+namespace VoxelPizza.Client
 {
     public struct CubeMeshGenerator<TIndexGen, TSpaceGen, TPaintGen>
         where TIndexGen : ICubeIndexGenerator<uint>

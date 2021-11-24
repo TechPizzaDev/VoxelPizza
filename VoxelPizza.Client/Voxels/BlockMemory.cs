@@ -1,4 +1,4 @@
-﻿using VoxelPizza.Numerics;
+using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Client
 {

@@ -1,4 +1,4 @@
-﻿
+
 namespace VoxelPizza.Diagnostics
 {
     public ref struct ProfilerPopToken

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 

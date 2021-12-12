@@ -1,6 +1,6 @@
 [*]
 charset = utf-8
-end_of_line = lf
+end_of_line = crlf
 
 [*.cs]
 
@@ -29,7 +29,7 @@ csharp_new_line_before_finally = true
 #require members of object initializers to be on the same line
 csharp_new_line_before_members_in_object_initializers = false
 #require braces to be on a new line for control_blocks, properties, types, object_collection_array_initializers, accessors, and methods (also known as "Allman" style)
-csharp_new_line_before_open_brace = control_blocks, properties, types, object_collection_array_initializers, accessors, methods
+csharp_new_line_before_open_brace =all
 
 #Formatting - organize using options
 
@@ -67,7 +67,7 @@ csharp_preserve_single_line_statements = true
 #Style - Code block preferences
 
 #prefer curly braces even for one line of code
-csharp_prefer_braces = true:suggestion
+csharp_prefer_braces = when_multiline:suggestion
 
 #Style - expression bodied member options
 

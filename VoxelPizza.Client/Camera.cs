@@ -97,7 +97,7 @@ namespace VoxelPizza.Client
                 if (InputTracker.GetKey(Key.LeftShift))
                     sprintFactor += 7.5f;
                 if (InputTracker.GetKey(Key.Space))
-                    sprintFactor += 25f;
+                    sprintFactor += 125f;
             }
 
             Vector3 motionDir = Vector3.Zero;

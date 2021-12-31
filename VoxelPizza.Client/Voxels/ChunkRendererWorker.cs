@@ -11,7 +11,6 @@ namespace VoxelPizza.Client
     {
         class Submission
         {
-            public bool IsRecording;
             public CommandListFence CLF = null!;
             public List<ChunkStagingMesh> StagingMeshes = new();
         }
@@ -24,7 +23,6 @@ namespace VoxelPizza.Client
         private string? _workerName;
 
         private Queue<ChunkMeshRegion> _regionsToBuild;
-        private Queue<ChunkMeshRegion> _regionsToCleanup;
         private Queue<ChunkMeshRegion> _regionsToReset;
         private List<Submission> _submissions;
         private ManualResetEvent _workEvent;
@@ -46,7 +44,7 @@ namespace VoxelPizza.Client
             }
         }
 
-        public int MaxUploadsPerCommandList { get; set; } = 4;
+        public int MaxUploadsPerCommandList { get; set; } = 8;
 
         public ChunkRendererWorker(
             ChunkMesher mesher,
@@ -60,7 +58,6 @@ namespace VoxelPizza.Client
             _commandListFencePool = commandListFencePool ?? throw new ArgumentNullException(nameof(commandListFencePool));
 
             _regionsToBuild = new Queue<ChunkMeshRegion>();
-            _regionsToCleanup = new Queue<ChunkMeshRegion>();
             _regionsToReset = new Queue<ChunkMeshRegion>();
 
             _submissions = new List<Submission>();
@@ -121,22 +118,6 @@ namespace VoxelPizza.Client
             _workEvent.Set();
         }
 
-        public void SignalToCleanup<TMeshes>(TMeshes regionsToCleanup)
-            where TMeshes : IEnumerator<ChunkMeshRegion>
-        {
-            lock (_regionsToCleanup)
-            {
-                _regionsToCleanup.Clear();
-
-                while (regionsToCleanup.MoveNext())
-                {
-                    _regionsToCleanup.Enqueue(regionsToCleanup.Current);
-                }
-            }
-
-            _workEvent.Set();
-        }
-
         public void EnqueueReset(ChunkMeshRegion region)
         {
             lock (_regionsToReset)
@@ -147,27 +128,13 @@ namespace VoxelPizza.Client
             _workEvent.Set();
         }
 
-        private unsafe (bool PoolEmpty, bool Empty) ProcessRegion(
-            Submission submission,
+        public static unsafe (bool PoolEmpty, bool Empty) UploadRegion(
+            GraphicsDevice gd,
+            ChunkStagingMeshPool stagingMeshPool,
+            CommandList commandList,
             ChunkMeshRegion region,
             out ChunkStagingMesh? stagingMesh)
         {
-            // TODO: Track results?
-            //_ = region.Cleanup();
-
-            if (region.IsDisposed)
-            {
-                stagingMesh = default;
-                return (false, true);
-            }
-
-            var (built, empty) = region.Build(_mesher, _blockBuffer);
-            if (!built)
-            {
-                stagingMesh = default;
-                return (false, empty);
-            }
-
             ChunkMeshSizes sizes = region.GetMeshSizes();
             uint totalBytesRequired = sizes.TotalBytesRequired;
             if (totalBytesRequired == 0)
@@ -176,22 +143,7 @@ namespace VoxelPizza.Client
                 return (false, true);
             }
 
-            //if (result.IsEmpty)
-            //{
-            //    lock (_uploadMutex)
-            //    {
-            //        EmptyPendingUploads();
-            //
-            //        // Enqueue an empty mesh to clear the current mesh.
-            //        _meshesForUpload.Enqueue(null);
-            //
-            //        _uploadRequired = false;
-            //        mesh = default;
-            //        return true;
-            //    }
-            //}
-
-            if (!_stagingMeshPool.TryRent(out stagingMesh, totalBytesRequired))
+            if (!stagingMeshPool.TryRent(out stagingMesh, totalBytesRequired))
             {
                 // We ran out of staging meshes.
                 return (true, false);
@@ -199,20 +151,17 @@ namespace VoxelPizza.Client
 
             try
             {
-                //mapWatch.Start();
-                MappedResource bufferMap = _gd.Map(stagingMesh.Buffer, 0, totalBytesRequired, MapMode.Write, 0);
-                //mapWatch.Stop();
-                //Console.WritefLine(mapWatch.Elapsed.TotalMilliseconds.ToString("0.0"));
+                MappedResource bufferMap = gd.Map(stagingMesh.Buffer, 0, totalBytesRequired, MapMode.Write, 0);
 
                 region.WriteMeshes(sizes, (byte*)bufferMap.Data);
             }
             finally
             {
-                _gd.Unmap(stagingMesh.Buffer);
+                gd.Unmap(stagingMesh.Buffer);
             }
 
             ChunkMeshBuffers result = region.Copy(
-                _gd, submission.CLF.CommandList, sizes, stagingMesh.Buffer, 0);
+                gd, commandList, sizes, stagingMesh.Buffer, 0);
 
             stagingMesh.Owner = region;
             stagingMesh.MeshBuffers = result;
@@ -260,32 +209,15 @@ namespace VoxelPizza.Client
                 lock (region.WorkerMutex)
                 {
                     region.Reset();
-                    region.Renderer._regionPool.Push(region);
                 }
+
+                region.Renderer.RecycleMeshRegion(region);
             }
         }
 
         private void ProcessMeshQueue()
         {
             ProcessResetQueue();
-
-            while (TryDequeueToCleanup(out ChunkMeshRegion? region))
-            {
-                if (!Monitor.TryEnter(region.WorkerMutex))
-                {
-                    // A worker is already processing this region.
-                    continue;
-                }
-
-                try
-                {
-                    region.Cleanup();
-                }
-                finally
-                {
-                    Monitor.Exit(region.WorkerMutex);
-                }
-            }
 
             if (!TryRentSubmission(out Submission? submission))
                 return;
@@ -302,25 +234,45 @@ namespace VoxelPizza.Client
                 {
                     Debug.Assert(submission != null);
 
-                    var (poolEmpty, empty) = ProcessRegion(submission, region, out ChunkStagingMesh? stagingMesh);
-                    if (empty)
+                    (bool regionBuilt, bool regionEmpty) = region.Build(_mesher, _blockBuffer);
+
+                    bool stagingPoolEmpty = false;
+                    bool uploadEmpty = regionEmpty;
+                    ChunkStagingMesh? stagingMesh = null;
+
+                    if (regionBuilt || region.IsUploadRequired)
                     {
-                        //region.UploadFinished(null);
-                        Debug.Assert(stagingMesh == null);
+                        (stagingPoolEmpty, uploadEmpty) = UploadRegion(
+                            _gd, _stagingMeshPool, submission.CLF.CommandList, region, out stagingMesh);
                     }
 
-                    if (poolEmpty)
+                    if (uploadEmpty)
                     {
+                        Debug.Assert(stagingMesh == null);
+
+                        region.UploadStaged();
+                        region.UploadFinished(null);
+                        continue;
+                    }
+
+                    if (stagingPoolEmpty)
+                    {
+                        Debug.Assert(stagingMesh == null);
+
+                        region.UploadRequired();
                         break;
                     }
 
                     if (stagingMesh != null)
                     {
+                        region.UploadStaged();
+
                         submission.StagingMeshes.Add(stagingMesh);
 
                         if (submission.StagingMeshes.Count >= MaxUploadsPerCommandList)
                         {
                             FlushSubmission(submission);
+
                             if (!TryRentSubmission(out submission))
                                 return;
                         }
@@ -355,14 +307,6 @@ namespace VoxelPizza.Client
             lock (_regionsToBuild)
             {
                 return _regionsToBuild.TryDequeue(out region);
-            }
-        }
-
-        private bool TryDequeueToCleanup([MaybeNullWhen(false)] out ChunkMeshRegion region)
-        {
-            lock (_regionsToCleanup)
-            {
-                return _regionsToCleanup.TryDequeue(out region);
             }
         }
 
@@ -411,17 +355,20 @@ namespace VoxelPizza.Client
                 ChunkMeshRegion? owner = stagingMesh.Owner;
                 ChunkMeshBuffers? meshBuffers = stagingMesh.MeshBuffers;
 
-                if (owner == null)
+                Debug.Assert(owner != null);
+
+                if (meshBuffers == null)
                 {
-                    meshBuffers?.Dispose();
+                    owner.UploadFinished(null);
                 }
                 else
                 {
-                    Debug.Assert(meshBuffers != null);
                     owner.UploadFinished(meshBuffers);
                 }
 
                 stagingMesh.Owner = null;
+                stagingMesh.MeshBuffers = null;
+
                 _stagingMeshPool.Return(stagingMesh);
             }
             submission.StagingMeshes.Clear();

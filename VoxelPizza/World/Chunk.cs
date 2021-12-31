@@ -13,8 +13,7 @@ namespace VoxelPizza.World
 
         public static Size3 Size => new(Width, Height, Depth);
 
-        public uint[] Blocks;
-        public BlockStorage Storage;
+        private BlockStorage? _storage;
 
         public event ChunkAction? Updated;
 
@@ -24,17 +23,18 @@ namespace VoxelPizza.World
         public int Y => Position.Y;
         public int Z => Position.Z;
 
-        public WorldBox Box => new(Position.ToBlock(), Size);
-
         public ChunkRegion Region { get; }
+
+        public BlockStorageType StorageType => _storage?.StorageType ?? BlockStorageType.Null;
+        ushort IBlockStorage.Width => _storage?.Width ?? 0;
+        ushort IBlockStorage.Height => _storage?.Height ?? 0;
+        ushort IBlockStorage.Depth => _storage?.Depth ?? 0;
+        public bool IsEmpty => _storage == null || _storage.IsEmpty;
 
         public Chunk(ChunkRegion region, ChunkPosition position)
         {
             Region = region ?? throw new ArgumentNullException(nameof(region));
             Position = position;
-
-            //Blocks = new uint[Height * Depth * Width];
-            Storage = new BlockStorage(0);
         }
 
         public void InvokeUpdate()
@@ -42,59 +42,76 @@ namespace VoxelPizza.World
             Updated?.Invoke(this);
         }
 
-        public void GetBlockRow(nint index, ref uint destination, uint length)
+        public BlockStorage GetBlockStorage()
         {
-            Storage.GetBlockRow(index, ref destination, length);
+            if (_storage == null)
+            {
+                _storage = new BlockStorage8(Width, Height, Depth);
+            }
+            return _storage;
         }
 
-        public void GetBlockRow(nint x, nint y, nint z, ref uint destination, uint length)
+        public void GetBlockRow(nuint index, ref uint destination, nuint length)
         {
-            Storage.GetBlockRow(x, y, z, ref destination, length);
+            GetBlockStorage().GetBlockRow(index, ref destination, length);
         }
 
-        public void SetBlockLayer(nint y, uint value)
+        public void GetBlockRow(nuint x, nuint y, nuint z, ref uint destination, nuint length)
         {
-            Storage.SetBlockLayer(y, value);
+            GetBlockStorage().GetBlockRow(x, y, z, ref destination, length);
+        }
+
+        public void SetBlockLayer(nuint y, uint value)
+        {
+            GetBlockStorage().SetBlockLayer(y, value);
         }
 
         public uint GetBlock(int x, int y, int z)
         {
-            return Blocks[GetIndex(x, y, z)];
+            throw new NotImplementedException();
+            //return Blocks[GetIndex(x, y, z)];
         }
 
         public uint GetBlock(nint x, nint y, nint z)
         {
-            return Blocks[GetIndex(x, y, z)];
+            throw new NotImplementedException();
+            //return Blocks[GetIndex(x, y, z)];
         }
 
         public uint GetBlock(nint index)
         {
-            return Blocks[index];
+            throw new NotImplementedException();
+            //return Blocks[index];
         }
 
-        public void SetBlock(nint x, nint y, nint z, uint value)
+        public void SetBlock(nuint x, nuint y, nuint z, uint value)
         {
-            Storage.SetBlock(x, y, z, value);
+            GetBlockStorage().SetBlock(x, y, z, value);
         }
 
-        public void SetBlock(nint index, uint value)
+        public void SetBlock(nuint index, uint value)
         {
-            Storage.SetBlock(index, value);
+            GetBlockStorage().SetBlock(index, value);
         }
 
         public void Generate()
         {
             //uint[] blocks = Blocks;
             //ref uint blockRef = ref blocks[0];
-            byte[] blocks8 = Storage._inlineStorage;
+
+            if (!TryGetInline(out Span<byte> blocks8, out BlockStorageType storageType))
+            {
+                throw new Exception();
+            }
+
             ref byte blockRef8 = ref blocks8[0];
             ref ushort blockRef16 = ref Unsafe.As<byte, ushort>(ref blockRef8);
 
-            int seed = 17;
-            seed = seed * 31 + X;
-            seed = seed * 31 + Y;
-            seed = seed * 31 + Z;
-            var rng = new Random(seed);
+            ulong seed = 17;
+            seed = seed * 31 + (uint)X;
+            seed = seed * 31 + (uint)Y;
+            seed = seed * 31 + (uint)Z;
+            var rng = new XoshiroRandom(seed);
 
             int chunkX = X * Width;
             int chunkY = Y * Height;
@@ -102,10 +119,14 @@ namespace VoxelPizza.World
 
             if (true)
             {
+                Span<byte> tmp = stackalloc byte[Width * Depth];
+
                 for (int y = 0; y < Height; y++)
                 {
                     //double fac = (Y * Height + y) / 1024.0;
                     int blockY = chunkY + y;
+
+                    rng.NextBytes(tmp);
 
                     for (int z = 0; z < Depth; z++)
                     {
@@ -126,10 +147,10 @@ namespace VoxelPizza.World
                             //ref uint block = ref Unsafe.Add(ref blockRef, i);
                             ref byte block8 = ref Unsafe.Add(ref blockRef8, i);
                             ref ushort block16 = ref Unsafe.Add(ref blockRef16, i);
-                            
+
                             uint v = 0;
                             if ((sin + cos) * 0.5f >= blockY)
-                                v = (uint)rng.Next(255) + 1;
+                                v = (uint)tmp[x + z * Width] + 1;
 
                             //block = v;
                             block8 = v > 255 ? (byte)255 : (byte)v;
@@ -170,7 +191,7 @@ namespace VoxelPizza.World
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public nint GetIndex(nint x, nint y, nint z)
+        public nuint GetIndex(nuint x, nuint y, nuint z)
         {
             return GetIndexBase(Depth, Width, y, z) + x;
         }
@@ -182,7 +203,7 @@ namespace VoxelPizza.World
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static nint GetIndexBase(nint depth, nint width, nint y, nint z)
+        public static nuint GetIndexBase(nuint depth, nuint width, nuint y, nuint z)
         {
             return (y * depth + z) * width;
         }
@@ -209,6 +230,11 @@ namespace VoxelPizza.World
         public static int BlockToChunkZ(int blockZ)
         {
             return blockZ >> 4;
+        }
+
+        public bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType)
+        {
+            return GetBlockStorage().TryGetInline(out inlineSpan, out storageType);
         }
     }
 }

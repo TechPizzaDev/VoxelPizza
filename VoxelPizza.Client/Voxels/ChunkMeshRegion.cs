@@ -5,7 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Veldrid;
-using VoxelPizza.Collections;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
@@ -14,7 +13,7 @@ namespace VoxelPizza.Client
     // TODO: smart checks for reallocations and
     //       separate commonly updated chunks into singular mesh instances
 
-    public partial class ChunkMeshRegion : GraphicsResource
+    public class ChunkMeshRegion : GraphicsResource
     {
         private ChunkMeshBuffers? _currentMesh;
         private Queue<ChunkMeshBuffers?> _meshesForUpload = new(1);
@@ -23,8 +22,7 @@ namespace VoxelPizza.Client
         private Stopwatch _buildWatch = new();
         private StoredChunkMesh[] _storedChunks;
         private int _buildRequired;
-        private int _uploadRequired;
-        private int _removeRequired;
+        private volatile bool _uploadRequired;
         private int _chunkCount;
 
         public ChunkRenderer Renderer { get; }
@@ -37,9 +35,7 @@ namespace VoxelPizza.Client
         public uint IndexCount => _currentMesh?.IndexCount ?? 0;
         public uint VertexCount => _currentMesh?.VertexCount ?? 0;
 
-        public bool IsBuildRequired => _buildRequired > 0;
-        public bool IsUploadRequired => _uploadRequired > 0;
-        public bool IsRemoveRequired => _removeRequired > 0;
+        public bool IsUploadRequired => _uploadRequired;
         public int ChunkCount => _chunkCount;
 
         public int RegionX => Position.X;
@@ -63,7 +59,7 @@ namespace VoxelPizza.Client
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
-            Interlocked.Increment(ref _uploadRequired);
+            _uploadRequired = true;
         }
 
         public override void DestroyDeviceObjects()
@@ -101,24 +97,25 @@ namespace VoxelPizza.Client
         public void ChunkAdded(ChunkPosition chunkPosition)
         {
             Interlocked.Increment(ref _chunkCount);
+
+            ChunkPosition localPosition = GetLocalChunkPosition(chunkPosition);
+            ref StoredChunkMesh storedChunk = ref GetStoredChunk(localPosition);
+            if (storedChunk.HasValue)
+            {
+                Interlocked.Exchange(ref storedChunk.IsRemoveRequired, 0);
+            }
         }
 
         public void ChunkRemoved(ChunkPosition chunkPosition)
         {
             Interlocked.Decrement(ref _chunkCount);
-        }
 
-        public void AllowBuild(ChunkPosition chunkPosition)
-        {
             ChunkPosition localPosition = GetLocalChunkPosition(chunkPosition);
             ref StoredChunkMesh storedChunk = ref GetStoredChunk(localPosition);
-            if (!storedChunk.HasValue)
+            if (storedChunk.HasValue)
             {
-                storedChunk = new StoredChunkMesh(chunkPosition, localPosition);
+                Interlocked.Increment(ref storedChunk.IsRemoveRequired);
             }
-
-            Interlocked.Increment(ref storedChunk.IsBuildRequired);
-            Interlocked.Increment(ref _buildRequired);
         }
 
         public void RequestBuild(ChunkPosition chunkPosition)
@@ -131,21 +128,6 @@ namespace VoxelPizza.Client
             }
 
             Interlocked.Increment(ref storedChunk.IsBuildRequired);
-            Interlocked.Increment(ref _buildRequired);
-        }
-
-        public void RequestRemove(ChunkPosition chunkPosition)
-        {
-            ChunkPosition localPosition = GetLocalChunkPosition(chunkPosition);
-            ref StoredChunkMesh storedChunk = ref GetStoredChunk(localPosition);
-            if (!storedChunk.HasValue)
-            {
-                return;
-            }
-
-            Interlocked.Increment(ref storedChunk.IsRemoveRequired);
-            Interlocked.Increment(ref storedChunk.IsBuildRequired);
-            Interlocked.Increment(ref _removeRequired);
             Interlocked.Increment(ref _buildRequired);
         }
 
@@ -172,14 +154,14 @@ namespace VoxelPizza.Client
 
         public (int ChunkCount, int ToBuild, int ToUpload, int ToRemove) GetCounts()
         {
-            return (_chunkCount, _buildRequired > 0 ? 1 : 0, _uploadRequired, _removeRequired);
+            return (_chunkCount, _buildRequired > 0 ? 1 : 0, _uploadRequired ? 1 : 0, 0);
         }
 
         public void Reset()
         {
-            _removeRequired = default;
-            _buildRequired = default;
-            _uploadRequired = default;
+            _chunkCount = 0;
+            _buildRequired = 0;
+            _uploadRequired = false;
 
             StoredChunkMesh[] storedChunks = _storedChunks;
             for (int i = 0; i < storedChunks.Length; i++)
@@ -192,60 +174,13 @@ namespace VoxelPizza.Client
             DestroyDeviceObjects();
         }
 
-        public bool Cleanup()
-        {
-            int removeRequested = Interlocked.Exchange(ref _removeRequired, 0);
-            if (removeRequested <= 0)
-            {
-                return false;
-            }
-
-            int emptyCount = 0;
-            bool uploadRequired = false;
-
-            StoredChunkMesh[] storedChunks = _storedChunks;
-            for (int i = 0; i < storedChunks.Length; i++)
-            {
-                ref StoredChunkMesh storedChunk = ref storedChunks[i];
-                if (!storedChunk.HasValue)
-                {
-                    emptyCount++;
-                    continue;
-                }
-                uploadRequired = true;
-
-                int chunkRemoveRequired = Interlocked.Exchange(ref storedChunk.IsRemoveRequired, 0);
-                if (chunkRemoveRequired == 0)
-                    continue;
-
-                storedChunk.StoredMesh.Dispose();
-                storedChunk = default;
-                emptyCount++;
-            }
-
-            if (emptyCount == storedChunks.Length)
-            {
-                lock (_uploadMutex)
-                {
-                    //EmptyPendingTransfers();
-                    EmptyPendingUploads();
-
-                    // Enqueue an empty mesh to clear the current mesh.
-                    _meshesForUpload.Enqueue(default);
-
-                    uploadRequired = false;
-                }
-            }
-
-            if (uploadRequired)
-            {
-                Interlocked.Increment(ref _uploadRequired);
-            }
-            return true;
-        }
-
         public (bool Built, bool Empty) Build(ChunkMesher mesher, BlockMemory blockBuffer)
         {
+            if (IsDisposed)
+            {
+                return (false, true);
+            }
+
             int buildRequired = Interlocked.Exchange(ref _buildRequired, 0);
             if (buildRequired <= 0)
             {
@@ -256,6 +191,17 @@ namespace VoxelPizza.Client
             int emptyCount = 0;
 
             StoredChunkMesh[] storedChunks = _storedChunks;
+
+            // Dedicated dispose loop to recycle memory for following builds.
+            for (int i = 0; i < storedChunks.Length; i++)
+            {
+                ref StoredChunkMesh storedChunk = ref storedChunks[i];
+                if (storedChunk.HasValue && storedChunk.IsBuildRequired > 0)
+                {
+                    storedChunk.StoredMesh.Dispose();
+                }
+            }
+
             for (int i = 0; i < storedChunks.Length; i++)
             {
                 ref StoredChunkMesh storedChunk = ref storedChunks[i];
@@ -268,19 +214,22 @@ namespace VoxelPizza.Client
                 int chunkBuildRequired = Interlocked.Exchange(ref storedChunk.IsBuildRequired, 0);
                 if (chunkBuildRequired != 0)
                 {
+                    // Dispose here because a build could've been requested after the dedicated dispose loop.
                     storedChunk.StoredMesh.Dispose();
 
                     int chunkRemoveRequired = Interlocked.Exchange(ref storedChunk.IsRemoveRequired, 0);
                     if (chunkRemoveRequired == 0)
                     {
-                        Renderer.FetchBlockMemory(blockBuffer, storedChunk.Position.ToBlock());
-
-                        _buildWatch.Start();
-                        storedChunk.StoredMesh = mesher.Mesh(blockBuffer);
-                        _buildWatch.Stop();
-
-                        builtCount++;
+                        BlockMemoryState memoryState = Renderer.FetchBlockMemory(blockBuffer, storedChunk.Position.ToBlock());
+                        if (memoryState == BlockMemoryState.Filled)
+                        {
+                            _buildWatch.Start();
+                            storedChunk.StoredMesh = mesher.Mesh(blockBuffer);
+                            _buildWatch.Stop();
+                        }
                     }
+
+                    builtCount++;
                 }
 
                 if (storedChunk.StoredMesh.IsEmpty)
@@ -294,8 +243,6 @@ namespace VoxelPizza.Client
 
             return (builtCount > 0, emptyCount == storedChunks.Length);
         }
-
-        private static Stopwatch mapWatch = new Stopwatch();
 
         public ChunkMeshSizes GetMeshSizes()
         {
@@ -399,6 +346,16 @@ namespace VoxelPizza.Client
             }
         }
 
+        public void UploadRequired()
+        {
+            _uploadRequired = true;
+        }
+
+        public void UploadStaged()
+        {
+            _uploadRequired = false;
+        }
+
         public void UploadFinished(ChunkMeshBuffers? transferredBuffers)
         {
             if (IsDisposed)
@@ -415,7 +372,7 @@ namespace VoxelPizza.Client
             }
         }
 
-        public static unsafe ChunkMeshSizes GetMeshSizes(ReadOnlySpan<StoredChunkMesh> storedChunks)
+        public static ChunkMeshSizes GetMeshSizes(ReadOnlySpan<StoredChunkMesh> storedChunks)
         {
             uint indexCount = 0;
             uint indirectBytesRequired = 0;
@@ -493,20 +450,28 @@ namespace VoxelPizza.Client
 
                 uint indexByteOffset = indexOffset * sizeof(uint);
                 Span<byte> indexBytes = MemoryMarshal.AsBytes(mesh.Indices);
-                indexBytes.CopyTo(new Span<byte>(indexBytePtr + indexByteOffset, indexBytes.Length));
+                MemCopy(indexBytes, new Span<byte>(indexBytePtr + indexByteOffset, indexBytes.Length));
 
                 uint spaceVertexByteOffset = vertexOffset * (uint)Unsafe.SizeOf<ChunkSpaceVertex>();
                 Span<byte> spaceVertexBytes = MemoryMarshal.AsBytes(mesh.SpaceVertices);
-                spaceVertexBytes.CopyTo(new Span<byte>(spaceVertexBytePtr + spaceVertexByteOffset, spaceVertexBytes.Length));
+                MemCopy(spaceVertexBytes, new Span<byte>(spaceVertexBytePtr + spaceVertexByteOffset, spaceVertexBytes.Length));
 
                 uint paintVertexByteOffset = vertexOffset * (uint)Unsafe.SizeOf<ChunkPaintVertex>();
                 Span<byte> paintVertexBytes = MemoryMarshal.AsBytes(mesh.PaintVertices);
-                paintVertexBytes.CopyTo(new Span<byte>(paintVertexBytePtr + paintVertexByteOffset, paintVertexBytes.Length));
+                MemCopy(paintVertexBytes, new Span<byte>(paintVertexBytePtr + paintVertexByteOffset, paintVertexBytes.Length));
 
                 drawIndex++;
                 indexOffset += indexCount;
                 vertexOffset += mesh.VertexCount;
             }
+        }
+
+        private static void MemCopy(Span<byte> src, Span<byte> dst)
+        {
+            if (dst.Length < src.Length)
+                throw new ArgumentException("Destination is too small.");
+
+            Unsafe.CopyBlockUnaligned(ref dst[0], ref src[0], (uint)src.Length);
         }
 
         public void Render(CommandList cl)
@@ -519,12 +484,12 @@ namespace VoxelPizza.Client
                     _currentMesh?.Dispose();
                     _currentMesh = pendingBuffers;
                 }
-            }
 
-            ChunkMeshBuffers? currentMesh = _currentMesh;
-            if (currentMesh != null)
-            {
-                DrawMesh(cl, currentMesh);
+                ChunkMeshBuffers? currentMesh = _currentMesh;
+                if (currentMesh != null)
+                {
+                    DrawMesh(cl, currentMesh);
+                }
             }
         }
 

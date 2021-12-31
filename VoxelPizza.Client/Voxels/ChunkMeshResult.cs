@@ -72,10 +72,10 @@ namespace VoxelPizza.Client
             }
 
             IntPtr backingBuffer = poolSegment.Rent();
-            var bytePtr = (byte*)backingBuffer;
-            var indexPtr = (uint*)bytePtr;
-            var spacePtr = (ChunkSpaceVertex*)(bytePtr + indexByteCount);
-            var paintPtr = (ChunkPaintVertex*)(bytePtr + indexByteCount + spaceByteCount);
+            byte* bytePtr = (byte*)backingBuffer;
+            uint* indexPtr = (uint*)bytePtr;
+            ChunkSpaceVertex* spacePtr = (ChunkSpaceVertex*)(bytePtr + indexByteCount);
+            ChunkPaintVertex* paintPtr = (ChunkPaintVertex*)(bytePtr + indexByteCount + spaceByteCount);
 
             Unsafe.CopyBlockUnaligned(indexPtr, indices.Buffer, indexByteCount);
             Unsafe.CopyBlockUnaligned(spacePtr, spaceVertices.Buffer, spaceByteCount);

@@ -82,12 +82,13 @@ namespace VoxelPizza.Client
                 Size3 outerSize = worldSlice.OuterSize;
                 Size3 innerSize = worldSlice.InnerSize;
 
-                nint xOffset = (nint)((outerSize.W - innerSize.W) / 2);
-                nint yOffset = (nint)((outerSize.H - innerSize.H) / 2);
-                nint zOffset = (nint)((outerSize.D - innerSize.D) / 2);
+                nuint xOffset = (outerSize.W - innerSize.W) / 2;
+                nuint yOffset = (outerSize.H - innerSize.H) / 2;
+                nuint zOffset = (outerSize.D - innerSize.D) / 2;
 
-                nint rowStride = (nint)outerSize.W;
-                nint layerStride = (nint)(outerSize.W * outerSize.D);
+                nuint depth = outerSize.D;
+                nuint rowStride = outerSize.W;
+                nuint layerStride = rowStride * depth;
 
                 ChunkMesherState mesherState = new(
                     visualFeatures,
@@ -98,17 +99,17 @@ namespace VoxelPizza.Client
                     layerStride,
                     innerSize);
 
-                for (nint y = 0; y < mesherState.InnerSizeH; y++)
+                for (nuint y = 0; y < mesherState.InnerSizeH; y++)
                 {
                     mesherState.Y = y;
 
-                    for (nint z = 0; z < mesherState.InnerSizeD; z++)
+                    for (nuint z = 0; z < mesherState.InnerSizeD; z++)
                     {
                         mesherState.Z = z;
 
                         mesherState.Index = Chunk.GetIndexBase(
-                            (nint)outerSize.D,
-                            (nint)outerSize.W,
+                            outerSize.D,
+                            rowStride,
                             yOffset + y,
                             zOffset + z)
                             + xOffset;
@@ -145,9 +146,9 @@ namespace VoxelPizza.Client
             ref uint frontRow = ref mesherState.FrontRow;
             ref uint backRow = ref mesherState.BackRow;
 
-            for (nint x = 0; x < mesherState.InnerSizeW; x++)
+            for (nuint x = 0; x < mesherState.InnerSizeW; x++)
             {
-                nint coreId = (nint)Unsafe.Add(ref coreRow, x);
+                nuint coreId = Unsafe.Add(ref coreRow, x);
 
                 MeshProvider? meshProvider = Unsafe.Add(ref meshProviders, coreId);
                 if (meshProvider == null)
@@ -160,12 +161,12 @@ namespace VoxelPizza.Client
                 if ((features & (uint)BlockVisualFeatures.FaceDependent) == (uint)BlockVisualFeatures.FaceDependent)
                 {
                     uint faces = (uint)CubeFaces.All;
-                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref coreRowL, x)) & CubeFaces.Left);
-                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref coreRowR, x)) & CubeFaces.Right);
-                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref bottomRow, x)) & CubeFaces.Bottom);
-                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref topRow, x)) & CubeFaces.Top);
-                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref frontRow, x)) & CubeFaces.Front);
-                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, (nint)Unsafe.Add(ref backRow, x)) & CubeFaces.Back);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, Unsafe.Add(ref coreRowL, x)) & CubeFaces.Left);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, Unsafe.Add(ref coreRowR, x)) & CubeFaces.Right);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, Unsafe.Add(ref bottomRow, x)) & CubeFaces.Bottom);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, Unsafe.Add(ref topRow, x)) & CubeFaces.Top);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, Unsafe.Add(ref frontRow, x)) & CubeFaces.Front);
+                    faces &= ~(uint)(Unsafe.Add(ref oppositeBlockingFaces, Unsafe.Add(ref backRow, x)) & CubeFaces.Back);
 
                     if ((features & (uint)BlockVisualFeatures.SkipIfObstructed) == (uint)BlockVisualFeatures.SkipIfObstructed)
                     {

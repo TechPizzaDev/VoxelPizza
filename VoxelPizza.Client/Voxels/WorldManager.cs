@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client
@@ -31,74 +32,100 @@ namespace VoxelPizza.Client
                     int depth = width;
                     int height = 32;
 
-                    ChunkPosition lastPos = new ChunkPosition(0, 0, 0);
-                    HashSet<ChunkPosition> allChunks = new();
-                    HashSet<ChunkPosition> newChunks = new();
+                    Size3 size = new((uint)width, (uint)height, (uint)depth);
+
+                    ChunkPosition currentPosition = dimension.PlayerChunkPosition;
+                    ChunkPosition previousPosition = currentPosition;
+
+                    ChunkPosition centerOffset = new(width / 2, height / 2, depth / 2);
+
                     HashSet<ChunkPosition> currentChunks = new();
 
-                    while (true)
+                    void AddChunk(ChunkPosition position)
                     {
-                        if (lastPos == dimension.PlayerChunkPosition)
+                        //bool a = currentChunks.Add(position);
+                        //Debug.Assert(a);
+
+                        if (position.Y >= -1 && position.Y <= 1)
                         {
-                            Thread.Sleep(1);
-                            continue;
-                        }
-                        lastPos = dimension.PlayerChunkPosition;
-
-                        for (int y = 0; y < height; y++)
-                        {
-                            for (int z = 0; z < depth; z++)
-                            {
-                                for (int x = 0; x < width; x++)
-                                {
-                                    var pos = new ChunkPosition(
-                                        x + lastPos.X - width / 2,
-                                        y + lastPos.Y - height / 2,
-                                        z + lastPos.Z - depth / 2);
-
-                                    if (allChunks.Add(pos))
-                                        newChunks.Add(pos);
-
-                                    currentChunks.Add(pos);
-                                }
-                            }
-                        }
-
-                        foreach (ChunkPosition pos in newChunks)
-                        {
-                            Chunk chunk = dimension.CreateChunk(pos);
+                            Chunk chunk = dimension.CreateChunk(position);
                             try
                             {
-                                if (pos.Y >= 0 && pos.Y <= 3)
-                                {
-                                    chunk.Generate();
-                                    //chunk.SetBlockLayer(0, 10);
-                                    chunk.InvokeUpdate();
-                                }
-                                else
-                                {
-                                    //chunk.SetBlockLayer(15, 1);
-                                }
+                                //chunk.Generate();
+                                chunk.SetBlockLayer(0, 10);
+                                chunk.InvokeUpdate();
                             }
                             finally
                             {
                                 chunk.DecrementRef();
                             }
                         }
-                        newChunks.Clear();
+                    }
 
-                        foreach (ChunkPosition pos in allChunks)
+                    ChunkPosition currentOrigin = currentPosition - centerOffset;
+                    ChunkPosition currentMax = currentPosition + centerOffset;
+
+                    ChunkPosition position;
+                    for (position.Y = currentOrigin.Y; position.Y < currentMax.Y; position.Y++)
+                    {
+                        for (position.Z = currentOrigin.Z; position.Z < currentMax.Z; position.Z++)
                         {
-                            if (!currentChunks.Contains(pos))
+                            for (position.X = currentOrigin.X; position.X < currentMax.X; position.X++)
                             {
-                                allChunks.Remove(pos);
-
-                                dimension.RemoveChunk(pos);
+                                AddChunk(position);
                             }
                         }
-                        currentChunks.Clear();
-
                     }
+
+                    while (true)
+                    {
+                        currentPosition = dimension.PlayerChunkPosition;
+
+                        if (previousPosition == currentPosition)
+                        {
+                            Thread.Sleep(1);
+                            continue;
+                        }
+
+                        currentOrigin = currentPosition - centerOffset;
+                        currentMax = currentPosition + centerOffset;
+                        ChunkBox currentBox = new(currentOrigin, currentMax);
+
+                        ChunkPosition previousOrigin = previousPosition - centerOffset;
+                        ChunkPosition previousMax = previousPosition + centerOffset;
+                        ChunkBox previousBox = new(previousOrigin, previousMax);
+
+                        for (position.Y = previousOrigin.Y; position.Y < previousMax.Y; position.Y++)
+                        {
+                            for (position.Z = previousOrigin.Z; position.Z < previousMax.Z; position.Z++)
+                            {
+                                for (position.X = previousOrigin.X; position.X < previousMax.X; position.X++)
+                                {
+                                    if (!currentBox.Contains(position))
+                                    {
+                                        dimension.RemoveChunk(position);
+                                    }
+                                }
+                            }
+                        }
+
+                        for (position.Y = currentOrigin.Y; position.Y < currentMax.Y; position.Y++)
+                        {
+                            for (position.Z = currentOrigin.Z; position.Z < currentMax.Z; position.Z++)
+                            {
+                                for (position.X = currentOrigin.X; position.X < currentMax.X; position.X++)
+                                {
+                                    if (!previousBox.Contains(position))
+                                    {
+                                        AddChunk(position);
+                                    }
+                                }
+                            }
+                        }
+
+                        previousPosition = currentPosition;
+                    }
+
                     return;
 
                     var list = new List<(int x, int y, int z)>();
@@ -197,11 +224,11 @@ namespace VoxelPizza.Client
                                         var c = dimension.GetChunk(new ChunkPosition(x, y, z));
                                         if (c != null)
                                         {
-                                            uint[] blocks = c.Blocks;
-                                            for (int b = 0; b < blocks.Length; b++)
-                                            {
-                                                blocks[b] = (uint)rng.Next(max);
-                                            }
+                                            //uint[] blocks = c.Blocks;
+                                            //for (int b = 0; b < blocks.Length; b++)
+                                            //{
+                                            //    blocks[b] = (uint)rng.Next(max);
+                                            //}
                                             //blocks.AsSpan().Clear();
 
 
@@ -237,7 +264,7 @@ namespace VoxelPizza.Client
                                 {
                                     try
                                     {
-                                        c.SetBlock(rng.Next(16 * 16 * 16), (uint)rng.Next(128));
+                                        c.SetBlock((nuint)rng.Next(16 * 16 * 16), (uint)rng.Next(128));
 
                                         c.InvokeUpdate();
                                     }

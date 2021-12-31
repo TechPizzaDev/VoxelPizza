@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace VoxelPizza.World
 {
@@ -22,6 +23,7 @@ namespace VoxelPizza.World
             return new BlockPosition(Chunk.Width * X, Chunk.Height * Y, Chunk.Depth * Z);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public readonly ChunkRegionPosition ToRegion()
         {
             return new ChunkRegionPosition(
@@ -65,6 +67,22 @@ namespace VoxelPizza.World
         public static bool operator !=(ChunkPosition left, ChunkPosition right)
         {
             return !(left == right);
+        }
+
+        public static ChunkPosition operator +(ChunkPosition left, ChunkPosition right)
+        {
+            return new ChunkPosition(
+                left.X + right.X,
+                left.Y + right.Y,
+                left.Z + right.Z);
+        }
+
+        public static ChunkPosition operator -(ChunkPosition left, ChunkPosition right)
+        {
+            return new ChunkPosition(
+                left.X - right.X,
+                left.Y - right.Y,
+                left.Z - right.Z);
         }
     }
 }

@@ -8,6 +8,11 @@ namespace VoxelPizza
     {
         private Segment[] _segments;
 
+        // Capacities between 1 and 2^MinRangeBits bytes fit in the first segment.
+        private const int MinRangeBits = 8;
+
+        private const uint MinMask = ~0u >> (32 - MinRangeBits);
+
         public ulong AvailableBytes
         {
             get
@@ -21,26 +26,33 @@ namespace VoxelPizza
             }
         }
 
+        public uint MaxCapacity { get; }
+
         public HeapPool(uint maxCapacity)
         {
-            _segments = new Segment[GetSegmentIndex(maxCapacity) + 1];
+            MaxCapacity = maxCapacity;
+
+            _segments = new Segment[GetSegmentIndex(MaxCapacity) + 1];
             for (int i = 0; i < _segments.Length; i++)
             {
-                _segments[i] = new Segment(GetBlockSizeAt((uint)i));
+                uint blockSize = GetBlockSizeAt((uint)i);
+                uint maxCount = Math.Max(4u, 1024u >> Math.Max(0, i - 6));
+
+                _segments[i] = new Segment(blockSize, maxCount);
             }
         }
 
         private static uint GetSegmentIndex(uint byteCapacity)
         {
-            Debug.Assert(byteCapacity >= 0);
+            Debug.Assert(byteCapacity > 0);
 
-            uint poolIndex = (uint)BitOperations.Log2(byteCapacity - 1 | 0b111111111) - 8;
+            uint poolIndex = (uint)BitOperations.Log2(byteCapacity - 1 | MinMask) - (MinRangeBits - 1);
             return poolIndex;
         }
 
         private static uint GetBlockSizeAt(uint index)
         {
-            return 1u << ((int)index + 9);
+            return 1u << ((int)index + MinRangeBits);
         }
 
         public uint GetBlockSize(uint byteCapacity)
@@ -51,7 +63,6 @@ namespace VoxelPizza
 
         public Segment GetSegment(uint byteCapacity)
         {
-            // Counts between 0 and 512 fit in the zero index.
             uint index = GetSegmentIndex(byteCapacity);
             return _segments[index];
         }

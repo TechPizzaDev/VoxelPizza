@@ -9,7 +9,7 @@ namespace VoxelPizza.Client
 
         public ChunkGraphFaces[] Chunks { get; }
 
-        public event Action<ChunkRegionGraph, ChunkPosition>? AddedAllSides;
+        public event Action<ChunkRegionGraph, ChunkPosition>? SidesFulfilled;
 
         public ChunkRegionGraph(ChunkRegionPosition regionPosition)
         {
@@ -25,9 +25,10 @@ namespace VoxelPizza.Client
         public ChunkGraphFaces Add(ChunkPosition localChunkPosition, ChunkGraphFaces value)
         {
             ChunkGraphFaces newValue = Chunks[ChunkRegion.GetChunkIndex(localChunkPosition)] |= value;
-            if ((newValue & ChunkGraphFaces.AllSides) == ChunkGraphFaces.AllSides)
+            if ((newValue & ChunkGraphFaces.AllSides) == ChunkGraphFaces.AllSides &&
+                (newValue & ChunkGraphFaces.Empty) == 0)
             {
-                AddedAllSides?.Invoke(this, localChunkPosition);
+                SidesFulfilled?.Invoke(this, localChunkPosition);
             }
             return newValue;
         }

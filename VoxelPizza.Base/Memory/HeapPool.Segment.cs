@@ -6,17 +6,19 @@ namespace VoxelPizza
 {
     public partial class HeapPool
     {
-        public class Segment
+        public unsafe class Segment
         {
             private Stack<IntPtr> _pooled = new();
 
             public uint BlockSize { get; }
+            public uint MaxCount { get; }
 
             public uint Count => (uint)_pooled.Count;
 
-            public Segment(uint blockSize)
+            public Segment(uint blockSize, uint maxCount)
             {
                 BlockSize = blockSize;
+                MaxCount = maxCount;
             }
 
             public IntPtr Rent()
@@ -30,14 +32,15 @@ namespace VoxelPizza
                 }
 
                 //Console.WriteLine("allocating " + BlockSize);
-                return Marshal.AllocHGlobal((int)BlockSize);
+                GC.AddMemoryPressure(BlockSize);
+                return (IntPtr)NativeMemory.Alloc(BlockSize);
             }
 
             public void Free(IntPtr buffer)
             {
                 lock (_pooled)
                 {
-                    if (_pooled.Count < 32)
+                    if ((uint)_pooled.Count < MaxCount)
                     {
                         _pooled.Push(buffer);
                         return;
@@ -45,7 +48,8 @@ namespace VoxelPizza
                 }
 
                 //Console.WriteLine("freeing " + BlockSize);
-                Marshal.FreeHGlobal(buffer);
+                NativeMemory.Free((void*)buffer);
+                GC.RemoveMemoryPressure(BlockSize);
             }
         }
     }

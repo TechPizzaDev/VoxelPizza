@@ -1,23 +1,42 @@
-using System;
 using System.Collections.Generic;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client
 {
+    public delegate void ChunkGraphSidesFulfilled(ChunkRegionGraph graph, ChunkPosition localPosition);
+
     public class ChunkGraph
     {
         private Dictionary<ChunkRegionPosition, ChunkRegionGraph> _roots = new();
 
-        public event Action<ChunkRegionGraph, ChunkPosition>? AddedAllSides;
+        public event ChunkGraphSidesFulfilled? SidesFulfilled;
 
-        public void AddChunk(ChunkPosition chunkPosition)
+        public void AddChunk(ChunkPosition chunkPosition, bool isEmpty)
         {
-            ActChunkAndSurround(new AddActor(this, chunkPosition), chunkPosition, ChunkGraphFaces.Center);
+            ChunkGraphFaces flags = ChunkGraphFaces.Center;
+            if (isEmpty)
+            {
+                flags |= ChunkGraphFaces.Empty;
+            }
+            ActChunkAndSurround(new AddActor(this, chunkPosition), chunkPosition, flags);
         }
 
         public void RemoveChunk(ChunkPosition chunkPosition)
         {
-            ActChunkAndSurround(new RemoveActor(this, chunkPosition), chunkPosition, ChunkGraphFaces.Center);
+            ActChunkAndSurround(new RemoveActor(this, chunkPosition), chunkPosition, ChunkGraphFaces.Center | ChunkGraphFaces.Empty);
+        }
+
+        public void FlagChunkEmpty(ChunkPosition chunkPosition, bool isEmpty)
+        {
+            ChunkPosition localChunkPos = ChunkRegion.GetLocalChunkPosition(chunkPosition);
+            if (isEmpty)
+            {
+                new AddActor(this, chunkPosition).ActLocal(localChunkPos, ChunkGraphFaces.Empty);
+            }
+            else
+            {
+                new RemoveActor(this, chunkPosition).ActLocal(localChunkPos, ChunkGraphFaces.Empty);
+            }
         }
 
         public ChunkGraphFaces GetChunk(ChunkPosition chunkPosition)
@@ -35,16 +54,16 @@ namespace VoxelPizza.Client
             if (!_roots.TryGetValue(regionPos, out ChunkRegionGraph? container))
             {
                 container = new ChunkRegionGraph(regionPos);
-                container.AddedAllSides += Container_AddedAllSides;
+                container.SidesFulfilled += Container_SidesFulfilled;
 
                 _roots.Add(regionPos, container);
             }
             return container;
         }
 
-        private void Container_AddedAllSides(ChunkRegionGraph arg1, ChunkPosition arg2)
+        private void Container_SidesFulfilled(ChunkRegionGraph arg1, ChunkPosition arg2)
         {
-            AddedAllSides?.Invoke(arg1, arg2);
+            SidesFulfilled?.Invoke(arg1, arg2);
         }
 
         private static void ActChunkAndSurround<TActor>(
@@ -145,13 +164,13 @@ namespace VoxelPizza.Client
                 localChunkPosition.Z == Chunk.Depth - 1;
         }
 
-        interface IActor
+        private interface IActor
         {
             ChunkGraphFaces ActGlobal(ChunkPosition globalPosition, ChunkGraphFaces faces);
             ChunkGraphFaces ActLocal(ChunkPosition localPosition, ChunkGraphFaces faces);
         }
 
-        struct AddActor : IActor
+        private struct AddActor : IActor
         {
             private ChunkGraph _graph;
             private ChunkRegionGraph _localGraph;
@@ -175,7 +194,7 @@ namespace VoxelPizza.Client
             }
         }
 
-        struct RemoveActor : IActor
+        private struct RemoveActor : IActor
         {
             private ChunkGraph _graph;
             private ChunkRegionGraph _localGraph;

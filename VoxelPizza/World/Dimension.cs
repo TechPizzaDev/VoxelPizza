@@ -128,11 +128,14 @@ namespace VoxelPizza.World
             }
         }
 
-        public bool RemoveChunk(ChunkPosition position)
+        public ChunkRemoveStatus RemoveChunk(ChunkPosition position)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
 
-            ChunkRegion region = CreateRegion(regionPosition);
+            ChunkRegion? region = GetRegion(regionPosition);
+            if (region == null)
+                return ChunkRemoveStatus.MissingRegion;
+            
             try
             {
                 return region.RemoveChunk(position);

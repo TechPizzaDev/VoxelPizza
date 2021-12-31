@@ -2,20 +2,23 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
-    public struct ChunkBoxEnumerator : IEnumerator<ChunkBox>
+    public struct ChunkBoxSliceEnumerator : IEnumerator<ChunkBoxSlice>
     {
         private int processedY;
         private int blockY;
         private int chunkY;
+        private int innerY;
         private int height;
 
         private int processedZ;
         private int blockZ;
         private int chunkZ;
+        private int innerZ;
         private int depth;
 
         private int processedX;
@@ -29,18 +32,27 @@ namespace VoxelPizza.World
 
         public readonly ChunkPosition CurrentChunk => new(chunkX, chunkY, chunkZ);
 
-        public readonly BlockPosition CurrentInnerOrigin => new(
-            (int)((uint)blockX % Chunk.Width),
-            (int)((uint)blockY % Chunk.Height),
-            (int)((uint)blockZ % Chunk.Depth));
+        public readonly BlockPosition CurrentInnerOrigin
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(
+                (int)((uint)blockX % Chunk.Width),
+                innerY,
+                innerZ);
+        }
 
-        public readonly BlockPosition CurrentOuterOrigin => new(
-            blockX - Origin.X,
-            blockY - Origin.Y,
-            blockZ - Origin.Z);
+        public readonly BlockPosition CurrentOuterOrigin
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(
+                blockX - Origin.X,
+                blockY - Origin.Y,
+                blockZ - Origin.Z);
+        }
 
         public readonly Size3 CurrentSize
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
                 Debug.Assert(width >= 0 && height >= 0 && depth >= 0);
@@ -48,21 +60,21 @@ namespace VoxelPizza.World
             }
         }
 
-        public readonly ChunkBox Current
+        public readonly ChunkBoxSlice Current
         {
             get
             {
                 ChunkPosition chunk = CurrentChunk;
-                BlockPosition innerOrigin = CurrentInnerOrigin;
                 BlockPosition outerOrigin = CurrentOuterOrigin;
+                BlockPosition innerOrigin = CurrentInnerOrigin;
                 Size3 size = CurrentSize;
-                return new ChunkBox(chunk, outerOrigin, innerOrigin, size);
+                return new ChunkBoxSlice(chunk, outerOrigin, innerOrigin, size);
             }
         }
 
         readonly object IEnumerator.Current => Current;
 
-        public ChunkBoxEnumerator(BlockPosition origin, Size3 size) : this()
+        public ChunkBoxSliceEnumerator(BlockPosition origin, Size3 size) : this()
         {
             Origin = origin;
             Size = size;
@@ -72,15 +84,25 @@ namespace VoxelPizza.World
             UpdateZ();
         }
 
-        public readonly ChunkBoxEnumerator GetEnumerator()
+        public readonly ChunkBoxSliceEnumerator GetEnumerator()
         {
             return this;
+        }
+
+        public readonly int GetMaxChunkCount()
+        {
+            uint w = Size.W / Chunk.Width + 2;
+            uint h = Size.H / Chunk.Height + 2;
+            uint d = Size.D / Chunk.Depth + 2;
+            return (int)(w * h * d);
         }
 
         private void UpdateY()
         {
             blockY = Origin.Y + processedY;
             chunkY = Chunk.BlockToChunkY(blockY);
+            innerY = (int)((uint)blockY % Chunk.Height);
+
             int min1Y = chunkY * Chunk.Height;
             int max1Y = min1Y + Chunk.Height;
             int bottomSide = Math.Max(min1Y, Origin.Y);
@@ -92,6 +114,8 @@ namespace VoxelPizza.World
         {
             blockZ = Origin.Z + processedZ;
             chunkZ = Chunk.BlockToChunkZ(blockZ);
+            innerZ = (int)((uint)blockZ % Chunk.Depth);
+
             int min1Z = chunkZ * Chunk.Depth;
             int max1Z = min1Z + Chunk.Depth;
             int backSide = Math.Max(min1Z, Origin.Z);
@@ -109,6 +133,7 @@ namespace VoxelPizza.World
                     {
                         blockX = Origin.X + processedX;
                         chunkX = Chunk.BlockToChunkX(blockX);
+
                         int min1X = chunkX * Chunk.Width;
                         int max1X = min1X + Chunk.Width;
                         int leftSide = Math.Max(min1X, Origin.X);

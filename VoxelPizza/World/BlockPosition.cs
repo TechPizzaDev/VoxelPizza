@@ -80,5 +80,21 @@ namespace VoxelPizza.World
         {
             return !(left == right);
         }
+
+        public static BlockPosition operator +(BlockPosition left, BlockPosition right)
+        {
+            return new BlockPosition(
+                left.X + right.X,
+                left.Y + right.Y,
+                left.Z + right.Z);
+        }
+
+        public static BlockPosition operator -(BlockPosition left, BlockPosition right)
+        {
+            return new BlockPosition(
+                left.X - right.X,
+                left.Y - right.Y,
+                left.Z - right.Z);
+        }
     }
 }

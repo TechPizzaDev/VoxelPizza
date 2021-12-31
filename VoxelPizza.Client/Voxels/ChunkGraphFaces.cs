@@ -13,6 +13,7 @@ namespace VoxelPizza.Client
         Front = 1 << 4,
         Back = 1 << 5,
         Center = 1 << 6,
+        Empty = 1 << 7,
 
         AllSides = Top | Bottom | Left | Right | Front | Back,
         All = AllSides | Center,

@@ -2,10 +2,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Veldrid;
+using VoxelPizza.Collections;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
@@ -16,8 +18,6 @@ namespace VoxelPizza.Client
 
     public class ChunkRenderer : Renderable, IUpdateable
     {
-        public ChunkGraph graph = new ChunkGraph();
-
         /// <summary>
         /// The amount of blocks that are fetched around a chunk for meshing.
         /// </summary>
@@ -37,13 +37,14 @@ namespace VoxelPizza.Client
         private Pipeline _indirectPipeline;
         private ResourceSet _sharedSet;
 
+        private ChunkGraph _graph = new();
+
         private List<ChunkMeshRegion> _visibleRegionBuffer = new();
-        private List<ChunkMeshRegion> _cleanupRegionBuffer = new();
         private Dictionary<RenderRegionPosition, ChunkMeshRegion> _regions = new();
         private ConcurrentQueue<ChunkMeshRegion> _queuedRegions = new();
+        private Stack<ChunkMeshRegion> _regionPool = new();
 
-        // TODO: hide this
-        public ConcurrentStack<ChunkMeshRegion> _regionPool = new();
+        private BlockMemory _blockBuffer;
 
         private WorldInfo _worldInfo;
 
@@ -73,9 +74,9 @@ namespace VoxelPizza.Client
             RegionSize = regionSize;
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
-            _stagingMeshPool = new ChunkStagingMeshPool(4);
-            _commandListFencePool = new CommandListFencePool(6);
-            _workers = new ChunkRendererWorker[2];
+            _stagingMeshPool = new ChunkStagingMeshPool(16);
+            _commandListFencePool = new CommandListFencePool(17);
+            _workers = new ChunkRendererWorker[1];
 
             for (int i = 0; i < _workers.Length; i++)
             {
@@ -93,104 +94,170 @@ namespace VoxelPizza.Client
             dimension.ChunkUpdated += Dimension_ChunkUpdated;
             dimension.ChunkRemoved += Dimension_ChunkRemoved;
 
-            graph.AddedAllSides += Graph_AddedAllSides;
+            _graph.SidesFulfilled += ChunkGraph_SidesFulfilled;
+
+            _blockBuffer = new BlockMemory(
+                GetBlockMemoryInnerSize(),
+                GetBlockMemoryOuterSize());
         }
 
-        public void ReuploadAll()
+        public void ReuploadRegions()
         {
             lock (_regions)
             {
                 foreach (ChunkMeshRegion region in _regions.Values)
                 {
-                    region.RequestBuild(new ChunkPosition(0, 0, 0));
+                    region.UploadRequired();
                 }
             }
         }
 
-        private void Graph_AddedAllSides(ChunkRegionGraph regionGraph, ChunkPosition localChunkPosition)
+        public void RebuildChunks()
+        {
+            lock (_regions)
+            {
+                foreach (ChunkMeshRegion region in _regions.Values)
+                {
+                    Size3 size = region.Size;
+                    ChunkPosition regPos = region.Position.ToChunk(RegionSize);
+
+                    for (int y = 0; y < size.H; y++)
+                    {
+                        for (int z = 0; z < size.D; z++)
+                        {
+                            for (int x = 0; x < size.W; x++)
+                            {
+                                region.RequestBuild(new ChunkPosition(x + regPos.X, y + regPos.Y, z + regPos.Z));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ChunkGraph_SidesFulfilled(ChunkRegionGraph regionGraph, ChunkPosition localChunkPosition)
         {
             RequestBuild(regionGraph.RegionPosition.OffsetLocalChunk(localChunkPosition));
+        }
+
+        public ChunkMeshRegion RentMeshRegion(RenderRegionPosition position)
+        {
+            ChunkMeshRegion? renderRegion;
+            lock (_regionPool)
+            {
+                if (!_regionPool.TryPop(out renderRegion))
+                {
+                    renderRegion = new ChunkMeshRegion(this, RegionSize);
+                }
+            }
+            renderRegion.SetPosition(position);
+            return renderRegion;
+        }
+
+        public void RecycleMeshRegion(ChunkMeshRegion meshRegion)
+        {
+            lock (_regionPool)
+            {
+                _regionPool.Push(meshRegion);
+            }
+        }
+
+        private ChunkMeshRegion GetOrCreateRenderRegion(RenderRegionPosition regionPosition)
+        {
+            if (!TryGetRegion(regionPosition, out ChunkMeshRegion? renderRegion))
+            {
+                renderRegion = RentMeshRegion(regionPosition);
+
+                lock (_regions)
+                {
+                    _regions.Add(regionPosition, renderRegion);
+                }
+                RenderRegionAdded?.Invoke(renderRegion);
+
+                _queuedRegions.Enqueue(renderRegion);
+            }
+            return renderRegion;
         }
 
         private void Dimension_ChunkAdded(Chunk chunk)
         {
             RenderRegionPosition regionPosition = GetRegionPosition(chunk.Position);
-            lock (_regions)
+            ChunkMeshRegion renderRegion = GetOrCreateRenderRegion(regionPosition);
+
+            renderRegion.ChunkAdded(chunk.Position);
+
+            lock (_graph)
             {
-                if (!_regions.TryGetValue(regionPosition, out ChunkMeshRegion? renderRegion))
-                {
-                    if (!_regionPool.TryPop(out renderRegion))
-                    {
-                        renderRegion = new ChunkMeshRegion(this, RegionSize);
-                    }
-
-                    renderRegion.SetPosition(regionPosition);
-
-                    _regions.Add(regionPosition, renderRegion);
-
-                    _queuedRegions.Enqueue(renderRegion);
-                }
-
-                renderRegion.ChunkAdded(chunk.Position);
-            }
-
-            lock (graph)
-            {
-                graph.AddChunk(chunk.Position);
+                _graph.AddChunk(chunk.Position, chunk.IsEmpty);
             }
         }
 
         private void Dimension_ChunkRemoved(Chunk chunk)
         {
-            lock (graph)
-            {
-                graph.RemoveChunk(chunk.Position);
-            }
-
             RenderRegionPosition regionPosition = GetRegionPosition(chunk.Position);
-            lock (_regions)
+            if (TryGetRegion(regionPosition, out ChunkMeshRegion? renderRegion))
             {
-                if (_regions.TryGetValue(regionPosition, out ChunkMeshRegion? renderRegion))
+                renderRegion.ChunkRemoved(chunk.Position);
+
+                renderRegion.RequestBuild(chunk.Position);
+
+                if (renderRegion.ChunkCount == 0)
                 {
-                    renderRegion.ChunkRemoved(chunk.Position);
-
-                    renderRegion.RequestRemove(chunk.Position);
-
-                    if (renderRegion.ChunkCount == 0)
+                    lock (_regions)
                     {
                         _regions.Remove(regionPosition);
-                        RenderRegionRemoved?.Invoke(renderRegion);
+                    }
+                    RenderRegionRemoved?.Invoke(renderRegion);
 
-                        //for (int i = 0; i < _workers.Length; i++)
-                        {
-                            _workers[0].EnqueueReset(renderRegion);
-                        }
+                    //for (int i = 0; i < _workers.Length; i++)
+                    {
+                        _workers[0].EnqueueReset(renderRegion);
                     }
                 }
+            }
+
+            lock (_graph)
+            {
+                _graph.RemoveChunk(chunk.Position);
             }
         }
 
         private void Dimension_ChunkUpdated(Chunk chunk)
         {
-            RequestBuild(chunk.Position);
+            ChunkGraphFaces faces;
+            lock (_graph)
+            {
+                faces = _graph.GetChunk(chunk.Position);
+                if ((faces & ChunkGraphFaces.Empty) == ChunkGraphFaces.Empty)
+                {
+                    if (chunk.IsEmpty)
+                    {
+                        return;
+                    }
+                    _graph.FlagChunkEmpty(chunk.Position, false);
+                }
+            }
+
+            if ((faces & ChunkGraphFaces.AllSides) == ChunkGraphFaces.AllSides)
+            {
+                RequestBuild(chunk.Position);
+            }
+        }
+
+        private bool TryGetRegion(RenderRegionPosition regionPosition, [MaybeNullWhen(false)] out ChunkMeshRegion renderRegion)
+        {
+            lock (_regions)
+            {
+                return _regions.TryGetValue(regionPosition, out renderRegion);
+            }
         }
 
         private void RequestBuild(ChunkPosition chunkPosition)
         {
             RenderRegionPosition regionPosition = GetRegionPosition(chunkPosition);
-            lock (_regions)
+            if (TryGetRegion(regionPosition, out ChunkMeshRegion? region))
             {
-                if (_regions.TryGetValue(regionPosition, out ChunkMeshRegion? meshRegion))
-                {
-                    lock (graph)
-                    {
-                        ChunkGraphFaces faces = graph.GetChunk(chunkPosition);
-                        //if ((faces & ChunkGraphFaces.AllSides) == ChunkGraphFaces.AllSides)
-                        {
-                            meshRegion.RequestBuild(chunkPosition);
-                        }
-                    }
-                }
+                region.RequestBuild(chunkPosition);
             }
         }
 
@@ -293,24 +360,6 @@ namespace VoxelPizza.Client
                 byte g = rngTmp[1];
                 byte b = rngTmp[2];
                 regions[i] = new TextureRegion(0, r, g, b, 0, 0);
-
-                //new TextureRegion(0, 000, 0, 0, 0, 0),
-                //new TextureRegion(0, 032, 0, 0, 0, 0),
-                //new TextureRegion(0, 064, 0, 0, 0, 0),
-                //new TextureRegion(0, 096, 0, 0, 0, 0),
-                //new TextureRegion(0, 128, 0, 0, 0, 0),
-                //new TextureRegion(0, 160, 0, 0, 0, 0),
-                //new TextureRegion(0, 192, 0, 0, 0, 0),
-                //new TextureRegion(0, 224, 0, 0, 0, 0),
-                //new TextureRegion(0, 255, 0, 0, 0, 0),
-                //new TextureRegion(0, 032, 0, 032, 0, 0),
-                //new TextureRegion(0, 064, 0, 064, 0, 0),
-                //new TextureRegion(0, 096, 0, 096, 0, 0),
-                //new TextureRegion(0, 128, 0, 128, 0, 0),
-                //new TextureRegion(0, 160, 0, 160, 0, 0),
-                //new TextureRegion(0, 192, 0, 192, 0, 0),
-                //new TextureRegion(0, 224, 0, 224, 0, 0),
-                //new TextureRegion(0, 255, 0, 255, 0, 0),
             }
 
             _textureAtlasBuffer = factory.CreateBuffer(new BufferDescription(
@@ -376,6 +425,9 @@ namespace VoxelPizza.Client
 
             ImGuiNET.ImGui.Begin("ChunkRenderer");
             {
+                ImGuiNET.ImGui.Text("Chunk: " + Dimension.PlayerChunkPosition.ToString());
+                ImGuiNET.ImGui.Text("Region: " + new RenderRegionPosition(Dimension.PlayerChunkPosition, RegionSize).ToString());
+
                 ImGuiNET.ImGui.Text("Triangle Count: " + (_lastTriangleCount / 1000) + "k");
                 ImGuiNET.ImGui.Text("Draw Calls: " + _lastDrawCalls);
 
@@ -422,8 +474,7 @@ namespace VoxelPizza.Client
             SceneContext sc,
             Vector3? cullOrigin,
             BoundingFrustum? cullFrustum,
-            List<ChunkMeshRegion> visibleRegions,
-            List<ChunkMeshRegion> cleanupRegions)
+            List<ChunkMeshRegion> visibleRegions)
         {
             using var profilerToken = sc.Profiler.Push();
 
@@ -434,14 +485,13 @@ namespace VoxelPizza.Client
                 if (cullFrustum.HasValue)
                 {
                     BoundingFrustum frustum = cullFrustum.GetValueOrDefault();
-                    int c = 0;
+
                     foreach (ChunkMeshRegion region in _regions.Values)
                     {
                         Debug.Assert(region.ChunkCount >= 0);
 
                         if (region.ChunkCount == 0)
                         {
-                            c++;
                             continue;
                         }
 
@@ -453,11 +503,6 @@ namespace VoxelPizza.Client
                             visibleRegions.Add(region);
                             continue;
                         }
-
-                        //if (region.IsRemoveRequired)
-                        //{
-                        //    cleanupRegions.Add(region);
-                        //}
                     }
                 }
                 else
@@ -489,7 +534,6 @@ namespace VoxelPizza.Client
             while (_queuedRegions.TryDequeue(out ChunkMeshRegion? region))
             {
                 region.CreateDeviceObjects(gd, cl, sc);
-                RenderRegionAdded?.Invoke(region);
             }
 
             _lastTriangleCount = 0;
@@ -521,17 +565,15 @@ namespace VoxelPizza.Client
             using var profilerToken = sc.Profiler.Push();
 
             List<ChunkMeshRegion> visibleRegions = _visibleRegionBuffer;
-            List<ChunkMeshRegion> cleanupRegions = _cleanupRegionBuffer;
             visibleRegions.Clear();
-            cleanupRegions.Clear();
-            GatherVisibleRegions(sc, cullOrigin, cullFrustum, visibleRegions, cleanupRegions);
+            GatherVisibleRegions(sc, cullOrigin, cullFrustum, visibleRegions);
 
             cl.SetPipeline(_indirectPipeline);
             cl.SetGraphicsResourceSet(0, cameraInfoSet);
             cl.SetGraphicsResourceSet(1, _sharedSet);
             cl.SetFramebuffer(sc.MainSceneFramebuffer);
 
-            Render(gd, cl, sc, visibleRegions, cleanupRegions);
+            Render(gd, cl, sc, visibleRegions);
         }
 
         public static List<List<T>> SplitList<T>(List<T> elements, int splitCount)
@@ -558,8 +600,7 @@ namespace VoxelPizza.Client
 
         private void Render(
             GraphicsDevice gd, CommandList cl, SceneContext sc,
-            List<ChunkMeshRegion> meshesToBuild,
-            List<ChunkMeshRegion> meshesToCleanup)
+            List<ChunkMeshRegion> meshesToBuild)
         {
             using var profilerToken = sc.Profiler.Push();
 
@@ -567,12 +608,6 @@ namespace VoxelPizza.Client
             for (int i = 0; i < buildSplits.Count; i++)
             {
                 _workers[i].SignalToBuild(buildSplits[i].GetEnumerator());
-            }
-
-            List<List<ChunkMeshRegion>> cleanupSplits = SplitList(meshesToCleanup, _workers.Length);
-            for (int i = 0; i < cleanupSplits.Count; i++)
-            {
-                _workers[i].SignalToCleanup(cleanupSplits[i].GetEnumerator());
             }
 
             foreach (ChunkMeshRegion mesh in meshesToBuild)
@@ -602,7 +637,7 @@ namespace VoxelPizza.Client
 
         }
 
-        public unsafe void FetchBlockMemory(BlockMemory memory, BlockPosition origin)
+        public BlockMemoryState FetchBlockMemory(BlockMemory memory, BlockPosition origin)
         {
             ref uint data = ref MemoryMarshal.GetArrayDataReference(memory.Data);
             Size3 outerSize = memory.OuterSize;
@@ -617,60 +652,109 @@ namespace VoxelPizza.Client
                 origin.Z - (int)zOffset);
             WorldBox fetchBox = new(blockOffset, outerSize);
 
-            foreach (ChunkBox chunkBox in fetchBox.EnumerateChunkBoxes())
+            ChunkBoxSliceEnumerator chunkBoxEnumerator = fetchBox.EnumerateChunkBoxSlices();
+            int maxChunkCount = chunkBoxEnumerator.GetMaxChunkCount();
+
+            Span<ChunkBoxSlice> chunkBoxes = memory.GetChunkBoxBuffer(maxChunkCount);
+            Span<bool> emptyChunks = memory.GetEmptyChunkBuffer(maxChunkCount);
+
+            int chunkCount = 0;
+            foreach (ChunkBoxSlice chunkBox in chunkBoxEnumerator)
             {
-                nint outerOriginX = chunkBox.OuterOrigin.X;
-                nint outerOriginY = chunkBox.OuterOrigin.Y;
-                nint outerOriginZ = chunkBox.OuterOrigin.Z;
-                nint outerSizeD = (nint)outerSize.D;
-                nint outerSizeW = (nint)outerSize.W;
-                nint innerSizeH = (nint)chunkBox.Size.H;
-                nint innerSizeD = (nint)chunkBox.Size.D;
-                uint innerSizeW = chunkBox.Size.W;
+                chunkBoxes[chunkCount++] = chunkBox;
+            }
 
+            chunkBoxes = chunkBoxes.Slice(0, chunkCount);
+            emptyChunks = emptyChunks.Slice(0, chunkCount);
+
+            emptyChunks.Clear();
+            bool isAllEmpty = true;
+
+            for (int i = 0; i < chunkCount; i++)
+            {
+                ref ChunkBoxSlice chunkBox = ref chunkBoxes[i];
                 Chunk? chunk = Dimension.GetChunk(chunkBox.Chunk);
-                if (chunk != null)
+                if (chunk == null || chunk.IsEmpty)
                 {
-                    try
+                    emptyChunks[i] = true;
+                    continue;
+                }
+                isAllEmpty = false;
+
+                try
+                {
+                    nuint outerOriginX = (nuint)chunkBox.OuterOrigin.X;
+                    nuint outerOriginY = (nuint)chunkBox.OuterOrigin.Y;
+                    nuint outerOriginZ = (nuint)chunkBox.OuterOrigin.Z;
+                    nuint outerSizeD = outerSize.D;
+                    nuint outerSizeW = outerSize.W;
+                    nuint innerSizeH = chunkBox.Size.H;
+                    nuint innerSizeD = chunkBox.Size.D;
+                    nuint innerSizeW = chunkBox.Size.W;
+
+                    nuint innerOriginX = (nuint)chunkBox.InnerOrigin.X;
+                    nuint innerOriginY = (nuint)chunkBox.InnerOrigin.Y;
+                    nuint innerOriginZ = (nuint)chunkBox.InnerOrigin.Z;
+
+                    BlockStorage storage = chunk.GetBlockStorage();
+
+                    for (nuint y = 0; y < innerSizeH; y++)
                     {
-                        nint innerOriginX = chunkBox.InnerOrigin.X;
-                        nint innerOriginY = chunkBox.InnerOrigin.Y;
-                        nint innerOriginZ = chunkBox.InnerOrigin.Z;
-
-                        for (nint y = 0; y < innerSizeH; y++)
+                        for (nuint z = 0; z < innerSizeD; z++)
                         {
-                            for (nint z = 0; z < innerSizeD; z++)
-                            {
-                                nint outerBaseIndex = BlockMemory.GetIndexBase(
-                                    outerSizeD,
-                                    outerSizeW,
-                                    y + outerOriginY,
-                                    z + outerOriginZ)
-                                    + outerOriginX;
+                            nuint outerBaseIndex = BlockMemory.GetIndexBase(
+                                outerSizeD,
+                                outerSizeW,
+                                y + outerOriginY,
+                                z + outerOriginZ)
+                                + outerOriginX;
 
-                                ref uint destination = ref Unsafe.Add(ref data, outerBaseIndex);
+                            ref uint destination = ref Unsafe.Add(ref data, outerBaseIndex);
 
-                                chunk.GetBlockRow(
-                                    innerOriginX,
-                                    y + innerOriginY,
-                                    z + innerOriginZ,
-                                    ref destination,
-                                    innerSizeW);
-                            }
+                            storage.GetBlockRow(
+                                innerOriginX,
+                                y + innerOriginY,
+                                z + innerOriginZ,
+                                ref destination,
+                                innerSizeW);
                         }
                     }
-                    finally
-                    {
-                        chunk.DecrementRef();
-                    }
                 }
-                else
+                finally
                 {
-                    for (nint y = 0; y < innerSizeH; y++)
+                    chunk.DecrementRef();
+                }
+            }
+
+            if (isAllEmpty)
+            {
+                memory.Data.AsSpan().Clear();
+                return BlockMemoryState.Zeroed;
+            }
+            else
+            {
+                for (int i = 0; i < chunkCount; i++)
+                {
+                    if (!emptyChunks[i])
                     {
-                        for (nint z = 0; z < innerSizeD; z++)
+                        continue;
+                    }
+
+                    ref ChunkBoxSlice chunkBox = ref chunkBoxes[i];
+                    nuint outerOriginX = (nuint)chunkBox.OuterOrigin.X;
+                    nuint outerOriginY = (nuint)chunkBox.OuterOrigin.Y;
+                    nuint outerOriginZ = (nuint)chunkBox.OuterOrigin.Z;
+                    nuint outerSizeD = outerSize.D;
+                    nuint outerSizeW = outerSize.W;
+                    nuint innerSizeH = chunkBox.Size.H;
+                    nuint innerSizeD = chunkBox.Size.D;
+                    uint innerSizeW = chunkBox.Size.W;
+
+                    for (nuint y = 0; y < innerSizeH; y++)
+                    {
+                        for (nuint z = 0; z < innerSizeD; z++)
                         {
-                            nint outerBaseIndex = BlockMemory.GetIndexBase(
+                            nuint outerBaseIndex = BlockMemory.GetIndexBase(
                                 outerSizeD,
                                 outerSizeW,
                                 y + outerOriginY,
@@ -684,6 +768,7 @@ namespace VoxelPizza.Client
                         }
                     }
                 }
+                return BlockMemoryState.Filled;
             }
         }
 

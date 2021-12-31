@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
@@ -286,15 +287,18 @@ namespace VoxelPizza.Client
 
             Size3f meshSize = Chunk.Size;
 
-            _chunkBatch.Begin();
-
+            ChunkPosition[] chunks;
             lock (_chunks)
             {
-                foreach (ChunkPosition chunk in _chunks)
-                {
-                    Vector3 position = chunk.ToBlock();
-                    UpdateBatchItem(_chunkBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
-                }
+                chunks = _chunks.ToArray();
+            }
+
+            _chunkBatch.Begin();
+
+            foreach (ChunkPosition chunk in chunks)
+            {
+                Vector3 position = chunk.ToBlock();
+                UpdateBatchItem(_chunkBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
             }
 
             _chunkBatch.End();
@@ -308,15 +312,18 @@ namespace VoxelPizza.Client
 
             Size3f meshSize = ChunkRegion.Size * Chunk.Size;
 
-            _chunkRegionBatch.Begin();
-
+            ChunkRegionPosition[] chunkRegions;
             lock (_chunkRegions)
             {
-                foreach (ChunkRegionPosition chunkRegion in _chunkRegions)
-                {
-                    Vector3 position = chunkRegion.ToChunk().ToBlock();
-                    UpdateBatchItem(_chunkRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
-                }
+                chunkRegions = _chunkRegions.ToArray();
+            }
+
+            _chunkRegionBatch.Begin();
+
+            foreach (ChunkRegionPosition chunkRegion in chunkRegions)
+            {
+                Vector3 position = chunkRegion.ToChunk().ToBlock();
+                UpdateBatchItem(_chunkRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
             }
 
             _chunkRegionBatch.End();
@@ -331,15 +338,18 @@ namespace VoxelPizza.Client
             Size3 regionSize = ChunkRenderer.RegionSize;
             Size3f meshSize = regionSize * Chunk.Size;
 
-            _renderRegionBatch.Begin();
-
+            RenderRegionPosition[] renderRegions;
             lock (_renderRegions)
             {
-                foreach (RenderRegionPosition chunkRegion in _renderRegions)
-                {
-                    Vector3 position = chunkRegion.ToBlock(regionSize);
-                    UpdateBatchItem(_renderRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
-                }
+                renderRegions = _renderRegions.ToArray();
+            }
+
+            _renderRegionBatch.Begin();
+
+            foreach (RenderRegionPosition chunkRegion in renderRegions)
+            {
+                Vector3 position = chunkRegion.ToBlock(regionSize);
+                UpdateBatchItem(_renderRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
             }
 
             _renderRegionBatch.End();

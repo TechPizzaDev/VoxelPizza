@@ -116,6 +116,8 @@ namespace VoxelPizza.Client
             ////Span<short> noiseSpan = new Span<short>(noise, 44100);
             //wav.loadRawWave(noise, (uint)length, 10000, 1);
 
+            return;
+
             AudioBuffer wav = new AudioBuffer();
             byte[] bytes;
             try

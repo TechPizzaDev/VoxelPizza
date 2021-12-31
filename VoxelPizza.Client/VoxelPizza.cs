@@ -60,7 +60,7 @@ namespace VoxelPizza.Client
             Sdl2Native.SDL_Init(SDLInitFlags.GameController | SDLInitFlags.Audio);
             SDLAudioBindings.LoadFunctions();
             Sdl2ControllerTracker.CreateDefault(out _controllerTracker);
-
+             
             audioTest = new AudioTest();
             audioTest.Run();
 
@@ -256,7 +256,7 @@ namespace VoxelPizza.Client
             audioTest.soloud.set3dSourcePosition(audioTest.voicehandle, x, 0, 0);
             audioTest.soloud.update3dAudio();
 
-            var t = audioTest.soloud.getStreamPosition(audioTest.voicehandle);
+            //var t = audioTest.soloud.getStreamPosition(audioTest.voicehandle);
             //audioTest.soloud.seek(audioTest.voicehandle, t + LoudPizza.Time.FromSeconds(0.01));
 
             //_sc.DirectionalLight.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Sin(time.TotalSeconds));
@@ -344,9 +344,14 @@ namespace VoxelPizza.Client
 
             if (ImGui.Begin("ChunkRenderer control"))
             {
-                if (ImGui.Button("Reupload chunks"))
+                if (ImGui.Button("Reupload regions"))
                 {
-                    ChunkRenderer.ReuploadAll();
+                    ChunkRenderer.ReuploadRegions();
+                }
+
+                if (ImGui.Button("Rebuild chunks"))
+                {
+                    ChunkRenderer.RebuildChunks();
                 }
 
                 ImGui.End();

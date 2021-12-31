@@ -99,7 +99,7 @@ namespace VoxelPizza.World
             return chunk;
         }
 
-        public bool RemoveChunk(ChunkPosition position)
+        public ChunkRemoveStatus RemoveChunk(ChunkPosition position)
         {
             ChunkPosition localPosition = GetLocalChunkPosition(position);
             int index = GetChunkIndex(localPosition);
@@ -109,7 +109,7 @@ namespace VoxelPizza.World
             {
                 Chunk? chunk = _chunks[index];
                 if (chunk == null)
-                    return false;
+                    return ChunkRemoveStatus.MissingChunk;
 
                 chunk.RefZeroed += _cachedChunkRefZeroed;
                 
@@ -120,7 +120,7 @@ namespace VoxelPizza.World
                 chunk.DecrementRef(RefCountType.Container);
 
                 _chunks[index] = null;
-                return true;
+                return ChunkRemoveStatus.Success;
             }
             finally
             {
@@ -135,11 +135,13 @@ namespace VoxelPizza.World
             chunk.Updated -= _cachedChunkUpdated;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int GetChunkIndex(ChunkPosition localPosition)
         {
             return (localPosition.Y * Depth + localPosition.Z) * Width + localPosition.X;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ChunkPosition GetLocalChunkPosition(ChunkPosition position)
         {
             return new ChunkPosition(

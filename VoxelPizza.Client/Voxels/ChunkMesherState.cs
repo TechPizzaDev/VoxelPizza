@@ -12,16 +12,16 @@ namespace VoxelPizza.Client
         public readonly ReadOnlySpan<MeshProvider?> MeshProviders;
 
         public readonly ReadOnlySpan<uint> Data;
-        public readonly nint RowStride;
-        public readonly nint LayerStride;
-        public readonly nint InnerSizeW;
-        public readonly nint InnerSizeH;
-        public readonly nint InnerSizeD;
+        public readonly nuint RowStride;
+        public readonly nuint LayerStride;
+        public readonly nuint InnerSizeW;
+        public readonly nuint InnerSizeH;
+        public readonly nuint InnerSizeD;
 
-        public nint Index;
-        public nint X;
-        public nint Y;
-        public nint Z;
+        public nuint Index;
+        public nuint X;
+        public nuint Y;
+        public nuint Z;
 
         public readonly ref uint CoreRow => ref Unsafe.Add(ref MemoryMarshal.GetReference(Data), Index);
         public readonly ref uint TopRow => ref Unsafe.Add(ref MemoryMarshal.GetReference(Data), Index + LayerStride);
@@ -36,8 +36,8 @@ namespace VoxelPizza.Client
             ReadOnlySpan<CubeFaces> oppositeBlockingFaces,
             ReadOnlySpan<MeshProvider?> meshProviders,
             ReadOnlySpan<uint> data,
-            nint rowStride,
-            nint layerStride,
+            nuint rowStride,
+            nuint layerStride,
             Size3 innerSize)
         {
             VisualFeatures = visualFeatures;
@@ -47,9 +47,9 @@ namespace VoxelPizza.Client
             Data = data;
             RowStride = rowStride;
             LayerStride = layerStride;
-            InnerSizeW = (nint)innerSize.W;
-            InnerSizeH = (nint)innerSize.H;
-            InnerSizeD = (nint)innerSize.D;
+            InnerSizeW = innerSize.W;
+            InnerSizeH = innerSize.H;
+            InnerSizeD = innerSize.D;
 
             Index = 0;
             X = 0;

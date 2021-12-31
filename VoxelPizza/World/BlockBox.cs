@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
@@ -8,17 +9,27 @@ namespace VoxelPizza.World
     public readonly struct WorldBox
     {
         public BlockPosition Origin { get; }
-        public Size3 Size { get; }
+        public BlockPosition Max { get; }
 
-        public BlockPosition Max => new(
-            Origin.X + (int)Size.W,
-            Origin.Y + (int)Size.H,
-            Origin.Z + (int)Size.D);
+        public Size3 Size
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => new(
+               (uint)(Max.X - Origin.X),
+               (uint)(Max.Y - Origin.Y),
+               (uint)(Max.Z - Origin.Z));
+        }
+
+        public WorldBox(BlockPosition origin, BlockPosition max)
+        {
+            Origin = origin;
+            Max = max;
+        }
 
         public WorldBox(BlockPosition origin, Size3 size)
         {
             Origin = origin;
-            Size = size;
+            Max = origin + new BlockPosition((int)size.W, (int)size.H, (int)size.D);
         }
 
         private static bool Intersects(
@@ -48,15 +59,14 @@ namespace VoxelPizza.World
         {
             int left_side = Math.Max(min1.X, min2.X);
             int right_side = Math.Min(max1.X, max2.X);
+            uint w = (uint)(right_side - left_side);
 
             int bottom_side = Math.Max(min1.Y, min2.Y);
             int top_side = Math.Min(max1.Y, max2.Y);
+            uint h = (uint)(top_side - bottom_side);
 
             int back_side = Math.Max(min1.Z, min2.Z);
             int front_side = Math.Min(max1.Z, max2.Z);
-
-            uint w = (uint)(right_side - left_side);
-            uint h = (uint)(top_side - bottom_side);
             uint d = (uint)(front_side - back_side);
 
             return new WorldBox(
@@ -93,9 +103,9 @@ namespace VoxelPizza.World
             return true;
         }
 
-        public ChunkBoxEnumerator EnumerateChunkBoxes()
+        public ChunkBoxSliceEnumerator EnumerateChunkBoxSlices()
         {
-            return new ChunkBoxEnumerator(Origin, Size);
+            return new ChunkBoxSliceEnumerator(Origin, Size);
         }
 
         public override int GetHashCode()

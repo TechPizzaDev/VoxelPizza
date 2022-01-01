@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
 namespace VoxelPizza.Collections
@@ -26,55 +27,44 @@ namespace VoxelPizza.Collections
 
         public static void Expand8To32(ref byte src, ref byte dst, nuint len)
         {
-            //uint loops = len / (uint)Vector<byte>.Count;
-            //for (uint i = 0; i < loops; i++)
-            //{
-            //    Vector.Widen(
-            //        Unsafe.ReadUnaligned<Vector<byte>>(ref src),
-            //        out Vector<ushort> vec1U16,
-            //        out Vector<ushort> vec2U16);
-            //
-            //    Vector.Widen(
-            //        vec1U16,
-            //        out Vector<uint> vec1U32,
-            //        out Vector<uint> vec2U32);
-            //    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 0 * Unsafe.SizeOf<Vector<uint>>()), vec1U32);
-            //    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 1 * Unsafe.SizeOf<Vector<uint>>()), vec2U32);
-            //
-            //    Vector.Widen(
-            //        vec2U16,
-            //        out Vector<uint> vec3U32,
-            //        out Vector<uint> vec4U32);
-            //    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 2 * Unsafe.SizeOf<Vector<uint>>()), vec3U32);
-            //    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 3 * Unsafe.SizeOf<Vector<uint>>()), vec4U32);
-            //
-            //    src = ref Unsafe.Add(ref src, 4 * Unsafe.SizeOf<Vector<byte>>());
-            //    dst = ref Unsafe.Add(ref src, 4 * Unsafe.SizeOf<Vector<uint>>());
-            //}
-
-            //nint remainder = (nint)(len % Vector<byte>.Count);
-
             if (Sse2.IsSupported)
             {
+                for (nuint i = 0; i < len / (nuint)Vector128<byte>.Count; i++)
+                {
+                    Vector128<byte> v1_8 = Unsafe.ReadUnaligned<Vector128<byte>>(ref src);
 
+                    Vector128<ushort> v1_16 = Sse2.UnpackLow(v1_8, Vector128<byte>.Zero).AsUInt16();
+                    Vector128<ushort> v2_16 = Sse2.UnpackHigh(v1_8, Vector128<byte>.Zero).AsUInt16();
+
+                    Vector128<uint> v1_32 = Sse2.UnpackLow(v1_16, Vector128<ushort>.Zero).AsUInt32();
+                    Vector128<uint> v2_32 = Sse2.UnpackHigh(v1_16, Vector128<ushort>.Zero).AsUInt32();
+                    Vector128<uint> v3_32 = Sse2.UnpackLow(v2_16, Vector128<ushort>.Zero).AsUInt32();
+                    Vector128<uint> v4_32 = Sse2.UnpackHigh(v2_16, Vector128<ushort>.Zero).AsUInt32();
+
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 0 * Unsafe.SizeOf<Vector128<uint>>()), v1_32);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 1 * Unsafe.SizeOf<Vector128<uint>>()), v2_32);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 2 * Unsafe.SizeOf<Vector128<uint>>()), v3_32);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 3 * Unsafe.SizeOf<Vector128<uint>>()), v4_32);
+
+                    src = ref Unsafe.Add(ref src, 4 * Unsafe.SizeOf<Vector128<byte>>());
+                    dst = ref Unsafe.Add(ref dst, 4 * Unsafe.SizeOf<Vector128<uint>>());
+                }
+
+                len %= (nuint)Vector128<byte>.Count;
             }
 
+            for (nuint i = 0; i < len / 2; i++)
             {
-                nuint loops = len / 2;
-                for (nuint i = 0; i < loops; i++)
-                {
-                    ushort s = Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref src, i * 2 * sizeof(byte)));
-                    ulong d = (s & 0xFFu) | ((s & 0xFF00uL) << 24);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, i * 2 * sizeof(uint)), d);
-                }
+                ushort s = Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref src, i * 2 * sizeof(byte)));
+                ulong d = (s & 0xFFu) | ((s & 0xFF00uL) << 24);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, i * 2 * sizeof(uint)), d);
             }
 
             if ((len & 1) != 0)
             {
-                nuint i = len - 1;
                 Unsafe.WriteUnaligned(
-                    ref Unsafe.Add(ref dst, i * sizeof(uint)),
-                    (uint)Unsafe.Add(ref src, i * sizeof(byte)));
+                    ref Unsafe.Add(ref dst, (len - 1) * sizeof(uint)),
+                    (uint)Unsafe.Add(ref src, (len - 1) * sizeof(byte)));
             }
         }
 

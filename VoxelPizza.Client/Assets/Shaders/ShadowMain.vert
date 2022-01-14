@@ -19,6 +19,8 @@ layout(set = 1, binding = 0) uniform CameraInfo
 {
     mat4 Projection;
     mat4 View;
+    mat4 InverseView;
+    mat4 ProjectionView;
 
     vec4 CameraPosition;
     vec4 CameraLookDirection;

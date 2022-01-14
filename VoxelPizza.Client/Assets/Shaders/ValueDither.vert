@@ -17,10 +17,13 @@ struct DirectionalLightInfo
 
 struct CameraInfo
 {
-    vec3 CameraPosition_WorldSpace;
-    float _padding1;
-    vec3 CameraLookDirection;
-    float _padding2;
+    mat4 Projection;
+    mat4 View;
+    mat4 InverseView;
+    mat4 ProjectionView;
+
+    vec4 CameraPosition;
+    vec4 CameraLookDirection;
 };
 
 struct PointLightInfo

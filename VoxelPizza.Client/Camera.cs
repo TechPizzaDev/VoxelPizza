@@ -257,6 +257,7 @@ namespace VoxelPizza.Client
             Projection = _projectionMatrix,
             View = _viewMatrix,
             InverseView = _inverseViewMatrix,
+            ProjectionView = _viewMatrix * _projectionMatrix,
             CameraPosition = new Vector4(_position, 0),
             CameraLookDirection = new Vector4(_lookDirection, 0)
         };
@@ -268,6 +269,7 @@ namespace VoxelPizza.Client
         public Matrix4x4 Projection;
         public Matrix4x4 View;
         public Matrix4x4 InverseView;
+        public Matrix4x4 ProjectionView;
 
         public Vector4 CameraPosition;
         public Vector4 CameraLookDirection;

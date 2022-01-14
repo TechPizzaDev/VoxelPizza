@@ -19,6 +19,8 @@ layout(set = 0, binding = 0) uniform CameraInfo
 {
     mat4 Projection;
     mat4 View;
+    mat4 InverseView;
+    mat4 ProjectionView;
 
     vec4 CameraPosition;
     vec4 CameraLookDirection;
@@ -90,7 +92,7 @@ TextureRegion unpackTexRegion(uint index)
 void main()
 {
     vec4 worldPosition = vec4(Position + Translation.xyz, 1);
-    vec4 outPosition = Projection * View * worldPosition;
+    vec4 outPosition = ProjectionView * worldPosition;
 
     mat4 world = mat4(
         vec4(1, 0, 0, Translation.x),

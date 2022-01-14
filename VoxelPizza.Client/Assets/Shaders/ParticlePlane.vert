@@ -5,6 +5,10 @@ layout(set = 0, binding = 0) uniform CameraInfo
     mat4 Projection;
     mat4 View;
     mat4 InverseView;
+    mat4 ProjectionView;
+    
+    vec4 CameraPosition;
+    vec4 CameraLookDirection;
 };
 
 layout(location = 0) in vec3 Position;

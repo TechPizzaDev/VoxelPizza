@@ -13,8 +13,8 @@ namespace VoxelPizza.Client
 
         public Vector3 Direction => Transform.Forward;
 
-        public event Action<RgbaFloat> ColorChanged;
-        public event Action<RgbaFloat> AmbientColorChanged;
+        public event Action<RgbaFloat>? ColorChanged;
+        public event Action<RgbaFloat>? AmbientColorChanged;
 
         public RgbaFloat Color { get => _color; set { _color = value; ColorChanged?.Invoke(value); } }
         public RgbaFloat AmbientColor { get => _ambientColor; set { _ambientColor = value; AmbientColorChanged?.Invoke(value); } }

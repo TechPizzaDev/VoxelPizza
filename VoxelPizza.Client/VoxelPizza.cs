@@ -23,12 +23,15 @@ namespace VoxelPizza.Client
     {
         private static RenderDoc? _renderDoc;
 
+        private List<Profiler.FrameSet> _frameSets = new();
+
         private Sdl2ControllerTracker? _controllerTracker;
 
         private Scene _scene;
         private SceneContext _sc;
 
-        private CommandList _frameCommands;
+        private List<FencedCommandList> _commandLists = new();
+        private List<FencedCommandList> _submittedCommandLists = new();
 
         private ImGuiRenderable _imGuiRenderable;
         private FullScreenQuad _fsq;
@@ -46,8 +49,8 @@ namespace VoxelPizza.Client
         private event Action<int, int> _resizeHandled;
         private bool _windowResized = true;
 
-        public static AudioTest audioTest;
-        private ParticlePlane particlePlane;
+        public AudioTest audioTest;
+        private ParticlePlane? particlePlane;
 
         private WorldManager _worldManager;
         private Dimension _currentDimension;
@@ -60,7 +63,7 @@ namespace VoxelPizza.Client
             Sdl2Native.SDL_Init(SDLInitFlags.GameController | SDLInitFlags.Audio);
             SDLAudioBindings.LoadFunctions();
             Sdl2ControllerTracker.CreateDefault(out _controllerTracker);
-             
+
             audioTest = new AudioTest();
             audioTest.Run();
 
@@ -107,13 +110,13 @@ namespace VoxelPizza.Client
             _fsq = new FullScreenQuad();
             _scene.AddRenderable(_fsq);
 
-            //particlePlane = new ParticlePlane(_scene.PrimaryCamera);
+            particlePlane = null; // new ParticlePlane(_scene.PrimaryCamera);
             //_scene.AddRenderable(particlePlane);
 
             _worldManager = new WorldManager();
             _currentDimension = _worldManager.CreateDimension();
 
-            var chunkMeshPool = new HeapPool(1024 * 1024 * 16);
+            HeapPool chunkMeshPool = new(1024 * 1024 * 16);
             ChunkRenderer = new ChunkRenderer(_currentDimension, chunkMeshPool, new Size3(4, 3, 4));
             ChunkRenderer.CullCamera = _scene.PrimaryCamera;
             _scene.AddUpdateable(ChunkRenderer);
@@ -168,7 +171,11 @@ namespace VoxelPizza.Client
 
         protected override void DisposeGraphicsDeviceObjects()
         {
-            _frameCommands.Dispose();
+            FinishSubmittedCommandLists(force: true);
+            foreach (FencedCommandList frameCL in _commandLists)
+                frameCL.Dispose();
+            _commandLists.Clear();
+
             StaticResourceCache.DisposeGraphicsDeviceObjects();
 
             _sc.DisposeGraphicsDeviceObjects();
@@ -178,9 +185,6 @@ namespace VoxelPizza.Client
 
         protected override void CreateGraphicsDeviceObjects()
         {
-            _frameCommands = GraphicsDevice.ResourceFactory.CreateCommandList();
-            _frameCommands.Name = "Frame Commands List";
-
             using CommandList cl = GraphicsDevice.ResourceFactory.CreateCommandList();
             cl.Name = "Recreation Initialization Command List";
             cl.Begin();
@@ -194,8 +198,6 @@ namespace VoxelPizza.Client
 
             _scene.PrimaryCamera.UpdateGraphicsBackend(GraphicsDevice, Window);
         }
-
-        private List<Profiler.FrameSet> frameSets = new();
 
         protected override bool RunBody()
         {
@@ -211,17 +213,17 @@ namespace VoxelPizza.Client
                 {
                     profiler.Stop();
 
-                    var sets = profiler._sets;
+                    List<Profiler.FrameSet> sets = profiler._sets;
                     if (sets.Count > 0)
                     {
                         for (int i = 0; i < sets.Count; i++)
                         {
-                            if (frameSets.Count <= i)
-                                frameSets.Add(new Profiler.FrameSet());
+                            if (_frameSets.Count <= i)
+                                _frameSets.Add(new Profiler.FrameSet());
 
-                            frameSets[i].Items.Clear();
-                            frameSets[i].Items.AddRange(sets[i].Items);
-                            frameSets[i].Offset = sets[i].Offset;
+                            _frameSets[i].Items.Clear();
+                            _frameSets[i].Items.AddRange(sets[i].Items);
+                            _frameSets[i].Offset = sets[i].Offset;
                         }
                     }
 
@@ -312,19 +314,66 @@ namespace VoxelPizza.Client
 
             DrawOverlay();
 
-            _frameCommands.Begin();
+            FinishSubmittedCommandLists(force: false);
+
+            FencedCommandList fcl = AcquireFrameCommandList();
+            fcl.CommandList.Begin();
             {
                 while (_queuedRenderables.TryDequeue(out Renderable? renderable))
                 {
                     _scene.AddRenderable(renderable);
-                    renderable.CreateDeviceObjects(GraphicsDevice, _frameCommands, _sc);
+                    renderable.CreateDeviceObjects(GraphicsDevice, fcl.CommandList, _sc);
                 }
 
-                CommonMaterials.UpdateAll(_frameCommands);
-                _scene.RenderAllStages(GraphicsDevice, _frameCommands, _sc);
+                CommonMaterials.UpdateAll(fcl.CommandList);
+
+                _scene.RenderAllStages(GraphicsDevice, fcl.CommandList, _sc);
             }
-            _frameCommands.End();
-            GraphicsDevice.SubmitCommands(_frameCommands);
+            fcl.CommandList.End();
+            GraphicsDevice.SubmitCommands(fcl.CommandList, fcl.Fence);
+            _submittedCommandLists.Add(fcl);
+        }
+
+        private void FinishSubmittedCommandLists(bool force)
+        {
+            List<FencedCommandList> submittedCommandLists = _submittedCommandLists;
+
+            for (int i = submittedCommandLists.Count; i-- > 0;)
+            {
+                FencedCommandList fcl = submittedCommandLists[i];
+                if (force || fcl.Fence.Signaled)
+                {
+                    GraphicsDevice.ResetFence(fcl.Fence);
+                    submittedCommandLists.RemoveAt(i);
+                }
+            }
+        }
+
+        private FencedCommandList AcquireFrameCommandList()
+        {
+            List<FencedCommandList> commandLists = _commandLists;
+            List<FencedCommandList> submittedCommandLists = _submittedCommandLists;
+
+            for (int i = 0; i < commandLists.Count; i++)
+            {
+                FencedCommandList fcl = commandLists[i];
+                if (!submittedCommandLists.Contains(fcl))
+                {
+                    return fcl;
+                }
+            }
+
+            int fclName = commandLists.Count + 1;
+
+            CommandList commandList = GraphicsDevice.ResourceFactory.CreateCommandList();
+            commandList.Name = $"Frame CommandList {fclName}";
+
+            Fence fence = GraphicsDevice.ResourceFactory.CreateFence(false);
+            fence.Name = $"Frame Fence {fclName}";
+
+            FencedCommandList newFcl = new(commandList, fence);
+            commandLists.Add(newFcl);
+            return newFcl;
         }
 
         public override void Present()
@@ -340,7 +389,7 @@ namespace VoxelPizza.Client
 
             DrawMainMenu();
 
-            DrawProfiler(frameSets);
+            DrawProfiler(_frameSets);
 
             if (ImGui.Begin("ChunkRenderer control"))
             {
@@ -367,7 +416,7 @@ namespace VoxelPizza.Client
                 DrawSettingsMenu();
                 DrawWindowMenu();
                 DrawRenderMenu();
-                DrawMaterialsMenu();
+                //DrawMaterialsMenu();
                 DrawDebugMenu();
                 DrawRenderDocMenu();
                 DrawControllerDebugMenu();
@@ -406,9 +455,7 @@ namespace VoxelPizza.Client
 
         private void DrawSettingsMenu()
         {
-            var gd = GraphicsDevice;
-
-            GraphicsBackend currentBackend = gd.BackendType;
+            GraphicsBackend currentBackend = GraphicsDevice.BackendType;
 
             if (ImGui.BeginMenu("Settings"))
             {
@@ -714,14 +761,14 @@ namespace VoxelPizza.Client
                         ImGui.Columns(2);
 
                         ImGui.Text($"Name: {_controllerTracker.ControllerName}");
-                        foreach (SDL_GameControllerAxis axis in (SDL_GameControllerAxis[])Enum.GetValues(typeof(SDL_GameControllerAxis)))
+                        foreach (SDL_GameControllerAxis axis in Enum.GetValues<SDL_GameControllerAxis>())
                         {
                             ImGui.Text($"{axis}: {_controllerTracker.GetAxis(axis)}");
                         }
 
                         ImGui.NextColumn();
 
-                        foreach (SDL_GameControllerButton button in (SDL_GameControllerButton[])Enum.GetValues(typeof(SDL_GameControllerButton)))
+                        foreach (SDL_GameControllerButton button in Enum.GetValues<SDL_GameControllerAxis>())
                         {
                             ImGui.Text($"{button}: {_controllerTracker.IsPressed(button)}");
                         }
@@ -827,7 +874,7 @@ namespace VoxelPizza.Client
 
         private static Skybox GetDefaultSkybox()
         {
-            var skybox = new Skybox((sc) =>
+            Skybox skybox = new((sc) =>
             {
                 Image<Rgba32> front = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_ft.png"));
                 Image<Rgba32> back = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_bk.png"));
@@ -836,7 +883,7 @@ namespace VoxelPizza.Client
                 Image<Rgba32> top = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_up.png"));
                 Image<Rgba32> bottom = Image.Load<Rgba32>(AssetHelper.GetPath("Textures/cloudtop/cloudtop_dn.png"));
 
-                var cubemap = new ImageSharpCubemapTexture(right, left, top, bottom, back, front, false);
+                ImageSharpCubemapTexture cubemap = new(right, left, top, bottom, back, front, false);
                 return cubemap;
             });
 
@@ -891,7 +938,7 @@ namespace VoxelPizza.Client
                     materialProps = CommonMaterials.Brick;
                 }
 
-                var texturedMesh = AddTexturedMesh(
+                TexturedMesh texturedMesh = AddTexturedMesh(
                     mesh,
                     overrideTextureData,
                     alphaTexture,

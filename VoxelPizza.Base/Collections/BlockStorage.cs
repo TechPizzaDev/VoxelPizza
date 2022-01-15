@@ -25,6 +25,7 @@ namespace VoxelPizza.Collections
 
         public abstract bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType);
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static void Expand8To32(ref byte src, ref byte dst, nuint len)
         {
             if (Sse2.IsSupported)

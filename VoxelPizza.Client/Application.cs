@@ -52,7 +52,7 @@ namespace VoxelPizza.Client
 
         public Application(GraphicsBackend? preferredBackend = null)
         {
-            var windowCI = new WindowCreateInfo
+            WindowCreateInfo windowCI = new()
             {
                 X = 50,
                 Y = 50,
@@ -62,19 +62,17 @@ namespace VoxelPizza.Client
                 WindowTitle = WindowTitle
             };
 
-            var gdOptions = new GraphicsDeviceOptions(
+            GraphicsDeviceOptions gdOptions = new(
                 ShouldEnableGraphicsDeviceDebug(), null, false, ResourceBindingModel.Improved, true, true, SrgbSwapchain);
 
-            Sdl2Window window;
-            GraphicsDevice gd;
             try
             {
                 VeldridStartup.CreateWindowAndGraphicsDevice(
                     windowCI,
                     gdOptions,
                     preferredBackend ?? VeldridStartup.GetPlatformDefaultBackend(),
-                    out window,
-                    out gd);
+                    out _window,
+                    out _graphicsDevice);
             }
             catch
             {
@@ -82,11 +80,10 @@ namespace VoxelPizza.Client
                     windowCI,
                     gdOptions,
                     VeldridStartup.GetPlatformDefaultBackend(),
-                    out window,
-                    out gd);
+                    out _window,
+                    out _graphicsDevice);
             }
-            Window = window;
-            _graphicsDevice = gd;
+            Window = _window;
 
             _enableScreensaver = Sdl2Native.LoadFunction<Action>("SDL_EnableScreenSaver");
             _disableScreensaver = Sdl2Native.LoadFunction<Action>("SDL_DisableScreenSaver");
@@ -174,7 +171,7 @@ namespace VoxelPizza.Client
                 _previousTicks = currentTicks;
                 _totalTicks += deltaTicks;
 
-                var time = new FrameTime(
+                FrameTime time = new(
                     TimeSpan.FromSeconds(_totalTicks * TimeAverager.SecondsPerTick),
                     TimeSpan.FromSeconds(deltaTicks * TimeAverager.SecondsPerTick),
                     IsActive);
@@ -285,7 +282,7 @@ namespace VoxelPizza.Client
 
             if (AlwaysRecreateWindow || forceRecreateWindow)
             {
-                var windowCI = new WindowCreateInfo
+                WindowCreateInfo windowCI = new()
                 {
                     X = Window.X,
                     Y = Window.Y,
@@ -299,7 +296,7 @@ namespace VoxelPizza.Client
                 Window = VeldridStartup.CreateWindow(windowCI);
             }
 
-            var gdOptions = new GraphicsDeviceOptions(
+            GraphicsDeviceOptions gdOptions = new(
                 ShouldEnableGraphicsDeviceDebug(), null, syncToVBlank, ResourceBindingModel.Improved, true, true, SrgbSwapchain);
 
             try

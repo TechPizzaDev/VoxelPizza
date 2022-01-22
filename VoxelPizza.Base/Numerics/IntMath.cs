@@ -5,6 +5,11 @@ namespace VoxelPizza.Numerics
 {
     public static class IntMath
     {
+        public static int Abs(int x)
+        {
+            return (x ^ (x >> 31)) - (x >> 31);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int DivideRoundDown(int a, int b)
         {

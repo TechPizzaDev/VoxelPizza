@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Numerics;
+using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
@@ -16,6 +17,14 @@ namespace VoxelPizza.World
             X = x;
             Y = y;
             Z = z;
+        }
+
+        public static BlockPosition Abs(BlockPosition position)
+        {
+            return new BlockPosition(
+                IntMath.Abs(position.X),
+                IntMath.Abs(position.Y),
+                IntMath.Abs(position.Z));
         }
 
         public readonly ChunkPosition ToChunk()
@@ -36,22 +45,20 @@ namespace VoxelPizza.World
 
         public readonly bool Equals(BlockPosition other)
         {
-            return X == other.X
-                && Y == other.Y
-                && Z == other.Z;
+            return this == other;
         }
 
-        public readonly override bool Equals(object? obj)
+        public override readonly bool Equals(object? obj)
         {
             return obj is BlockPosition other && Equals(other);
         }
 
-        public readonly override int GetHashCode()
+        public override readonly int GetHashCode()
         {
             return HashCode.Combine(X, Y, Z);
         }
 
-        public readonly override string ToString()
+        public override readonly string ToString()
         {
             return $"X:{X} Y:{Y} Z:{Z}";
         }
@@ -65,23 +72,27 @@ namespace VoxelPizza.World
         {
             return new Vector3(position.X, position.Y, position.Z);
         }
-        
+
         public static implicit operator Vector4(BlockPosition position)
         {
             return new Vector4(position.X, position.Y, position.Z, 0);
         }
 
-        public static bool operator ==(BlockPosition left, BlockPosition right)
+        public static bool operator ==(in BlockPosition left, in BlockPosition right)
         {
-            return left.Equals(right);
+            return left.X == right.X
+                && left.Y == right.Y
+                && left.Z == right.Z;
         }
 
-        public static bool operator !=(BlockPosition left, BlockPosition right)
+        public static bool operator !=(in BlockPosition left, in BlockPosition right)
         {
-            return !(left == right);
+            return left.X != right.X
+                || left.Y != right.Y
+                || left.Z != right.Z;
         }
 
-        public static BlockPosition operator +(BlockPosition left, BlockPosition right)
+        public static BlockPosition operator +(in BlockPosition left, in BlockPosition right)
         {
             return new BlockPosition(
                 left.X + right.X,
@@ -89,7 +100,7 @@ namespace VoxelPizza.World
                 left.Z + right.Z);
         }
 
-        public static BlockPosition operator -(BlockPosition left, BlockPosition right)
+        public static BlockPosition operator -(in BlockPosition left, in BlockPosition right)
         {
             return new BlockPosition(
                 left.X - right.X,

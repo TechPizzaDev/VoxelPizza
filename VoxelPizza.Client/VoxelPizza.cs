@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using ImGuiNET;
 using SixLabors.ImageSharp;
@@ -151,6 +152,8 @@ namespace VoxelPizza.Client
             _sc.DirectionalLight.AmbientColor = new RgbaFloat(0.1f, 0.1f, 0.1f, 1);
 
             _sc.CurrentCamera = _scene.PrimaryCamera;
+
+            Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
         }
 
         private void Scene_CameraChanged(Camera? camera)

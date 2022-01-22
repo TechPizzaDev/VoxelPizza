@@ -80,7 +80,7 @@ namespace VoxelPizza.Client
 
             for (int i = 0; i < _workers.Length; i++)
             {
-                var blockMemory = new BlockMemory(
+                BlockMemory blockMemory = new(
                     GetBlockMemoryInnerSize(),
                     GetBlockMemoryOuterSize());
 
@@ -425,6 +425,7 @@ namespace VoxelPizza.Client
 
             ImGuiNET.ImGui.Begin("ChunkRenderer");
             {
+                ImGuiNET.ImGui.Text("Block: " + Dimension.PlayerChunkPosition.ToBlock().ToString());
                 ImGuiNET.ImGui.Text("Chunk: " + Dimension.PlayerChunkPosition.ToString());
                 ImGuiNET.ImGui.Text("Region: " + new RenderRegionPosition(Dimension.PlayerChunkPosition, RegionSize).ToString());
 
@@ -464,9 +465,9 @@ namespace VoxelPizza.Client
             ImGuiNET.ImGui.End();
         }
 
-        private static float ManhattanDistance(Vector3 a, Vector3 b)
+        private static int ManhattanDistance(BlockPosition a, BlockPosition b)
         {
-            Vector3 d = Vector3.Abs(a - b);
+            BlockPosition d = BlockPosition.Abs(a - b);
             return d.X + d.Y + d.Z;
         }
 
@@ -516,10 +517,16 @@ namespace VoxelPizza.Client
 
             if (cullOrigin.HasValue)
             {
+                Vector3 cullOriginValue = cullOrigin.Value;
+                BlockPosition blockCullOrigin = new(
+                    (int)MathF.Round(cullOriginValue.X),
+                    (int)MathF.Round(cullOriginValue.Y),
+                    (int)MathF.Round(cullOriginValue.Z));
+
                 visibleRegions.Sort((x, y) =>
                 {
-                    float a = ManhattanDistance(x.Position.ToBlock(RegionSize), origin);
-                    float b = ManhattanDistance(y.Position.ToBlock(RegionSize), origin);
+                    int a = ManhattanDistance(x.Position.ToBlock(RegionSize), blockCullOrigin);
+                    int b = ManhattanDistance(y.Position.ToBlock(RegionSize), blockCullOrigin);
                     return a.CompareTo(b);
                 });
             }
@@ -596,8 +603,6 @@ namespace VoxelPizza.Client
             return list;
         }
 
-        long lastbytesum = 0;
-
         private void Render(
             GraphicsDevice gd, CommandList cl, SceneContext sc,
             List<ChunkMeshRegion> meshesToBuild)
@@ -620,11 +625,6 @@ namespace VoxelPizza.Client
                 if (triCount > 0)
                     _lastDrawCalls++;
             }
-
-            long ss = (long)(ChunkStagingMesh.totalbytesum / (1024.0 * 1024.0 * 20)) * 20;
-            if (lastbytesum != ss)
-                Console.WriteLine(ss);
-            lastbytesum = ss;
         }
 
         public override RenderOrderKey GetRenderOrderKey(Vector3 cameraPosition)

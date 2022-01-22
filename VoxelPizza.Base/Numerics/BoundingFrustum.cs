@@ -126,9 +126,9 @@ namespace VoxelPizza.Numerics
                 {
                     Vector128<float> normal = Vector128.AsVector128(plane.Normal);
 
-                    var compare = Sse.CompareGreaterThanOrEqual(normal, Vector128<float>.Zero);
-                    var positive = Sse.Or(Sse.AndNot(compare, boxMin), Sse.And(compare, boxMax));
-                    var negative = Sse.Or(Sse.AndNot(compare, boxMax), Sse.And(compare, boxMin));
+                    Vector128<float> compare = Sse.CompareGreaterThanOrEqual(normal, Vector128<float>.Zero);
+                    Vector128<float> positive = Sse.Or(Sse.AndNot(compare, boxMin), Sse.And(compare, boxMax));
+                    Vector128<float> negative = Sse.Or(Sse.AndNot(compare, boxMax), Sse.And(compare, boxMin));
 
                     // If the positive vertex is outside (behind plane), the box is disjoint.
                     float positiveDistance = plane.D + Vector4.Dot(
@@ -265,14 +265,14 @@ namespace VoxelPizza.Numerics
         {
             if (Sse.IsSupported)
             {
-                var v1 = Vector128.AsVector128(vector1);
-                var v2 = Vector128.AsVector128(vector2);
+                Vector128<float> v1 = Vector128.AsVector128(vector1);
+                Vector128<float> v2 = Vector128.AsVector128(vector2);
 
-                var left1 = Sse.Shuffle(v1, v1, 0b11_00_10_01);
-                var left2 = Sse.Shuffle(v2, v2, 0b11_01_00_10);
+                Vector128<float> left1 = Sse.Shuffle(v1, v1, 0b11_00_10_01);
+                Vector128<float> left2 = Sse.Shuffle(v2, v2, 0b11_01_00_10);
 
-                var right1 = Sse.Shuffle(v1, v1, 0b11_01_00_10);
-                var right2 = Sse.Shuffle(v2, v2, 0b11_00_10_01);
+                Vector128<float> right1 = Sse.Shuffle(v1, v1, 0b11_01_00_10);
+                Vector128<float> right2 = Sse.Shuffle(v2, v2, 0b11_00_10_01);
 
                 return Vector128.AsVector4(Sse.Subtract(
                     Sse.Multiply(left1, left2),

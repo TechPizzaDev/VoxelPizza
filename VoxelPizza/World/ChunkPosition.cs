@@ -34,22 +34,20 @@ namespace VoxelPizza.World
 
         public readonly bool Equals(ChunkPosition other)
         {
-            return X == other.X
-                && Y == other.Y
-                && Z == other.Z;
+            return this == other;
         }
 
-        public readonly override bool Equals(object? obj)
+        public override readonly bool Equals(object? obj)
         {
             return obj is ChunkPosition other && Equals(other);
         }
 
-        public readonly override int GetHashCode()
+        public override readonly int GetHashCode()
         {
             return HashCode.Combine(X, Y, Z);
         }
 
-        public readonly override string ToString()
+        public override readonly string ToString()
         {
             return $"X:{X} Y:{Y} Z:{Z}";
         }
@@ -59,17 +57,19 @@ namespace VoxelPizza.World
             return ToString();
         }
 
-        public static bool operator ==(ChunkPosition left, ChunkPosition right)
+        public static bool operator ==(in ChunkPosition left, in ChunkPosition right)
         {
-            return left.Equals(right);
+            return left.X == right.X
+                && left.Y == right.Y
+                && left.Z == right.Z;
         }
 
-        public static bool operator !=(ChunkPosition left, ChunkPosition right)
+        public static bool operator !=(in ChunkPosition left, in ChunkPosition right)
         {
             return !(left == right);
         }
 
-        public static ChunkPosition operator +(ChunkPosition left, ChunkPosition right)
+        public static ChunkPosition operator +(in ChunkPosition left, in ChunkPosition right)
         {
             return new ChunkPosition(
                 left.X + right.X,
@@ -77,7 +77,7 @@ namespace VoxelPizza.World
                 left.Z + right.Z);
         }
 
-        public static ChunkPosition operator -(ChunkPosition left, ChunkPosition right)
+        public static ChunkPosition operator -(in ChunkPosition left, in ChunkPosition right)
         {
             return new ChunkPosition(
                 left.X - right.X,

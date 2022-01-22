@@ -83,6 +83,15 @@ namespace VoxelPizza.World
             _chunkLock.EnterWriteLock();
             try
             {
+                // Check again after acquiring lock,
+                // as a chunk may have been created while we were waiting.
+                chunk = _chunks[index];
+                if (chunk != null)
+                {
+                    chunk.IncrementRef();
+                    return chunk;
+                }
+
                 chunk = new Chunk(this, position);
                 chunk.Updated += _cachedChunkUpdated;
                 chunk.IncrementRef(RefCountType.Container);
@@ -112,7 +121,7 @@ namespace VoxelPizza.World
                     return ChunkRemoveStatus.MissingChunk;
 
                 chunk.RefZeroed += _cachedChunkRefZeroed;
-                
+
                 // Invoke event before decrementing ref to let
                 // others delay the unload.
                 ChunkRemoved?.Invoke(chunk);

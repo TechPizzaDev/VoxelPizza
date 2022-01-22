@@ -76,6 +76,14 @@ namespace VoxelPizza.World
             _regionLock.EnterWriteLock();
             try
             {
+                // Check again after acquiring lock,
+                // as a region may have been created while we were waiting.
+                if (_regions.TryGetValue(position, out region))
+                {
+                    region.IncrementRef();
+                    return region;
+                }
+
                 region = new ChunkRegion(this, position);
                 region.ChunkAdded += _cachedChunkAdded;
                 region.ChunkUpdated += _cachedChunkUpdated;
@@ -135,7 +143,7 @@ namespace VoxelPizza.World
             ChunkRegion? region = GetRegion(regionPosition);
             if (region == null)
                 return ChunkRemoveStatus.MissingRegion;
-            
+
             try
             {
                 return region.RemoveChunk(position);

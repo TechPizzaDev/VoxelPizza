@@ -15,7 +15,7 @@ namespace VoxelPizza.Client
         {
             for (int i = 0; i < count; i++)
             {
-                var mesh = new ChunkStagingMesh(1024 * 1024 * 16);
+                ChunkStagingMesh mesh = new(1024 * 1024 * 16);
                 _all.Add(mesh);
                 _pool.Push(mesh);
             }
@@ -66,6 +66,9 @@ namespace VoxelPizza.Client
                 mesh.Dispose();
                 return;
             }
+
+            mesh.Owner = null;
+            mesh.MeshBuffers = null;
 
             _pool.Push(mesh);
         }

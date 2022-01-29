@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using VoxelPizza.Numerics;
@@ -28,9 +30,9 @@ namespace VoxelPizza.Client
                     if (async)
                         Thread.Sleep(1000);
 
-                    int width = 48;
+                    int width = 40;
                     int depth = width;
-                    int height = 32;
+                    int height = 40;
 
                     Size3 size = new((uint)width, (uint)height, (uint)depth);
 
@@ -41,18 +43,27 @@ namespace VoxelPizza.Client
 
                     HashSet<ChunkPosition> currentChunks = new();
 
+                    bool[,] loads = new bool[width, depth];
+
                     void AddChunk(ChunkPosition position)
                     {
                         //bool a = currentChunks.Add(position);
                         //Debug.Assert(a);
 
-                        if (position.Y >= -1 && position.Y <= 1)
+                        //if (position.Y >= -1 && position.Y <= 1)
                         {
+                            ChunkPosition co = currentPosition - centerOffset;
+                            if (position.Y == 0)
+                                loads[position.X - co.X, position.Z - co.Z] = true;
+
                             Chunk chunk = dimension.CreateChunk(position);
                             try
                             {
-                                //chunk.Generate();
-                                chunk.SetBlockLayer(0, 10);
+                                if (!chunk.Generate())
+                                {
+                                    return;
+                                }
+                                //chunk.SetBlockLayer(0, 10);
                                 chunk.InvokeUpdate();
                             }
                             finally
@@ -76,6 +87,8 @@ namespace VoxelPizza.Client
                             }
                         }
                     }
+
+                    //using var fs = new FileStream("what.txt", FileMode.Create);
 
                     while (true)
                     {
@@ -103,6 +116,9 @@ namespace VoxelPizza.Client
                                 {
                                     if (!currentBox.Contains(position))
                                     {
+                                        //if (position.Y == 0)
+                                        //    loads[position.X - previousOrigin.X, position.Z - previousOrigin.Z] = false;
+
                                         dimension.RemoveChunk(position);
                                     }
                                 }
@@ -124,6 +140,28 @@ namespace VoxelPizza.Client
                         }
 
                         previousPosition = currentPosition;
+
+                        //int ww = currentMax.X - currentOrigin.X;
+                        //int hh = currentMax.Y - currentOrigin.Y;
+                        //int dd = currentMax.Z - currentOrigin.Z;
+                        //using var sw = new StreamWriter(fs, System.Text.Encoding.UTF8, -1, true);
+                        //sw.WriteLine(ww + " x " + hh + " x " + dd);
+                        //
+                        //ChunkPosition brorigin = currentOrigin;
+                        //brorigin.Y = 0;
+                        //for (int z = 0; z < depth; z++)
+                        //{
+                        //    for (int x = 0; x < width; x++)
+                        //    {
+                        //        bool load = loads[x, z];
+                        //        Chunk? chunk = dimension.GetChunk(new ChunkPosition(x, 0, z) + brorigin);
+                        //        bool hasChunk = chunk != null;
+                        //        chunk?.DecrementRef();
+                        //        sw.Write(load ? (hasChunk ? 2 : 1) : (hasChunk ? 4 : 0));
+                        //    }
+                        //    sw.WriteLine();
+                        //}
+                        //sw.WriteLine();
                     }
 
                     return;

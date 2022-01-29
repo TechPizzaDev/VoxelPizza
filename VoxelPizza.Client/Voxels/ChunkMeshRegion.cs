@@ -243,6 +243,19 @@ namespace VoxelPizza.Client
                     if (chunkRemoveRequired == 0)
                     {
                         BlockMemoryState memoryState = Renderer.FetchBlockMemory(blockBuffer, storedChunk.Position.ToBlock());
+
+                        //Size3 o = blockBuffer.OuterSize - blockBuffer.InnerSize;
+                        //for (uint z = 0; z < 16; z++)
+                        //{
+                        //    nuint ib = BlockStorage.GetIndexBase(blockBuffer.OuterSize.D, blockBuffer.OuterSize.W, o.H / 2, o.D / 2 + z);
+                        //
+                        //    for (uint x = 0; x < 16; x++)
+                        //    {
+                        //        nuint blockIndex = ib + (x + o.W / 2);
+                        //        blockBuffer.Data[blockIndex] = 10;
+                        //    }
+                        //}
+                        
                         if (memoryState == BlockMemoryState.Filled)
                         {
                             _buildWatch.Start();

@@ -52,6 +52,7 @@ namespace VoxelPizza.Client
             _renderRegionBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * renderRegionQuadCap, 4 * renderRegionQuadCap);
 
             ChunkRenderer.Dimension.ChunkAdded += ChunkRenderer_ChunkAdded;
+            ChunkRenderer.Dimension.ChunkUpdated += ChunkRenderer_ChunkUpdated;
             ChunkRenderer.Dimension.ChunkRemoved += ChunkRenderer_ChunkRemoved;
 
             ChunkRenderer.Dimension.RegionAdded += ChunkRenderer_RegionAdded;
@@ -63,10 +64,30 @@ namespace VoxelPizza.Client
 
         private void ChunkRenderer_ChunkAdded(Chunk chunk)
         {
+            if (!chunk.IsEmpty)
+            {
+                lock (_chunks)
+                {
+                    _chunks.Add(chunk.Position);
+                    _chunksNeedUpdate = true;
+                }
+            }
+        }
+
+        private void ChunkRenderer_ChunkUpdated(Chunk chunk)
+        {
             lock (_chunks)
             {
-                _chunks.Add(chunk.Position);
-                _chunksNeedUpdate = true;
+                if (!chunk.IsEmpty)
+                {
+                    if (_chunks.Add(chunk.Position))
+                        _chunksNeedUpdate = true;
+                }
+                else
+                {
+                    if (_chunks.Remove(chunk.Position))
+                        _chunksNeedUpdate = true;
+                }
             }
         }
 

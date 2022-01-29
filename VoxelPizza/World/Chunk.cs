@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using VoxelPizza.Collections;
 using VoxelPizza.Numerics;
@@ -94,10 +95,21 @@ namespace VoxelPizza.World
             GetBlockStorage().SetBlock(index, value);
         }
 
-        public void Generate()
+        public bool Generate()
         {
-            //uint[] blocks = Blocks;
-            //ref uint blockRef = ref blocks[0];
+            int chunkX = X * Width;
+            int chunkY = Y * Height;
+            int chunkZ = Z * Depth;
+
+            const int thresholdLow = (32 - 3) * 16;
+            const int thresholdHigh = (32 - 2) * 16;
+
+            int cDistSq = ((8 + chunkX) * (8 + chunkX)) + ((8 + chunkY) * (8 + chunkY)) + ((8 + chunkZ) * (8 + chunkZ));
+            if (cDistSq <= (thresholdLow - 16) * (thresholdLow - 16) ||
+                cDistSq >= (thresholdHigh + 16) * (thresholdHigh + 16))
+            {
+                return false;
+            }
 
             if (!TryGetInline(out Span<byte> blocks8, out BlockStorageType storageType))
             {
@@ -111,15 +123,12 @@ namespace VoxelPizza.World
             seed = seed * 31 + (uint)X;
             seed = seed * 31 + (uint)Y;
             seed = seed * 31 + (uint)Z;
-            var rng = new XoshiroRandom(seed);
-
-            int chunkX = X * Width;
-            int chunkY = Y * Height;
-            int chunkZ = Z * Depth;
+            XoshiroRandom rng = new(seed);
 
             if (true)
             {
                 Span<byte> tmp = stackalloc byte[Width * Depth];
+                Vector4 posOffset = new(chunkX, chunkY, chunkZ, 0);
 
                 for (int y = 0; y < Height; y++)
                 {
@@ -131,29 +140,47 @@ namespace VoxelPizza.World
                     for (int z = 0; z < Depth; z++)
                     {
                         int blockZ = chunkZ + z;
-                        float cos = 64 * (MathF.Cos(blockZ / 16f) + 1) * 0.5f;
+                        int indexBase = GetIndexBase(Depth, Width, y, z);
+                        int distYZ_Sq = (y + chunkY) * (y + chunkY) + (z + chunkZ) * (z + chunkZ);
+
+                        float cos = 0; // 64 * (MathF.Cos(blockZ / 16f) + 1) * 0.5f;
 
                         for (int x = 0; x < Width; x++)
                         {
-                            //if (rng.NextDouble() > 0.025 * fac * 4)
-                            //    continue;
+                            uint v = 0;
 
                             int blockX = chunkX + x;
-
-                            float sin = 64 * (MathF.Sin(blockX / 16f) + 1) * 0.5f;
-
-                            nint i = GetIndex(x, y, z);
+                            nint i = indexBase + x;
 
                             //ref uint block = ref Unsafe.Add(ref blockRef, i);
                             ref byte block8 = ref Unsafe.Add(ref blockRef8, i);
-                            ref ushort block16 = ref Unsafe.Add(ref blockRef16, i);
+                            //ref ushort block16 = ref Unsafe.Add(ref blockRef16, i);
 
-                            uint v = 0;
-                            if ((sin + cos) * 0.5f >= blockY)
-                                v = (uint)tmp[x + z * Width] + 1;
+                            if (true)
+                            {
+                                int distSq = (x + chunkX) * (x + chunkX) + distYZ_Sq;
+                                if (distSq > thresholdLow * thresholdLow &&
+                                    distSq < thresholdHigh * thresholdHigh)
+                                {
+                                    v = (uint)tmp[x + z * Width] + 1;
+                                    if (v > 255)
+                                        v = 255;
+                                }
+                            }
+
+                            if (false)
+                            {
+                                //if (rng.NextDouble() > 0.025 * fac * 4)
+                                //    continue;
+
+                                float sin = 64 * (MathF.Sin(blockX / 16f) + 1) * 0.5f;
+
+                                if ((sin + cos) * 0.5f >= blockY)
+                                    v = (uint)tmp[x + z * Width] + 1;
+                            }
 
                             //block = v;
-                            block8 = v > 255 ? (byte)255 : (byte)v;
+                            block8 = (byte)v;
                             //block16 = v > ushort.MaxValue ? ushort.MaxValue : (ushort)v;
                         }
                     }
@@ -182,6 +209,7 @@ namespace VoxelPizza.World
                     }
                 }
             }
+            return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

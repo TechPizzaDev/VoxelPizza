@@ -15,8 +15,6 @@ namespace VoxelPizza.Client
             ByteCount = byteCount;
         }
 
-        public static long totalbytesum = 0;
-
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
             Buffer = gd.ResourceFactory.CreateBuffer(new BufferDescription(ByteCount, BufferUsage.StagingWrite));

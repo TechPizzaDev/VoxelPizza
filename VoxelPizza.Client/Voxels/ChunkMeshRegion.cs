@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -50,11 +51,38 @@ namespace VoxelPizza.Client
             WorkerMutex = new object();
 
             _storedChunks = new StoredChunkMesh[size.Volume];
+            for (int y = 0; y < size.H; y++)
+            {
+                for (int z = 0; z < size.D; z++)
+                {
+                    for (int x = 0; x < size.W; x++)
+                    {
+                        ChunkPosition localPos = new(x, y, z);
+                        _storedChunks[GetStoredChunkIndex(localPos)].LocalPosition = localPos;
+                    }
+                }
+            }
         }
 
         public void SetPosition(RenderRegionPosition position)
         {
             Position = position;
+
+            Size3 size = Size;
+            ChunkPosition offsetPos = position.ToChunk(size);
+
+            for (int y = 0; y < size.H; y++)
+            {
+                for (int z = 0; z < size.D; z++)
+                {
+                    for (int x = 0; x < size.W; x++)
+                    {
+                        ChunkPosition localPos = new(x, y, z);
+                        ChunkPosition pos = offsetPos + localPos;
+                        _storedChunks[GetStoredChunkIndex(GetLocalChunkPosition(pos))].Position = pos;
+                    }
+                }
+            }
         }
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
@@ -100,10 +128,10 @@ namespace VoxelPizza.Client
 
             ChunkPosition localPosition = GetLocalChunkPosition(chunkPosition);
             ref StoredChunkMesh storedChunk = ref GetStoredChunk(localPosition);
-            if (storedChunk.HasValue)
-            {
-                Interlocked.Exchange(ref storedChunk.IsRemoveRequired, 0);
-            }
+            storedChunk.HasValue = true;
+
+            Interlocked.Exchange(ref storedChunk.IsBuildRequired, 0);
+            Interlocked.Exchange(ref storedChunk.IsRemoveRequired, 0);
         }
 
         public void ChunkRemoved(ChunkPosition chunkPosition)
@@ -112,20 +140,14 @@ namespace VoxelPizza.Client
 
             ChunkPosition localPosition = GetLocalChunkPosition(chunkPosition);
             ref StoredChunkMesh storedChunk = ref GetStoredChunk(localPosition);
-            if (storedChunk.HasValue)
-            {
-                Interlocked.Increment(ref storedChunk.IsRemoveRequired);
-            }
+
+            Interlocked.Increment(ref storedChunk.IsRemoveRequired);
         }
 
         public void RequestBuild(ChunkPosition chunkPosition)
         {
             ChunkPosition localPosition = GetLocalChunkPosition(chunkPosition);
             ref StoredChunkMesh storedChunk = ref GetStoredChunk(localPosition);
-            if (!storedChunk.HasValue)
-            {
-                storedChunk = new StoredChunkMesh(chunkPosition, localPosition);
-            }
 
             Interlocked.Increment(ref storedChunk.IsBuildRequired);
             Interlocked.Increment(ref _buildRequired);
@@ -227,6 +249,10 @@ namespace VoxelPizza.Client
                             storedChunk.StoredMesh = mesher.Mesh(blockBuffer);
                             _buildWatch.Stop();
                         }
+                    }
+                    else
+                    {
+                        storedChunk.HasValue = false;
                     }
 
                     builtCount++;
@@ -442,11 +468,20 @@ namespace VoxelPizza.Client
                     IndexCount = indexCount,
                 };
 
+                ChunkRenderInfo renderInfo = new()
+                {
+                    Translation = new Vector4(
+                        storedChunk.Position.X * Chunk.Width,
+                        storedChunk.Position.Y * Chunk.Height,
+                        storedChunk.Position.Z * Chunk.Depth,
+                        0)
+                };
+
                 uint indirectByteOffset = drawIndex * (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>();
                 Unsafe.Write(indirectBytePtr + indirectByteOffset, indirectArgs);
 
                 uint renderInfoByteOffset = drawIndex * (uint)Unsafe.SizeOf<ChunkRenderInfo>();
-                Unsafe.Write(renderInfoBytePtr + renderInfoByteOffset, storedChunk.RenderInfo);
+                Unsafe.Write(renderInfoBytePtr + renderInfoByteOffset, renderInfo);
 
                 uint indexByteOffset = indexOffset * sizeof(uint);
                 Span<byte> indexBytes = MemoryMarshal.AsBytes(mesh.Indices);

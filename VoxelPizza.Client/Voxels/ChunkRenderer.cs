@@ -40,6 +40,7 @@ namespace VoxelPizza.Client
         private ChunkGraph _graph = new();
 
         private List<ChunkMeshRegion> _visibleRegionBuffer = new();
+        private int[] _listSortBuffer = Array.Empty<int>();
         private Dictionary<RenderRegionPosition, ChunkMeshRegion> _regions = new();
         private ConcurrentQueue<ChunkMeshRegion> _queuedRegions = new();
         private Stack<ChunkMeshRegion> _regionPool = new();
@@ -75,8 +76,8 @@ namespace VoxelPizza.Client
             ChunkMesher = new ChunkMesher(ChunkMeshPool);
 
             _stagingMeshPool = new ChunkStagingMeshPool(16);
-            _commandListFencePool = new CommandListFencePool(17);
-            _workers = new ChunkRendererWorker[1];
+            _commandListFencePool = new CommandListFencePool(16 + 2);
+            _workers = new ChunkRendererWorker[2];
 
             for (int i = 0; i < _workers.Length; i++)
             {
@@ -164,19 +165,19 @@ namespace VoxelPizza.Client
 
         private ChunkMeshRegion GetOrCreateRenderRegion(RenderRegionPosition regionPosition)
         {
-            if (!TryGetRegion(regionPosition, out ChunkMeshRegion? renderRegion))
+            lock (_regions)
             {
-                renderRegion = RentMeshRegion(regionPosition);
-
-                lock (_regions)
+                if (!_regions.TryGetValue(regionPosition, out ChunkMeshRegion? renderRegion))
                 {
-                    _regions.Add(regionPosition, renderRegion);
-                }
-                RenderRegionAdded?.Invoke(renderRegion);
+                    renderRegion = RentMeshRegion(regionPosition);
 
-                _queuedRegions.Enqueue(renderRegion);
+                    _regions.Add(regionPosition, renderRegion);
+                    RenderRegionAdded?.Invoke(renderRegion);
+
+                    _queuedRegions.Enqueue(renderRegion);
+                }
+                return renderRegion;
             }
-            return renderRegion;
         }
 
         private void Dimension_ChunkAdded(Chunk chunk)
@@ -199,8 +200,6 @@ namespace VoxelPizza.Client
             {
                 renderRegion.ChunkRemoved(chunk.Position);
 
-                renderRegion.RequestBuild(chunk.Position);
-
                 if (renderRegion.ChunkCount == 0)
                 {
                     lock (_regions)
@@ -209,10 +208,16 @@ namespace VoxelPizza.Client
                     }
                     RenderRegionRemoved?.Invoke(renderRegion);
 
+                    renderRegion.DestroyDeviceObjects();
+
                     //for (int i = 0; i < _workers.Length; i++)
                     {
                         _workers[0].EnqueueReset(renderRegion);
                     }
+                }
+                else
+                {
+                    renderRegion.RequestBuild(chunk.Position);
                 }
             }
 
@@ -234,7 +239,7 @@ namespace VoxelPizza.Client
                     {
                         return;
                     }
-                    _graph.FlagChunkEmpty(chunk.Position, false);
+                    _graph.RemoveChunkEmptyFlag(chunk.Position);
                 }
             }
 
@@ -473,13 +478,10 @@ namespace VoxelPizza.Client
 
         public void GatherVisibleRegions(
             SceneContext sc,
-            Vector3? cullOrigin,
             BoundingFrustum? cullFrustum,
             List<ChunkMeshRegion> visibleRegions)
         {
             using var profilerToken = sc.Profiler.Push();
-
-            Vector3 origin = cullOrigin.GetValueOrDefault();
 
             lock (_regions)
             {
@@ -514,22 +516,30 @@ namespace VoxelPizza.Client
                     }
                 }
             }
+        }
 
-            if (cullOrigin.HasValue)
+        public void SortVisibleRegions(SceneContext sc, Vector3 cullOrigin, List<ChunkMeshRegion> visibleRegions)
+        {
+            using var profilerToken = sc.Profiler.Push();
+
+            BlockPosition blockCullOrigin = new(
+                (int)MathF.Round(cullOrigin.X),
+                (int)MathF.Round(cullOrigin.Y),
+                (int)MathF.Round(cullOrigin.Z));
+
+            Span<ChunkMeshRegion> regions = CollectionsMarshal.AsSpan(visibleRegions);
+
+            if (_listSortBuffer.Length < regions.Length)
             {
-                Vector3 cullOriginValue = cullOrigin.Value;
-                BlockPosition blockCullOrigin = new(
-                    (int)MathF.Round(cullOriginValue.X),
-                    (int)MathF.Round(cullOriginValue.Y),
-                    (int)MathF.Round(cullOriginValue.Z));
-
-                visibleRegions.Sort((x, y) =>
-                {
-                    int a = ManhattanDistance(x.Position.ToBlock(RegionSize), blockCullOrigin);
-                    int b = ManhattanDistance(y.Position.ToBlock(RegionSize), blockCullOrigin);
-                    return a.CompareTo(b);
-                });
+                Array.Resize(ref _listSortBuffer, regions.Length + 4096);
             }
+            Span<int> distances = _listSortBuffer.AsSpan(0, regions.Length);
+
+            for (int i = 0; i < distances.Length; i++)
+            {
+                distances[i] = ManhattanDistance(regions[i].Position.ToBlock(RegionSize), blockCullOrigin);
+            }
+            distances.Sort(regions);
         }
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
@@ -573,7 +583,12 @@ namespace VoxelPizza.Client
 
             List<ChunkMeshRegion> visibleRegions = _visibleRegionBuffer;
             visibleRegions.Clear();
-            GatherVisibleRegions(sc, cullOrigin, cullFrustum, visibleRegions);
+            GatherVisibleRegions(sc, cullFrustum, visibleRegions);
+
+            if (cullOrigin.HasValue)
+            {
+                SortVisibleRegions(sc, cullOrigin.Value, visibleRegions);
+            }
 
             cl.SetPipeline(_indirectPipeline);
             cl.SetGraphicsResourceSet(0, cameraInfoSet);

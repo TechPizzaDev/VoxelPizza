@@ -26,17 +26,16 @@ namespace VoxelPizza.Client
             ActChunkAndSurround(new RemoveActor(this, chunkPosition), chunkPosition, ChunkGraphFaces.Center | ChunkGraphFaces.Empty);
         }
 
-        public void FlagChunkEmpty(ChunkPosition chunkPosition, bool isEmpty)
+        public void AddChunkEmptyFlag(ChunkPosition chunkPosition)
         {
             ChunkPosition localChunkPos = ChunkRegion.GetLocalChunkPosition(chunkPosition);
-            if (isEmpty)
-            {
-                new AddActor(this, chunkPosition).ActLocal(localChunkPos, ChunkGraphFaces.Empty);
-            }
-            else
-            {
-                new RemoveActor(this, chunkPosition).ActLocal(localChunkPos, ChunkGraphFaces.Empty);
-            }
+            new AddActor(this, chunkPosition).ActLocal(localChunkPos, ChunkGraphFaces.Empty);
+        }
+
+        public void RemoveChunkEmptyFlag(ChunkPosition chunkPosition)
+        {
+            ChunkPosition localChunkPos = ChunkRegion.GetLocalChunkPosition(chunkPosition);
+            new RemoveActor(this, chunkPosition).ActLocal(localChunkPos, ChunkGraphFaces.Empty);
         }
 
         public ChunkGraphFaces GetChunk(ChunkPosition chunkPosition)

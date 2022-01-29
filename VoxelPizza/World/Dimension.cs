@@ -17,11 +17,44 @@ namespace VoxelPizza.World
 
         public ChunkPosition PlayerChunkPosition;
 
+        /// <summary>
+        /// Raised when a <see cref="Chunk"/> is added to this <see cref="Dimension"/>.
+        /// </summary>
+        /// <remarks>
+        /// This event can be raised concurrently from different threads.
+        /// </remarks>
         public event ChunkAction? ChunkAdded;
+
+        /// <summary>
+        /// Raised when a <see cref="Chunk"/> is updated within this <see cref="Dimension"/>.
+        /// </summary>
+        /// <remarks>
+        /// This event can be raised concurrently from different threads.
+        /// </remarks>
         public event ChunkAction? ChunkUpdated;
+
+        /// <summary>
+        /// Raised when a <see cref="Chunk"/> is removed from this <see cref="Dimension"/>.
+        /// </summary>
+        /// <remarks>
+        /// This event can be raised concurrently from different threads.
+        /// </remarks>
         public event ChunkAction? ChunkRemoved;
 
+        /// <summary>
+        /// Raised when a <see cref="ChunkRegion"/> is added to this <see cref="Dimension"/>.
+        /// </summary>
+        /// <remarks>
+        /// This event can be raised concurrently from different threads.
+        /// </remarks>
         public event RegionAction? RegionAdded;
+
+        /// <summary>
+        /// Raised when a <see cref="ChunkRegion"/> is removed from this <see cref="Dimension"/>.
+        /// </summary>
+        /// <remarks>
+        /// This event can be raised concurrently from different threads.
+        /// </remarks>
         public event RegionAction? RegionRemoved;
 
         public Dimension()
@@ -105,7 +138,6 @@ namespace VoxelPizza.World
         public Chunk? GetChunk(ChunkPosition position)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
-
             _regionLock.EnterReadLock();
             try
             {
@@ -124,7 +156,6 @@ namespace VoxelPizza.World
         public Chunk CreateChunk(ChunkPosition position)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
-
             ChunkRegion region = CreateRegion(regionPosition);
             try
             {
@@ -139,10 +170,11 @@ namespace VoxelPizza.World
         public ChunkRemoveStatus RemoveChunk(ChunkPosition position)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
-
             ChunkRegion? region = GetRegion(regionPosition);
             if (region == null)
+            {
                 return ChunkRemoveStatus.MissingRegion;
+            }
 
             try
             {

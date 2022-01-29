@@ -94,6 +94,7 @@ namespace VoxelPizza.World
 
                 chunk = new Chunk(this, position);
                 chunk.Updated += _cachedChunkUpdated;
+                chunk.RefZeroed += _cachedChunkRefZeroed;
                 chunk.IncrementRef(RefCountType.Container);
 
                 _chunks[index] = chunk;
@@ -118,10 +119,9 @@ namespace VoxelPizza.World
             {
                 Chunk? chunk = _chunks[index];
                 if (chunk == null)
+                {
                     return ChunkRemoveStatus.MissingChunk;
-
-                chunk.RefZeroed += _cachedChunkRefZeroed;
-
+                }
                 // Invoke event before decrementing ref to let
                 // others delay the unload.
                 ChunkRemoved?.Invoke(chunk);

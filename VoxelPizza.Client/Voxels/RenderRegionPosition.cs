@@ -52,5 +52,10 @@ namespace VoxelPizza.Client
         {
             return $"X:{X} Y:{Y} Z:{Z}";
         }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is RenderRegionPosition other && Equals(other);
+        }
     }
 }

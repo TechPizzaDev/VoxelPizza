@@ -10,7 +10,7 @@ namespace VoxelPizza.Client.Objects
     public class ShadowmapDrawer : Renderable
     {
         private readonly Func<Sdl2Window> _windowGetter;
-        private readonly DisposeCollector _disposeCollector = new DisposeCollector();
+        private readonly DisposeCollector _disposeCollector = new();
 
         private DeviceBuffer _vb;
         private DeviceBuffer _ib;
@@ -20,7 +20,7 @@ namespace VoxelPizza.Client.Objects
         private ResourceSet _resourceSet;
 
         private Vector2 _position;
-        private Vector2 _size = new Vector2(100, 100);
+        private Vector2 _size = new(100, 100);
 
         private readonly Func<TextureView> _bindingGetter;
         private SizeInfo? _si;
@@ -71,7 +71,7 @@ namespace VoxelPizza.Client.Objects
                 new ResourceLayoutElementDescription("Tex", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("TexSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
 
-            GraphicsPipelineDescription pd = new GraphicsPipelineDescription(
+            GraphicsPipelineDescription pd = new(
                 BlendStateDescription.SingleOverrideBlend,
                 new DepthStencilStateDescription(false, true, ComparisonKind.Always),
                 RasterizerStateDescription.Default,

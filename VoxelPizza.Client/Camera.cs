@@ -18,8 +18,8 @@ namespace VoxelPizza.Client
         private Matrix4x4 _projectionMatrix;
         private Matrix4x4 _inverseProjectionMatrix;
 
-        private Vector3 _position = new Vector3(0, 3, 0);
-        private Vector3 _lookDirection = new Vector3(0, -.3f, -1f);
+        private Vector3 _position = new(0, 3, 0);
+        private Vector3 _lookDirection = new(0, -.3f, -1f);
         private float _moveSpeed = 10.0f;
 
         private float _yaw;
@@ -240,7 +240,7 @@ namespace VoxelPizza.Client
         {
             float x = (2f * position.X) / _windowWidth - 1f;
             float y = 1f - (2f * position.Y) / _windowHeight;
-            Vector4 rayClip = new Vector4(x, y, -1f, 1f);
+            Vector4 rayClip = new(x, y, -1f, 1f);
 
             Vector4 rayEye = Vector4.Transform(rayClip, _inverseProjectionMatrix);
             rayEye.Z = -1f;
@@ -252,7 +252,7 @@ namespace VoxelPizza.Client
             return new Vector3(rayDirection.X, rayDirection.Y, rayDirection.Z);
         }
 
-        public CameraInfo GetCameraInfo() => new CameraInfo
+        public CameraInfo GetCameraInfo() => new()
         {
             Projection = _projectionMatrix,
             View = _viewMatrix,

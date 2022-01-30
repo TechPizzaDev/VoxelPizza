@@ -53,12 +53,6 @@ struct WorldAndInverseMats
     mat4 InverseWorld;
 };
 
-struct MaterialProperties
-{
-    vec3 SpecularIntensity;
-    float SpecularPower;
-};
-
 layout(set = 0, binding = 0) uniform Projection
 {
     mat4 _Projection;

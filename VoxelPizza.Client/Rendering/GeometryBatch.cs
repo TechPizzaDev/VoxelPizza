@@ -80,7 +80,7 @@ namespace VoxelPizza.Client
 
             FinishCurrentBuffers();
 
-            var factory = _device.ResourceFactory;
+            ResourceFactory factory = _device.ResourceFactory;
 
             DeviceBuffer indexBuffer;
             DeviceBuffer vertexBuffer;

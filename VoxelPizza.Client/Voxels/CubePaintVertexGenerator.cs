@@ -1,6 +1,6 @@
 namespace VoxelPizza.Client
 {
-    public unsafe readonly struct CubePaintVertexGenerator : ICubeVertexGenerator<ChunkPaintVertex>
+    public readonly unsafe struct CubePaintVertexGenerator : ICubeVertexGenerator<ChunkPaintVertex>
     {
         private readonly ChunkPaintVertex _vertex;
 

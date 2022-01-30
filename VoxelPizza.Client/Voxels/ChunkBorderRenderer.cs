@@ -153,13 +153,13 @@ namespace VoxelPizza.Client
             (Shader colorVs, Shader colorFs, SpecializationConstant[] mainSpecs) =
                 StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ColorMain");
 
-            var rasterizerState = RasterizerStateDescription.Default;
+            RasterizerStateDescription rasterizerState = RasterizerStateDescription.Default;
 
-            var depthStencilState = gd.IsDepthRangeZeroToOne
+            DepthStencilStateDescription depthStencilState = gd.IsDepthRangeZeroToOne
                 ? DepthStencilStateDescription.DepthOnlyGreaterEqual
                 : DepthStencilStateDescription.DepthOnlyLessEqual;
 
-            var pipelineDesc = new GraphicsPipelineDescription(
+            GraphicsPipelineDescription pipelineDesc = new(
                 BlendStateDescription.SingleOverrideBlend,
                 depthStencilState,
                 rasterizerState,
@@ -262,12 +262,16 @@ namespace VoxelPizza.Client
 
         private unsafe void UpdateCameraBatch()
         {
+            Camera? camera = ChunkRenderer.CullCamera;
+            if (camera == null)
+            {
+                return;
+            }
+
             _cameraBatch.Begin();
 
-            Camera? camera = ChunkRenderer.CullCamera;
-
-            BoundingFrustum cullFrustum = new(camera.ViewMatrix * camera.ProjectionMatrix);
-            cullFrustum.GetCorners(out FrustumCorners corners);
+            BoundingFrustum4 cullFrustum = new(camera.ViewMatrix * camera.ProjectionMatrix);
+            cullFrustum.GetCorners(out FrustumCorners4 corners);
 
             _cameraBatch.AppendQuad(
                 new VertexPosition<RgbaByte>() { Position = corners.FarTopRight.ToVector3(), Data = RgbaByte.White },
@@ -386,8 +390,8 @@ namespace VoxelPizza.Client
                 color0, color1,
                 indices, vertices);
 
-            var reserve = batch.ReserveUnsafe(indices.Length, vertexCount);
-            vertices.Slice(0, vertexCount).CopyTo(new Span<VertexPosition<RgbaByte>>(reserve.Vertices, vertexCount));
+            GeometryBatch<VertexPosition<RgbaByte>>.UnsafeReserve reserve = batch.ReserveUnsafe(indices.Length, vertexCount);
+            vertices[..vertexCount].CopyTo(new Span<VertexPosition<RgbaByte>>(reserve.Vertices, vertexCount));
 
             Span<uint> reserveIndices = new(reserve.Indices, indices.Length);
             for (int i = 0; i < indices.Length; i++)

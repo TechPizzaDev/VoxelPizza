@@ -5,24 +5,24 @@ using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Numerics
 {
-    public struct BoundingBox : IEquatable<BoundingBox>
+    public struct BoundingBox4 : IEquatable<BoundingBox4>
     {
         public Vector4 Min;
         public Vector4 Max;
 
-        public BoundingBox(Vector4 min, Vector4 max)
+        public BoundingBox4(Vector4 min, Vector4 max)
         {
             Min = min;
             Max = max;
         }
 
-        public BoundingBox(Vector3 min, Vector3 max)
+        public BoundingBox4(Vector3 min, Vector3 max)
         {
             Min = new Vector4(min, 0);
             Max = new Vector4(max, 0);
         }
 
-        public readonly ContainmentType Contains(in BoundingBox other)
+        public readonly ContainmentType Contains(in BoundingBox4 other)
         {
             if (Max.X < other.Min.X || Min.X > other.Max.X
                 || Max.Y < other.Min.Y || Min.Y > other.Max.Y
@@ -52,9 +52,9 @@ namespace VoxelPizza.Numerics
             return Max - Min;
         }
 
-        public static BoundingBox Transform(BoundingBox box, Matrix4x4 mat)
+        public static BoundingBox4 Transform(BoundingBox4 box, Matrix4x4 mat)
         {
-            box.GetCorners(out AlignedBoxCorners corners);
+            box.GetCorners(out AlignedBoxCorners4 corners);
 
             Vector4 min = Vector4.Transform(corners.NearTopLeft, mat);
             Vector4 max = Vector4.Transform(corners.NearTopLeft, mat);
@@ -80,10 +80,10 @@ namespace VoxelPizza.Numerics
             min = Vector4.Min(min, Vector4.Transform(corners.FarBottomRight, mat));
             max = Vector4.Max(max, Vector4.Transform(corners.FarBottomRight, mat));
 
-            return new BoundingBox(min, max);
+            return new BoundingBox4(min, max);
         }
 
-        public static BoundingBox CreateFromPoints(
+        public static BoundingBox4 CreateFromPoints(
             ReadOnlySpan<byte> vertices,
             int vertexStride,
             Quaternion rotation,
@@ -93,7 +93,7 @@ namespace VoxelPizza.Numerics
             int vertexCount = vertices.Length / vertexStride;
             if (vertexCount < 1)
             {
-                return new BoundingBox(new Vector4(offset, 0), new Vector4(offset, 0));
+                return new BoundingBox4(new Vector4(offset, 0), new Vector4(offset, 0));
             }
 
             ref byte vertexBytes = ref MemoryMarshal.GetReference(vertices);
@@ -124,12 +124,12 @@ namespace VoxelPizza.Numerics
                     max.Z = pos.Z;
             }
 
-            return new BoundingBox(
+            return new BoundingBox4(
                 new Vector4((min * scale) + offset, 0),
                 new Vector4((max * scale) + offset, 0));
         }
 
-        public static BoundingBox CreateFromVertices(
+        public static BoundingBox4 CreateFromVertices(
             ReadOnlySpan<Vector3> vertices, Quaternion rotation, Vector3 offset, Vector3 scale)
         {
             Vector3 min = Vector3.Transform(vertices[0], rotation);
@@ -155,49 +155,49 @@ namespace VoxelPizza.Numerics
                     max.Z = pos.Z;
             }
 
-            return new BoundingBox(
+            return new BoundingBox4(
                 new Vector4((min * scale) + offset, 0),
                 new Vector4((max * scale) + offset, 0));
         }
 
-        public static BoundingBox CreateFromVertices(ReadOnlySpan<Vector3> vertices)
+        public static BoundingBox4 CreateFromVertices(ReadOnlySpan<Vector3> vertices)
         {
             return CreateFromVertices(vertices, Quaternion.Identity, Vector3.Zero, Vector3.One);
         }
 
-        public static BoundingBox Combine(BoundingBox box1, BoundingBox box2)
+        public static BoundingBox4 Combine(BoundingBox4 box1, BoundingBox4 box2)
         {
-            return new BoundingBox(
+            return new BoundingBox4(
                 Vector4.Min(box1.Min, box2.Min),
                 Vector4.Max(box1.Max, box2.Max));
         }
 
-        public static bool operator ==(BoundingBox first, BoundingBox second)
+        public static bool operator ==(BoundingBox4 first, BoundingBox4 second)
         {
             return first.Equals(second);
         }
 
-        public static bool operator !=(BoundingBox first, BoundingBox second)
+        public static bool operator !=(BoundingBox4 first, BoundingBox4 second)
         {
             return !first.Equals(second);
         }
 
-        public readonly bool Equals(BoundingBox other)
+        public readonly bool Equals(BoundingBox4 other)
         {
             return Min == other.Min && Max == other.Max;
         }
 
-        public readonly override string ToString()
+        public override readonly string ToString()
         {
             return string.Format("Min:{0}, Max:{1}", Min, Max);
         }
 
-        public readonly override bool Equals(object? obj)
+        public override readonly bool Equals(object? obj)
         {
-            return obj is BoundingBox other && Equals(other);
+            return obj is BoundingBox4 other && Equals(other);
         }
 
-        public readonly override int GetHashCode()
+        public override readonly int GetHashCode()
         {
             int h1 = Min.GetHashCode();
             int h2 = Max.GetHashCode();
@@ -205,7 +205,7 @@ namespace VoxelPizza.Numerics
             return ((int)shift5 + h1) ^ h2;
         }
 
-        public readonly void GetCorners(out AlignedBoxCorners corners)
+        public readonly void GetCorners(out AlignedBoxCorners4 corners)
         {
             corners.NearBottomLeft = new Vector4(Min.X, Min.Y, Max.Z, 0);
             corners.NearBottomRight = new Vector4(Max.X, Min.Y, Max.Z, 0);
@@ -218,9 +218,9 @@ namespace VoxelPizza.Numerics
             corners.FarTopRight = new Vector4(Max.X, Max.Y, Min.Z, 0);
         }
 
-        public readonly AlignedBoxCorners GetCorners()
+        public readonly AlignedBoxCorners4 GetCorners()
         {
-            GetCorners(out AlignedBoxCorners corners);
+            GetCorners(out AlignedBoxCorners4 corners);
             return corners;
         }
 

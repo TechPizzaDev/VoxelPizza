@@ -5,7 +5,7 @@ using System.Runtime.Intrinsics.X86;
 
 namespace VoxelPizza.Numerics
 {
-    public struct BoundingFrustum
+    public struct BoundingFrustum4
     {
         public Plane4 Left;
         public Plane4 Right;
@@ -14,7 +14,7 @@ namespace VoxelPizza.Numerics
         public Plane4 Near;
         public Plane4 Far;
 
-        public BoundingFrustum(Matrix4x4 m)
+        public BoundingFrustum4(Matrix4x4 m)
         {
             // Plane computations: http://gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
             Left = Plane4.Normalize(
@@ -60,7 +60,7 @@ namespace VoxelPizza.Numerics
                     m.M44 - m.M43));
         }
 
-        public BoundingFrustum(Plane4 left, Plane4 right, Plane4 bottom, Plane4 top, Plane4 near, Plane4 far)
+        public BoundingFrustum4(Plane4 left, Plane4 right, Plane4 bottom, Plane4 top, Plane4 near, Plane4 far)
         {
             Left = left;
             Right = right;
@@ -92,7 +92,7 @@ namespace VoxelPizza.Numerics
             return Contains(new Vector4(point, 0));
         }
 
-        public readonly ContainmentType Contains(BoundingSphere sphere)
+        public readonly ContainmentType Contains(BoundingSphere4 sphere)
         {
             ContainmentType result = ContainmentType.Contains;
 
@@ -109,7 +109,7 @@ namespace VoxelPizza.Numerics
             return result;
         }
 
-        public readonly ContainmentType Contains(BoundingBox box)
+        public readonly ContainmentType Contains(BoundingBox4 box)
         {
             // Approach: http://zach.in.tu-clausthal.de/teaching/cg_literatur/lighthouse3d_view_frustum_culling/index.html
 
@@ -193,10 +193,10 @@ namespace VoxelPizza.Numerics
             return result;
         }
 
-        public readonly ContainmentType Contains(in BoundingFrustum other)
+        public readonly ContainmentType Contains(in BoundingFrustum4 other)
         {
             int pointsContained = 0;
-            other.GetCorners(out FrustumCorners corners);
+            other.GetCorners(out FrustumCorners4 corners);
 
             if (Contains(corners.NearTopLeft) != ContainmentType.Disjoint)
                 pointsContained++;
@@ -229,13 +229,13 @@ namespace VoxelPizza.Numerics
             }
         }
 
-        public readonly FrustumCorners GetCorners()
+        public readonly FrustumCorners4 GetCorners()
         {
-            GetCorners(out FrustumCorners corners);
+            GetCorners(out FrustumCorners4 corners);
             return corners;
         }
 
-        public readonly void GetCorners(out FrustumCorners corners)
+        public readonly void GetCorners(out FrustumCorners4 corners)
         {
             PlaneIntersection(Near, Top, Left, out corners.NearTopLeft);
             PlaneIntersection(Near, Top, Right, out corners.NearTopRight);

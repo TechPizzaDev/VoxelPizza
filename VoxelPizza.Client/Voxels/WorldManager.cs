@@ -17,7 +17,7 @@ namespace VoxelPizza.Client
 
         public Dimension CreateDimension()
         {
-            Dimension dimension = new Dimension();
+            Dimension dimension = new();
             return dimension;
         }
 
@@ -166,7 +166,7 @@ namespace VoxelPizza.Client
 
                     return;
 
-                    var list = new List<(int x, int y, int z)>();
+                    List<(int x, int y, int z)>? list = new();
 
                     int off = 0;
                     for (int x = 0; x < width; x++)
@@ -200,7 +200,7 @@ namespace VoxelPizza.Client
                     });
 
                     int count = 0;
-                    foreach (var (x, y, z) in list)
+                    foreach ((int x, int y, int z) in list)
                     {
                         Chunk chunk = dimension.CreateChunk(new(x, y, z));
 
@@ -233,7 +233,7 @@ namespace VoxelPizza.Client
 
                     if (false)
                     {
-                        foreach (var (x, y, z) in list)
+                        foreach ((int x, int y, int z) in list)
                         {
                             Chunk? chunk = dimension.GetChunk(new(x, y, z));
 
@@ -248,7 +248,7 @@ namespace VoxelPizza.Client
 
                     if (false)
                     {
-                        Random rng = new Random(1234);
+                        Random rng = new(1234);
                         for (int i = 0; i < (64 * 1024) / (width * height * depth); i++)
                         {
                             for (int y = 0; y < height; y++)
@@ -259,7 +259,7 @@ namespace VoxelPizza.Client
                                     {
                                         int xd = rng.Next(2);
                                         int max = xd == 0 ? 512 : 128;
-                                        var c = dimension.GetChunk(new ChunkPosition(x, y, z));
+                                        Chunk? c = dimension.GetChunk(new ChunkPosition(x, y, z));
                                         if (c != null)
                                         {
                                             //uint[] blocks = c.Blocks;
@@ -289,7 +289,7 @@ namespace VoxelPizza.Client
 
                     if (false)
                     {
-                        Random rng = new Random(1234);
+                        Random rng = new(1234);
                         while (true)
                         {
                             for (int i = 0; i < 2; i++)

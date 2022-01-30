@@ -92,7 +92,7 @@ dotnet_style_predefined_type_for_member_access = true:suggestion
 #prefer default over default(T)
 csharp_prefer_simple_default_expression = true:suggestion
 #prefer objects to be initialized using object initializers when possible
-dotnet_style_object_initializer = true:suggestion
+dotnet_style_object_initializer = true:silent
 #prefer inferred tuple element names
 dotnet_style_prefer_inferred_tuple_names = true:suggestion
 
@@ -135,3 +135,12 @@ dotnet_style_qualification_for_field = false:suggestion
 dotnet_style_qualification_for_method = false:suggestion
 #prefer properties not to be prefaced with this. or Me. in Visual Basic
 dotnet_style_qualification_for_property = false:suggestion
+
+# IDE1006: Naming Styles
+dotnet_diagnostic.IDE1006.severity = silent
+
+# IDE0017: Simplify object initialization
+dotnet_diagnostic.IDE0017.severity = silent
+
+# CA2231: Overload operator equals on overriding value type Equals
+dotnet_diagnostic.CA2231.severity = silent

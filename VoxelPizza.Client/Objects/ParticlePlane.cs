@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Veldrid;
 using Veldrid.Utilities;
+using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Client.Objects
 {
@@ -56,15 +57,15 @@ namespace VoxelPizza.Client.Objects
 
         public Camera Camera { get; }
 
-        ParticleInstanceStatic[] particlesStatic;
-        ParticleInstanceDynamic[] particlesDynamic;
+        private ParticleInstanceStatic[] particlesStatic;
+        private ParticleInstanceDynamic[] particlesDynamic;
 
         static ParticlePlane()
         {
-            var p = new ObjParser();
-            var obj = p.Parse(File.OpenRead("Assets/Models/suzanne.obj"));
+            ObjParser p = new();
+            ObjFile obj = p.Parse(File.OpenRead("Assets/Models/suzanne.obj"));
 
-            var mesh = obj.GetMesh16(obj.MeshGroups[0]);
+            ConstructedMesh16 mesh = obj.GetMesh16(obj.MeshGroups[0]);
             s_quadIndices = mesh.Indices;
             s_quadVertices = mesh.GetVertexPositions();
         }
@@ -105,31 +106,31 @@ namespace VoxelPizza.Client.Objects
         public Vector4 GetRandomVec4()
         {
             return new Vector4(
-                rng.NextSingle(),
-                rng.NextSingle(),
-                rng.NextSingle(),
+                rng.NextFloat32(),
+                rng.NextFloat32(),
+                rng.NextFloat32(),
                 1);
         }
 
-        FastRandom rng = new FastRandom(1234);
-        float range = 1000;
+        private XoshiroRandom rng = new(1234);
 
-        float waveRange = 10;
-        float lerpAmount = 0;
+        private float range = 1000;
+        private float waveRange = 10;
+        private float lerpAmount = 0;
 
         public void Update(in FrameTime time)
         {
             float delta = time.DeltaSeconds;
 
-            Vector4 acceleration = new Vector4(0, -100f, 0, 0);
+            Vector4 acceleration = new(0, -100f, 0, 0);
 
             float halfRange = range / 2f;
-            BoundingBox box = new BoundingBox(
+            BoundingBox box = new(
                 new Vector3(-halfRange, 1, -halfRange),
                 new Vector3(halfRange, -1, halfRange));
 
             Vector3 direction = Camera.ScreenToWorld(InputTracker.MousePosition);
-            Ray ray = new Ray(Camera.Position, direction);
+            Ray ray = new(Camera.Position, direction);
 
             bool intersect = ray.Intersects(box, out float distance);
             Vector3 raypoint = ray.GetPoint(distance);
@@ -196,7 +197,7 @@ namespace VoxelPizza.Client.Objects
                         float distanceToRayPoint = Vector4.DistanceSquared(position, raypoint4);
                         if (distanceToRayPoint < waveRange * waveRange)
                         {
-                            if (rng.NextSingle() < 0.5f)
+                            if (rng.NextFloat32() < 0.5f)
                             {
                                 particle.Velocity += new Vector4(0, (500 - acceleration.Y) * delta, 0, 0);
                             }
@@ -238,15 +239,15 @@ namespace VoxelPizza.Client.Objects
             (Shader vs, Shader fs, SpecializationConstant[] specs) =
                 StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ParticlePlane");
 
-            VertexLayoutDescription sharedVertexLayout = new VertexLayoutDescription(
+            VertexLayoutDescription sharedVertexLayout = new(
                 new VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3));
 
-            VertexLayoutDescription vertexLayoutPerInstanceStatic = new VertexLayoutDescription(
+            VertexLayoutDescription vertexLayoutPerInstanceStatic = new(
                 new VertexElementDescription("InstanceInitialPosition", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4),
                 new VertexElementDescription("InstanceColor", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4));
             vertexLayoutPerInstanceStatic.InstanceStepRate = 1;
 
-            VertexLayoutDescription vertexLayoutPerInstanceDynamic = new VertexLayoutDescription(
+            VertexLayoutDescription vertexLayoutPerInstanceDynamic = new(
                 new VertexElementDescription("InstancePosition", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4),
                 new VertexElementDescription("InstanceVelocity", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4),
                 new VertexElementDescription("InstanceScale", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4),
@@ -257,10 +258,10 @@ namespace VoxelPizza.Client.Objects
             {
                 new ResourceLayoutElementDescription("CameraInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex),
             };
-            ResourceLayoutDescription resourceLayoutDescription = new ResourceLayoutDescription(resourceLayoutElementDescriptions);
+            ResourceLayoutDescription resourceLayoutDescription = new(resourceLayoutElementDescriptions);
             ResourceLayout sharedLayout = factory.CreateResourceLayout(resourceLayoutDescription);
 
-            GraphicsPipelineDescription pd = new GraphicsPipelineDescription(
+            GraphicsPipelineDescription pd = new(
                 new BlendStateDescription(
                     RgbaFloat.Black,
                     BlendAttachmentDescription.OverrideBlend,
@@ -297,7 +298,7 @@ namespace VoxelPizza.Client.Objects
 
             _instanceDynamicVb = factory.CreateBuffer(new BufferDescription(particlesDynamic.SizeInBytes(), BufferUsage.VertexBuffer | BufferUsage.DynamicWrite));
 
-            ResourceSetDescription resourceSetDescription = new ResourceSetDescription(sharedLayout, new[] { _cameraInfoBuffer });
+            ResourceSetDescription resourceSetDescription = new(sharedLayout, new[] { _cameraInfoBuffer });
             _sharedResourceSet = factory.CreateResourceSet(resourceSetDescription);
         }
 

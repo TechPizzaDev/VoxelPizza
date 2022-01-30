@@ -96,7 +96,7 @@ namespace VoxelPizza.Numerics
                 float ls = nx * nx + ny * ny + nz * nz;
                 float invNorm = 1.0f / MathF.Sqrt(ls);
 
-                Vector3 normal = new Vector3(
+                Vector3 normal = new(
                     nx * invNorm,
                     ny * invNorm,
                     nz * invNorm);
@@ -324,8 +324,14 @@ namespace VoxelPizza.Numerics
         /// <summary>Returns the string representation of this plane object.</summary>
         /// <returns>A string that represents this <see cref="Plane4" /> object.</returns>
         /// <remarks>The string representation of a <see cref="Plane4" /> object use the formatting conventions of the current culture to format the numeric values in the returned string. For example, a <see cref="Plane4" /> object whose string representation is formatted by using the conventions of the en-US culture might appear as <c>{Normal:&lt;1.1, 2.2, 3.3&gt; D:4.4}</c>.</remarks>
-        public override readonly string ToString() => $"{{Normal:{Normal} D:{D}}}";
+        public override readonly string ToString()
+        {
+            return $"{{Normal:{Normal} D:{D}}}";
+        }
 
-        public static explicit operator Plane(in Plane4 plane) => new(plane.Normal.ToVector3(), plane.D);
+        public static explicit operator Plane(in Plane4 plane)
+        {
+            return new(plane.Normal.ToVector3(), plane.D);
+        }
     }
 }

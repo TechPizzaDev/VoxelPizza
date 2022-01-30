@@ -77,7 +77,7 @@ namespace VoxelPizza.Client
             Vector4 clipV4 = new(clipPlane.Normal, clipPlane.D);
             clipV4 = Vector4.Transform(clipV4, invTransposeView);
 
-            Vector4 q = new Vector4(
+            Vector4 q = new(
                 (Math.Sign(clipV4.X) + projection.M13) / projection.M11,
                 (Math.Sign(clipV4.Y) + projection.M23) / projection.M22,
                 -1f,
@@ -146,7 +146,7 @@ namespace VoxelPizza.Client
             result.M21 = result.M23 = result.M24 = 0.0f;
 
             result.M31 = result.M32 = 0.0f;
-            var negFarRange = float.IsPositiveInfinity(far) ? -1.0f : far / (near - far);
+            float negFarRange = float.IsPositiveInfinity(far) ? -1.0f : far / (near - far);
             result.M33 = negFarRange;
             result.M34 = -1.0f;
 

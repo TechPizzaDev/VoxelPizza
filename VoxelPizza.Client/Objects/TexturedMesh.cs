@@ -30,13 +30,9 @@ namespace VoxelPizza.Client.Objects
         private bool _transformDirty = true;
         private DeviceBuffer _worldAndInverseBuffer;
 
-        private readonly DisposeCollector _disposeCollector = new DisposeCollector();
+        private readonly DisposeCollector _disposeCollector = new();
 
-        private readonly MaterialPropertyBuffer _materialProps;
         private readonly Vector3 _objectCenter;
-        private bool _materialPropsOwned = false;
-
-        public MaterialProperties MaterialProperties { get => _materialProps.Properties; set { _materialProps.Properties = value; } }
 
         public Transform Transform => _transform;
 
@@ -44,8 +40,7 @@ namespace VoxelPizza.Client.Objects
             string name,
             ConstructedMesh meshData,
             ImageSharpTexture? textureData,
-            ImageSharpTexture? alphaTexture,
-            MaterialPropertyBuffer materialProps)
+            ImageSharpTexture? alphaTexture)
         {
             _name = name;
             _meshData = meshData;
@@ -53,7 +48,6 @@ namespace VoxelPizza.Client.Objects
             _objectCenter = _centeredBounds.GetCenter();
             _textureData = textureData;
             _alphaTextureData = alphaTexture;
-            _materialProps = materialProps;
 
             _transform = new Transform();
             _transform.TransformChanged += Transform_TransformChanged;
@@ -66,7 +60,7 @@ namespace VoxelPizza.Client.Objects
 
         public override BoundingBox BoundingBox => BoundingBox.Transform(_centeredBounds, _transform.GetTransformMatrix());
 
-        public unsafe override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
+        public override unsafe void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {
             ResourceFactory disposeFactory = new DisposeCollectorResourceFactory(gd.ResourceFactory, _disposeCollector);
             _vb = _meshData.CreateVertexBuffer(disposeFactory, cl);
@@ -77,11 +71,6 @@ namespace VoxelPizza.Client.Objects
 
             uint bufferSize = 128;
             _worldAndInverseBuffer = disposeFactory.CreateBuffer(new BufferDescription(bufferSize, BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
-
-            if (_materialPropsOwned)
-            {
-                _materialProps.CreateDeviceObjects(gd, cl, sc);
-            }
 
             if (_textureData != null)
             {
@@ -156,7 +145,6 @@ namespace VoxelPizza.Client.Objects
 
             ResourceLayout mainPerObjectLayout = StaticResourceCache.GetResourceLayout(gd.ResourceFactory, new ResourceLayoutDescription(
                 new("WorldAndInverse", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment, ResourceLayoutElementOptions.DynamicBinding),
-                new("MaterialProperties", ResourceKind.UniformBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
                 new("SurfaceTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new("RegularSampler", ResourceKind.Sampler, ShaderStages.Fragment),
                 new("AlphaMap", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
@@ -166,10 +154,10 @@ namespace VoxelPizza.Client.Objects
                 new("ShadowMapFar", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new("ShadowMapSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
 
-            var alphaBlendDesc = BlendStateDescription.SingleAlphaBlend;
+            BlendStateDescription alphaBlendDesc = BlendStateDescription.SingleAlphaBlend;
             alphaBlendDesc.AlphaToCoverageEnabled = true;
 
-            var mainPD = new GraphicsPipelineDescription(
+            GraphicsPipelineDescription mainPD = new(
                 _alphamapTexture != null ? alphaBlendDesc : BlendStateDescription.SingleOverrideBlend,
                 gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
                 RasterizerStateDescription.Default,
@@ -190,7 +178,6 @@ namespace VoxelPizza.Client.Objects
 
             _mainPerObjectRS = disposeFactory.CreateResourceSet(new ResourceSetDescription(mainPerObjectLayout,
                 _worldAndInverseBuffer,
-                _materialProps.UniformBuffer,
                 _texture,
                 gd.Aniso4xSampler,
                 _alphaMapView,
@@ -235,11 +222,6 @@ namespace VoxelPizza.Client.Objects
 
         public override void DestroyDeviceObjects()
         {
-            if (_materialPropsOwned)
-            {
-                _materialProps.DestroyDeviceObjects();
-            }
-
             _disposeCollector.DisposeAll();
         }
 
@@ -267,11 +249,6 @@ namespace VoxelPizza.Client.Objects
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
         {
-            if (_materialPropsOwned)
-            {
-                _materialProps.UpdateChanges(cl);
-            }
-
             if ((renderPass & RenderPasses.AllShadowMap) != 0)
             {
                 int shadowMapIndex = renderPass == RenderPasses.ShadowMapNear ? 0 : renderPass == RenderPasses.ShadowMapMid ? 1 : 2;

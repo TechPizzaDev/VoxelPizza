@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace VoxelPizza.Numerics
 {
-    public struct AlignedBoxCorners
+    public struct AlignedBoxCorners4
     {
         public Vector4 NearTopLeft;
         public Vector4 NearTopRight;

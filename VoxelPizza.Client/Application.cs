@@ -8,7 +8,7 @@ using Veldrid.StartupUtilities;
 
 namespace VoxelPizza.Client
 {
-    public abstract unsafe class Application : IDisposable
+    public unsafe abstract class Application : IDisposable
     {
         private Sdl2Window _window;
         private GraphicsDevice _graphicsDevice;
@@ -112,7 +112,7 @@ namespace VoxelPizza.Client
         {
             if (@event->type == SDL_EventType.WindowEvent)
             {
-                var windowEvent = Unsafe.Read<SDL_WindowEvent>(@event);
+                SDL_WindowEvent windowEvent = Unsafe.Read<SDL_WindowEvent>(@event);
                 if (windowEvent.@event == SDL_WindowEventID.Exposed)
                 {
                     PumpSdlEvents();

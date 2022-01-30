@@ -352,7 +352,7 @@ namespace VoxelPizza.Numerics
                 s2 ^= t;
                 s3 = BitOperations.RotateLeft(s3, 45);
 
-                buffer = buffer.Slice(sizeof(ulong));
+                buffer = buffer[sizeof(ulong)..];
             }
 
             if (!buffer.IsEmpty)
@@ -397,13 +397,55 @@ namespace VoxelPizza.Numerics
         }
 
         /// <summary>
+        /// Produces a random double-precision floating-point in the specified range.
+        /// </summary>
+        /// <param name="max">The inclusive maximum value.</param>
+        /// <returns>A random value in the range [0.0 &lt;= x &lt;= <paramref name="max"/>].</returns>
+        public double NextFloat64(double max)
+        {
+            return max * NextFloat64();
+        }
+
+        /// <summary>
+        /// Produces a random double-precision floating-point in the specified range.
+        /// </summary>
+        /// <param name="min">The inclusive minimum value.</param>
+        /// <param name="max">The inclusive maximum value.</param>
+        /// <returns>A random value in the range [<paramref name="min"/> &lt;= x &lt;= <paramref name="max"/>].</returns>
+        public double NextFloat64(double min, double max)
+        {
+            return (max - min) * NextFloat64() + min;
+        }
+
+        /// <summary>
         /// Produces a random single-precision floating-point.
         /// </summary>
         /// <returns>A random value in the range [0.0 &lt;= x &lt;= 1.0].</returns>
         public float NextFloat32()
         {
-            // Same as above, but with 24 bits instead of 53.
+            // Same as NextFloat64, but with 24 bits instead of 53.
             return (NextFullUInt64() >> 40) * (1.0f / (1u << 24));
+        }
+
+        /// <summary>
+        /// Produces a random single-precision floating-point in the specified range.
+        /// </summary>
+        /// <param name="max">The inclusive maximum value.</param>
+        /// <returns>A random value in the range [0.0 &lt;= x &lt;= <paramref name="max"/>].</returns>
+        public float NextFloat32(float max)
+        {
+            return max * NextFloat32();
+        }
+
+        /// <summary>
+        /// Produces a random single-precision floating-point in the specified range.
+        /// </summary>
+        /// <param name="min">The inclusive minimum value.</param>
+        /// <param name="max">The inclusive maximum value.</param>
+        /// <returns>A random value in the range [<paramref name="min"/> &lt;= x &lt;= <paramref name="max"/>].</returns>
+        public float NextFloat32(float min, float max)
+        {
+            return (max - min) * NextFloat32() + min;
         }
     }
 }

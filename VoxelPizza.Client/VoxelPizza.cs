@@ -90,22 +90,22 @@ namespace VoxelPizza.Client
             _resizeHandled += (w, h) => _imGuiRenderable.WindowResized(w, h);
             _scene.AddRenderable(_imGuiRenderable);
 
-            ShadowmapDrawer texDrawIndexeder = new ShadowmapDrawer(() => Window, () => _sc.NearShadowMapView);
+            ShadowmapDrawer texDrawIndexeder = new(() => Window, () => _sc.NearShadowMapView);
             _resizeHandled += (w, h) => texDrawIndexeder.OnWindowResized();
             texDrawIndexeder.Position = new Vector2(10, 25);
             //_scene.AddRenderable(texDrawIndexeder);
 
-            ShadowmapDrawer texDrawIndexeder2 = new ShadowmapDrawer(() => Window, () => _sc.MidShadowMapView);
+            ShadowmapDrawer texDrawIndexeder2 = new(() => Window, () => _sc.MidShadowMapView);
             _resizeHandled += (w, h) => texDrawIndexeder2.OnWindowResized();
             texDrawIndexeder2.Position = new Vector2(20 + texDrawIndexeder2.Size.X, 25);
             //_scene.AddRenderable(texDrawIndexeder2);
 
-            ShadowmapDrawer texDrawIndexeder3 = new ShadowmapDrawer(() => Window, () => _sc.FarShadowMapView);
+            ShadowmapDrawer texDrawIndexeder3 = new(() => Window, () => _sc.FarShadowMapView);
             _resizeHandled += (w, h) => texDrawIndexeder3.OnWindowResized();
             texDrawIndexeder3.Position = new Vector2(30 + (texDrawIndexeder3.Size.X * 2), 25);
             //_scene.AddRenderable(texDrawIndexeder3);
 
-            ScreenDuplicator duplicator = new ScreenDuplicator();
+            ScreenDuplicator duplicator = new();
             _scene.AddRenderable(duplicator);
 
             _fsq = new FullScreenQuad();
@@ -183,7 +183,6 @@ namespace VoxelPizza.Client
 
             _sc.DisposeGraphicsDeviceObjects();
             _scene.DestroyGraphicsDeviceObjects();
-            CommonMaterials.DisposeGraphicsDeviceObjects();
         }
 
         protected override void CreateGraphicsDeviceObjects()
@@ -192,7 +191,6 @@ namespace VoxelPizza.Client
             cl.Name = "Recreation Initialization Command List";
             cl.Begin();
             {
-                CommonMaterials.CreateGraphicsDeviceObjects(GraphicsDevice, cl, _sc);
                 _sc.CreateGraphicsDeviceObjects(GraphicsDevice, cl, _sc);
                 _scene.CreateGraphicsDeviceObjects(GraphicsDevice, cl, _sc);
             }
@@ -237,7 +235,7 @@ namespace VoxelPizza.Client
 
         public override void Update(in FrameTime time)
         {
-            using var profilerToken = _sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = _sc.Profiler.Push();
 
             _imGuiRenderable.Update(time);
 
@@ -274,14 +272,14 @@ namespace VoxelPizza.Client
 
         private void UpdateScene(in FrameTime time)
         {
-            using var profilerToken = _sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = _sc.Profiler.Push();
 
             _scene.Update(time, _sc);
         }
 
         public override void Draw()
         {
-            using var profilerToken = _sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = _sc.Profiler.Push();
 
             if (_newGraphicsBackend.HasValue)
             {
@@ -327,8 +325,6 @@ namespace VoxelPizza.Client
                     _scene.AddRenderable(renderable);
                     renderable.CreateDeviceObjects(GraphicsDevice, fcl.CommandList, _sc);
                 }
-
-                CommonMaterials.UpdateAll(fcl.CommandList);
 
                 _scene.RenderAllStages(GraphicsDevice, fcl.CommandList, _sc);
             }
@@ -381,14 +377,14 @@ namespace VoxelPizza.Client
 
         public override void Present()
         {
-            using var profilerToken = _sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = _sc.Profiler.Push();
 
             base.Present();
         }
 
         private void DrawOverlay()
         {
-            using var profilerToken = _sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = _sc.Profiler.Push();
 
             DrawMainMenu();
 
@@ -412,14 +408,13 @@ namespace VoxelPizza.Client
 
         private void DrawMainMenu()
         {
-            using var profilerToken = _sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = _sc.Profiler.Push();
 
             if (ImGui.BeginMainMenuBar())
             {
                 DrawSettingsMenu();
                 DrawWindowMenu();
                 DrawRenderMenu();
-                //DrawMaterialsMenu();
                 DrawDebugMenu();
                 DrawRenderDocMenu();
                 DrawControllerDebugMenu();
@@ -614,26 +609,6 @@ namespace VoxelPizza.Client
             }
         }
 
-        private void DrawMaterialsMenu()
-        {
-            if (ImGui.BeginMenu("Materials"))
-            {
-                if (ImGui.BeginMenu("Brick"))
-                {
-                    DrawIndexedMaterialMenu(CommonMaterials.Brick);
-                    ImGui.EndMenu();
-                }
-
-                if (ImGui.BeginMenu("Vase"))
-                {
-                    DrawIndexedMaterialMenu(CommonMaterials.Vase);
-                    ImGui.EndMenu();
-                }
-
-                ImGui.EndMenu();
-            }
-        }
-
         private void DrawDebugMenu()
         {
             if (ImGui.BeginMenu("Debug"))
@@ -787,7 +762,7 @@ namespace VoxelPizza.Client
 
         private void DrawProfiler(List<Profiler.FrameSet> frameSets)
         {
-            using var profilerToken = _sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = _sc.Profiler.Push();
 
             if (frameSets.Count > 0)
             {
@@ -914,12 +889,11 @@ namespace VoxelPizza.Client
 
             foreach (ObjFile.MeshGroup group in file.MeshGroups)
             {
-                Vector3 scale = new Vector3(0.1f);
+                Vector3 scale = new(0.1f);
                 ConstructedMesh mesh = file.GetMesh32(group, reduce: true); // TODO: dynamic mesh get
                 MaterialDefinition materialDef = mtls.Definitions[mesh.MaterialName];
                 ImageSharpTexture? overrideTextureData = null;
                 ImageSharpTexture? alphaTexture = null;
-                MaterialPropertyBuffer materialProps = CommonMaterials.Brick;
 
                 if (materialDef.DiffuseTexture != null)
                 {
@@ -932,20 +906,10 @@ namespace VoxelPizza.Client
                     alphaTexture = LoadTexture(texturePath, false);
                 }
 
-                if (materialDef.Name.Contains("vase"))
-                {
-                    materialProps = CommonMaterials.Vase;
-                }
-                if (group.Name == "sponza_117")
-                {
-                    materialProps = CommonMaterials.Brick;
-                }
-
                 TexturedMesh texturedMesh = AddTexturedMesh(
                     mesh,
                     overrideTextureData,
                     alphaTexture,
-                    materialProps,
                     Vector3.Zero,
                     Quaternion.Identity,
                     scale,
@@ -971,13 +935,12 @@ namespace VoxelPizza.Client
             ConstructedMesh meshData,
             ImageSharpTexture? texData,
             ImageSharpTexture? alphaTexData,
-            MaterialPropertyBuffer materialProps,
             Vector3 position,
             Quaternion rotation,
             Vector3 scale,
             string name)
         {
-            TexturedMesh mesh = new(name, meshData, texData, alphaTexData, materialProps ?? CommonMaterials.Brick);
+            TexturedMesh mesh = new(name, meshData, texData, alphaTexData);
             mesh.Transform.Set(position, rotation, scale);
             AddRenderable(mesh);
 
@@ -987,17 +950,6 @@ namespace VoxelPizza.Client
         private void AddRenderable(Renderable renderable)
         {
             _queuedRenderables.Enqueue(renderable);
-        }
-
-        private static void DrawIndexedMaterialMenu(MaterialPropertyBuffer propsAndBuffer)
-        {
-            MaterialProperties props = propsAndBuffer.Properties;
-            if (ImGui.SliderFloat("Intensity", ref props.SpecularIntensity.X, 0f, 10f, props.SpecularIntensity.X.ToString())
-                | ImGui.SliderFloat("Power", ref props.SpecularPower, 0f, 1000f, props.SpecularPower.ToString()))
-            {
-                props.SpecularIntensity = new Vector3(props.SpecularIntensity.X);
-                propsAndBuffer.Properties = props;
-            }
         }
 
         private void ToggleFullscreenState()

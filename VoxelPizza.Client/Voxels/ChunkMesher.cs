@@ -24,7 +24,7 @@ namespace VoxelPizza.Client
             anims = new TextureAnimation[visualFeatures.Length];
             meshProviders = new MeshProvider?[visualFeatures.Length];
 
-            Random rng = new Random(1234);
+            Random rng = new(1234);
             for (int i = 1; i < visualFeatures.Length; i++)
             {
                 visualFeatures[i] = BlockVisualFeatures.FaceDependent | BlockVisualFeatures.SkipIfObstructed;
@@ -32,7 +32,7 @@ namespace VoxelPizza.Client
                 meshProviders[i] = new CubeMeshProvider() { anims = anims };
 
                 int stepCount = i < 1016 ? 8 : 2;
-                var type = i % 2 == 0 ? TextureAnimationType.MixStep : TextureAnimationType.Step;
+                TextureAnimationType type = i % 2 == 0 ? TextureAnimationType.MixStep : TextureAnimationType.Step;
                 anims[i] = TextureAnimation.Create(type, stepCount, (rng.NextSingle() + 1) * 2f);
             }
 
@@ -65,9 +65,9 @@ namespace VoxelPizza.Client
             //       e.g. this could allow for vertices (including custom) for a "gas" or "fluid" layer 
 
             uint storePrepareCapacity = 1024;
-            var indexStore = new ByteStore<uint>(Pool, storePrepareCapacity * 6);
-            var spaceVertexStore = new ByteStore<ChunkSpaceVertex>(Pool, storePrepareCapacity * 4);
-            var paintVertexStore = new ByteStore<ChunkPaintVertex>(Pool, storePrepareCapacity * 4);
+            ByteStore<uint> indexStore = new(Pool, storePrepareCapacity * 6);
+            ByteStore<ChunkSpaceVertex> spaceVertexStore = new(Pool, storePrepareCapacity * 4);
+            ByteStore<ChunkPaintVertex> paintVertexStore = new(Pool, storePrepareCapacity * 4);
 
             try
             {

@@ -38,11 +38,8 @@ struct PointLightsInfo
     float _padding2;
 };
 
-struct MaterialPropertiesInfo
-{
-    vec3 SpecularIntensity;
-    float SpecularPower;
-};
+const vec3 SpecularIntensity = vec3(1.0);
+const float SpecularPower = 1.0;
 
 layout(set = 0, binding = 3) uniform DepthLimits
 {
@@ -66,11 +63,6 @@ layout(set = 1, binding = 0) uniform CameraInfo
 layout(set = 0, binding = 6) uniform PointLights
 {
     PointLightsInfo _PointLights;
-};
-
-layout(set = 2, binding = 1) uniform MaterialProperties
-{
-    MaterialPropertiesInfo _MaterialProperties;
 };
 
 layout(set = 1, binding = 2) uniform texture2D SurfaceTexture;
@@ -163,8 +155,8 @@ void main()
     float specularFactor = dot(vertexToEye, lightReflect);
     if (specularFactor > 0.0)
     {
-        specularFactor = pow(abs(specularFactor), _MaterialProperties.SpecularPower);
-        directionalSpecColor = vec4(_LightInfo.Color.xyz * _MaterialProperties.SpecularIntensity * specularFactor, 1.0);
+        specularFactor = pow(abs(specularFactor), SpecularPower);
+        directionalSpecColor = vec4(_LightInfo.Color.xyz * SpecularIntensity * specularFactor, 1.0);
     }
 
     float depthTest = FragDepth;
@@ -237,8 +229,8 @@ void main()
         float specularFactor0 = dot(vertexToEye, lightReflect0);
         if (specularFactor0 > 0.0 && pli.Range > lightDistance)
         {
-            specularFactor0 = pow(abs(specularFactor0), _MaterialProperties.SpecularPower);
-            pointSpec += (1.0 - (lightDistance / pli.Range)) * (vec4(pli.Color * _MaterialProperties.SpecularIntensity * specularFactor0, 1.0));
+            specularFactor0 = pow(abs(specularFactor0), SpecularPower);
+            pointSpec += (1.0 - (lightDistance / pli.Range)) * (vec4(pli.Color * SpecularIntensity * specularFactor0, 1.0));
         }
     }
 

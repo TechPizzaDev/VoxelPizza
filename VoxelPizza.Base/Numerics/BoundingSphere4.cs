@@ -3,24 +3,24 @@ using System.Numerics;
 
 namespace VoxelPizza.Numerics
 {
-    public struct BoundingSphere
+    public struct BoundingSphere4
     {
         public Vector4 Center;
         public float Radius;
 
-        public BoundingSphere(Vector4 center, float radius)
+        public BoundingSphere4(Vector4 center, float radius)
         {
             Center = center;
             Radius = radius;
         }
 
-        public BoundingSphere(Vector3 center, float radius)
+        public BoundingSphere4(Vector3 center, float radius)
         {
             Center = new Vector4(center, 0);
             Radius = radius;
         }
 
-        public readonly override string ToString()
+        public override readonly string ToString()
         {
             return string.Format("Center:{0}, Radius:{1}", Center, Radius);
         }
@@ -30,7 +30,7 @@ namespace VoxelPizza.Numerics
             return (Center - point).LengthSquared() <= Radius * Radius;
         }
 
-        public static BoundingSphere CreateFromPoints(ReadOnlySpan<Vector3> points)
+        public static BoundingSphere4 CreateFromPoints(ReadOnlySpan<Vector3> points)
         {
             Vector3 center = Vector3.Zero;
             foreach (Vector3 pt in points)
@@ -50,10 +50,10 @@ namespace VoxelPizza.Numerics
                 }
             }
 
-            return new BoundingSphere(center, MathF.Sqrt(maxDistanceSquared));
+            return new BoundingSphere4(center, MathF.Sqrt(maxDistanceSquared));
         }
 
-        public static BoundingSphere CreateFromPoints(ReadOnlySpan<Vector4> points)
+        public static BoundingSphere4 CreateFromPoints(ReadOnlySpan<Vector4> points)
         {
             Vector4 center = Vector4.Zero;
             foreach (Vector4 pt in points)
@@ -73,7 +73,7 @@ namespace VoxelPizza.Numerics
                 }
             }
 
-            return new BoundingSphere(center, MathF.Sqrt(maxDistanceSquared));
+            return new BoundingSphere4(center, MathF.Sqrt(maxDistanceSquared));
         }
     }
 }

@@ -20,7 +20,7 @@ namespace VoxelPizza.Client
         public DeviceBuffer DepthLimitsBuffer { get; internal set; }
         public DeviceBuffer PointLightsBuffer { get; private set; }
 
-        public CascadedShadowMaps ShadowMaps { get; private set; } = new CascadedShadowMaps();
+        public CascadedShadowMaps ShadowMaps { get; private set; } = new();
         public TextureView NearShadowMapView => ShadowMaps.NearShadowMapView;
         public TextureView MidShadowMapView => ShadowMaps.MidShadowMapView;
         public TextureView FarShadowMapView => ShadowMaps.FarShadowMapView;
@@ -49,7 +49,7 @@ namespace VoxelPizza.Client
         public ResourceSet DuplicatorTargetSet1 { get; internal set; }
         public Framebuffer DuplicatorFramebuffer { get; private set; }
 
-        public DirectionalLight DirectionalLight { get; } = new DirectionalLight();
+        public DirectionalLight DirectionalLight { get; } = new();
         public TextureSampleCount MainSceneSampleCount { get; internal set; }
 
         public List<Camera> Cameras { get; } = new();
@@ -60,7 +60,7 @@ namespace VoxelPizza.Client
 
         public Camera? CurrentCamera
         {
-            get => _currentCamera; 
+            get => _currentCamera;
             set
             {
                 if (value != null)
@@ -87,7 +87,7 @@ namespace VoxelPizza.Client
             DepthLimitsBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<DepthCascadeLimits>(), BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
             LightInfoBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<DirectionalLightInfo>(), BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
             PointLightsBuffer = factory.CreateBuffer(new BufferDescription((uint)Unsafe.SizeOf<PointLightsInfo.Blittable>(), BufferUsage.UniformBuffer));
-            PointLightsInfo pli = new PointLightsInfo();
+            PointLightsInfo pli = new();
             pli.PointLights = new PointLightInfo[4]
             {
                 new PointLightInfo { Color = new Vector3(.6f, .6f, .6f), Position = new Vector3(-50, 5, 0), Range = 75f },
@@ -119,10 +119,10 @@ namespace VoxelPizza.Client
 
             foreach (Camera camera in Cameras)
             {
-                var cameraInfoBuffer = factory.CreateBuffer(new BufferDescription(
+                DeviceBuffer cameraInfoBuffer = factory.CreateBuffer(new BufferDescription(
                     (uint)Unsafe.SizeOf<CameraInfo>(), BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
 
-                var cameraInfoSet = factory.CreateResourceSet(new ResourceSetDescription(
+                ResourceSet cameraInfoSet = factory.CreateResourceSet(new ResourceSetDescription(
                     CameraInfoLayout, cameraInfoBuffer));
 
                 CameraInfoSets.Add(camera, cameraInfoSet);
@@ -159,13 +159,13 @@ namespace VoxelPizza.Client
 
         private void DestoryCameraDeviceObjects()
         {
-            foreach (var cameraInfoSet in CameraInfoSets)
+            foreach (KeyValuePair<Camera, ResourceSet> cameraInfoSet in CameraInfoSets)
             {
                 cameraInfoSet.Value.Dispose();
             }
             CameraInfoSets.Clear();
 
-            foreach (var cameraInfoBuffer in CameraInfoBuffers)
+            foreach (KeyValuePair<Camera, DeviceBuffer> cameraInfoBuffer in CameraInfoBuffers)
             {
                 cameraInfoBuffer.Value.Dispose();
             }
@@ -270,7 +270,7 @@ namespace VoxelPizza.Client
             DuplicatorTargetSet0 = factory.CreateResourceSet(new ResourceSetDescription(TextureSamplerResourceLayout, DuplicatorTargetView0, gd.PointSampler));
             DuplicatorTargetSet1 = factory.CreateResourceSet(new ResourceSetDescription(TextureSamplerResourceLayout, DuplicatorTargetView1, gd.PointSampler));
 
-            FramebufferDescription fbDesc = new FramebufferDescription(null, DuplicatorTarget0, DuplicatorTarget1);
+            FramebufferDescription fbDesc = new(null, DuplicatorTarget0, DuplicatorTarget1);
             DuplicatorFramebuffer = factory.CreateFramebuffer(fbDesc);
         }
     }
@@ -291,7 +291,7 @@ namespace VoxelPizza.Client
 
         public void CreateDeviceResources(GraphicsDevice gd)
         {
-            var factory = gd.ResourceFactory;
+            ResourceFactory factory = gd.ResourceFactory;
             TextureDescription desc = TextureDescription.Texture2D(
                 2048, 2048, 1, 1, PixelFormat.D32_Float_S8_UInt, TextureUsage.DepthStencil | TextureUsage.Sampled);
 

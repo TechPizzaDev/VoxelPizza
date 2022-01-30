@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace VoxelPizza.Client
 {
-    public unsafe readonly struct CubeSpaceVertexGenerator : ICubeVertexGenerator<ChunkSpaceVertex>
+    public readonly unsafe struct CubeSpaceVertexGenerator : ICubeVertexGenerator<ChunkSpaceVertex>
     {
         public static uint BackNormal { get; } = ChunkSpaceVertex.PackNormal(-Vector3.UnitZ);
         public static uint BottomNormal { get; } = ChunkSpaceVertex.PackNormal(-Vector3.UnitY);

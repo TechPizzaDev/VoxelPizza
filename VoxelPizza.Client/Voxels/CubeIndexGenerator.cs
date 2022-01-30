@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 
 namespace VoxelPizza.Client
 {
-    public unsafe readonly struct CubeIndexGenerator : ICubeIndexGenerator<uint>
+    public readonly unsafe struct CubeIndexGenerator : ICubeIndexGenerator<uint>
     {
         public uint MaxIndices => 6 * 6;
 

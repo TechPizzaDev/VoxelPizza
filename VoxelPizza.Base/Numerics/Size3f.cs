@@ -34,17 +34,17 @@ namespace VoxelPizza.Numerics
                 && D == other.D;
         }
 
-        public readonly override bool Equals(object? obj)
+        public override readonly bool Equals(object? obj)
         {
             return obj is Size3f other && Equals(other);
         }
 
-        public readonly override int GetHashCode()
+        public override readonly int GetHashCode()
         {
             return HashCode.Combine(W, H, D);
         }
 
-        public readonly override string ToString()
+        public override readonly string ToString()
         {
             return $"W:{W} H:{H} D:{D}";
         }

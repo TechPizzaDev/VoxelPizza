@@ -23,7 +23,7 @@ namespace VoxelPizza.Client.Objects
         private Func<SceneContext?, ImageSharpCubemapTexture> _textureFactory;
 
         // Context objects
-        private readonly DisposeCollector _disposeCollector = new DisposeCollector();
+        private readonly DisposeCollector _disposeCollector = new();
         private DeviceBuffer _vb;
         private DeviceBuffer _ib;
         private Pipeline _pipeline;
@@ -73,7 +73,7 @@ namespace VoxelPizza.Client.Objects
                 new ResourceLayoutElementDescription("CubeTexture", ResourceKind.TextureReadOnly, ShaderStages.Fragment),
                 new ResourceLayoutElementDescription("CubeSampler", ResourceKind.Sampler, ShaderStages.Fragment)));
 
-            GraphicsPipelineDescription pd = new GraphicsPipelineDescription(
+            GraphicsPipelineDescription pd = new(
                 BlendStateDescription.SingleAlphaBlend,
                 gd.IsDepthRangeZeroToOne ? DepthStencilStateDescription.DepthOnlyGreaterEqual : DepthStencilStateDescription.DepthOnlyLessEqual,
                 new RasterizerStateDescription(FaceCullMode.None, PolygonFillMode.Solid, FrontFace.Clockwise, true, true),

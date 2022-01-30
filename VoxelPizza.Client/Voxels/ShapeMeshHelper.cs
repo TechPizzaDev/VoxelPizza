@@ -79,7 +79,7 @@ namespace VoxelPizza.Client
                 indexOffset += 6 * 3;
             }
 
-            Span<VertexPosition<RgbaByte>> verts = vertexDestination.Slice(0, (int)vertsPerColor);
+            Span<VertexPosition<RgbaByte>> verts = vertexDestination[..(int)vertsPerColor];
 
             verts[0].Position = position + new Vector3(0, 0, 0);                             // s0_v0 
             verts[1].Position = position + new Vector3(lineWidth, 0, 0);                     // s1_v1 

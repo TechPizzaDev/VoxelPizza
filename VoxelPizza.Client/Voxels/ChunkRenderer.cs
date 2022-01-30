@@ -299,15 +299,15 @@ namespace VoxelPizza.Client
                 new ResourceLayoutDescription(
                     new ResourceLayoutElementDescription("ChunkInfo", ResourceKind.UniformBuffer, ShaderStages.Vertex)));
 
-            VertexLayoutDescription spaceLayout = new VertexLayoutDescription(
+            VertexLayoutDescription spaceLayout = new(
                 new VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3),
                 new VertexElementDescription("Normal", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1));
 
-            VertexLayoutDescription paintLayout = new VertexLayoutDescription(
+            VertexLayoutDescription paintLayout = new(
                 new VertexElementDescription("TexAnimation0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1),
                 new VertexElementDescription("TexRegion0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1));
 
-            VertexLayoutDescription worldLayout = new VertexLayoutDescription(
+            VertexLayoutDescription worldLayout = new(
                 new VertexElementDescription("Translation", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4))
             {
                 InstanceStepRate = 1
@@ -316,11 +316,11 @@ namespace VoxelPizza.Client
             (Shader mainVs, Shader mainFs, SpecializationConstant[] mainSpecs) =
                 StaticResourceCache.GetShaders(gd, gd.ResourceFactory, "ChunkMain");
 
-            var rasterizerState = RasterizerStateDescription.Default;
+            RasterizerStateDescription rasterizerState = RasterizerStateDescription.Default;
             //rasterizerState.CullMode = FaceCullMode.None;
             //rasterizerState.FillMode = PolygonFillMode.Wireframe;
 
-            var depthStencilState = gd.IsDepthRangeZeroToOne
+            DepthStencilStateDescription depthStencilState = gd.IsDepthRangeZeroToOne
                 ? DepthStencilStateDescription.DepthOnlyGreaterEqual
                 : DepthStencilStateDescription.DepthOnlyLessEqual;
 
@@ -354,7 +354,7 @@ namespace VoxelPizza.Client
             _worldInfoBuffer = factory.CreateBuffer(new BufferDescription(
                 (uint)Unsafe.SizeOf<WorldInfo>(), BufferUsage.UniformBuffer));
 
-            Random rng = new Random(1234);
+            Random rng = new(1234);
             Span<byte> rngTmp = stackalloc byte[3];
 
             TextureRegion[] regions = new TextureRegion[2050];
@@ -478,16 +478,16 @@ namespace VoxelPizza.Client
 
         public void GatherVisibleRegions(
             SceneContext sc,
-            BoundingFrustum? cullFrustum,
+            BoundingFrustum4? cullFrustum,
             List<ChunkMeshRegion> visibleRegions)
         {
-            using var profilerToken = sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = sc.Profiler.Push();
 
             lock (_regions)
             {
                 if (cullFrustum.HasValue)
                 {
-                    BoundingFrustum frustum = cullFrustum.GetValueOrDefault();
+                    BoundingFrustum4 frustum = cullFrustum.GetValueOrDefault();
 
                     foreach (ChunkMeshRegion region in _regions.Values)
                     {
@@ -499,7 +499,7 @@ namespace VoxelPizza.Client
                         }
 
                         Vector4 regionPos = region.Position.ToBlock(region.Size);
-                        BoundingBox box = new(regionPos, regionPos + (region.Size * Chunk.Size));
+                        BoundingBox4 box = new(regionPos, regionPos + (region.Size * Chunk.Size));
 
                         if (frustum.Contains(box) != ContainmentType.Disjoint)
                         {
@@ -520,7 +520,7 @@ namespace VoxelPizza.Client
 
         public void SortVisibleRegions(SceneContext sc, Vector3 cullOrigin, List<ChunkMeshRegion> visibleRegions)
         {
-            using var profilerToken = sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = sc.Profiler.Push();
 
             BlockPosition blockCullOrigin = new(
                 (int)MathF.Round(cullOrigin.X),
@@ -544,7 +544,7 @@ namespace VoxelPizza.Client
 
         public override void Render(GraphicsDevice gd, CommandList cl, SceneContext sc, RenderPasses renderPass)
         {
-            using var profilerToken = sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = sc.Profiler.Push();
 
             cl.UpdateBuffer(_worldInfoBuffer, 0, _worldInfo);
 
@@ -562,7 +562,7 @@ namespace VoxelPizza.Client
                 ResourceSet renderCameraInfoSet = sc.GetCameraInfoSet(renderCamera);
 
                 Vector3? cullOrigin = null;
-                BoundingFrustum? cullFrustum = null;
+                BoundingFrustum4? cullFrustum = null;
 
                 Camera? cullCamera = CullCamera;
                 if (cullCamera != null)
@@ -577,9 +577,9 @@ namespace VoxelPizza.Client
 
         private void RenderRegions(
             GraphicsDevice gd, CommandList cl, SceneContext sc,
-            ResourceSet cameraInfoSet, Vector3? cullOrigin, BoundingFrustum? cullFrustum)
+            ResourceSet cameraInfoSet, Vector3? cullOrigin, BoundingFrustum4? cullFrustum)
         {
-            using var profilerToken = sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = sc.Profiler.Push();
 
             List<ChunkMeshRegion> visibleRegions = _visibleRegionBuffer;
             visibleRegions.Clear();
@@ -600,7 +600,7 @@ namespace VoxelPizza.Client
 
         public static List<List<T>> SplitList<T>(List<T> elements, int splitCount)
         {
-            var list = new List<List<T>>();
+            List<List<T>> list = new();
 
             int elementsPerList = elements.Count / splitCount;
 
@@ -622,7 +622,7 @@ namespace VoxelPizza.Client
             GraphicsDevice gd, CommandList cl, SceneContext sc,
             List<ChunkMeshRegion> meshesToBuild)
         {
-            using var profilerToken = sc.Profiler.Push();
+            using ProfilerPopToken profilerToken = sc.Profiler.Push();
 
             List<List<ChunkMeshRegion>> buildSplits = SplitList(meshesToBuild, _workers.Length);
             for (int i = 0; i < buildSplits.Count; i++)
@@ -679,8 +679,8 @@ namespace VoxelPizza.Client
                 chunkBoxes[chunkCount++] = chunkBox;
             }
 
-            chunkBoxes = chunkBoxes.Slice(0, chunkCount);
-            emptyChunks = emptyChunks.Slice(0, chunkCount);
+            chunkBoxes = chunkBoxes[..chunkCount];
+            emptyChunks = emptyChunks[..chunkCount];
 
             emptyChunks.Clear();
             bool isAllEmpty = true;

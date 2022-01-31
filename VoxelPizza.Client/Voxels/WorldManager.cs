@@ -236,12 +236,15 @@ namespace VoxelPizza.Client
                         foreach ((int x, int y, int z) in list)
                         {
                             Chunk? chunk = dimension.GetChunk(new(x, y, z));
-
-                            if (y >= 0 && x >= off && z >= off &&
-                                x < width - off &&
-                                z < depth - off)
+                            if (chunk != null)
                             {
-                                chunk?.InvokeUpdate();
+                                if (y >= 0 && x >= off && z >= off &&
+                                    x < width - off &&
+                                    z < depth - off)
+                                {
+                                    chunk.InvokeUpdate();
+                                }
+                                chunk.DecrementRef();
                             }
                         }
                     }
@@ -272,6 +275,8 @@ namespace VoxelPizza.Client
 
                                             //ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
                                             //_regions[regionPosition].UpdateChunk(c);
+
+                                            c.DecrementRef();
                                         }
                                     }
                                 }

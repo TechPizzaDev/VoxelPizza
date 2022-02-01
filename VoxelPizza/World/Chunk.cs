@@ -8,13 +8,15 @@ namespace VoxelPizza.World
 {
     public class Chunk : RefCounted, IBlockStorage
     {
+        public BlockStorage0 EmptyStorage { get; } = new(Width, Height, Depth);
+
         public const int Width = 16;
         public const int Depth = 16;
         public const int Height = 16;
 
         public static Size3 Size => new(Width, Height, Depth);
 
-        private BlockStorage? _storage;
+        private BlockStorage _storage;
 
         public event ChunkAction? Updated;
 
@@ -26,16 +28,18 @@ namespace VoxelPizza.World
 
         public ChunkRegion Region { get; }
 
-        public BlockStorageType StorageType => _storage?.StorageType ?? BlockStorageType.Null;
-        ushort IBlockStorage.Width => _storage?.Width ?? 0;
-        ushort IBlockStorage.Height => _storage?.Height ?? 0;
-        ushort IBlockStorage.Depth => _storage?.Depth ?? 0;
-        public bool IsEmpty => _storage == null || _storage.IsEmpty;
+        public BlockStorageType StorageType => _storage.StorageType;
+        ushort IBlockStorage.Width => _storage.Width;
+        ushort IBlockStorage.Height => _storage.Height;
+        ushort IBlockStorage.Depth => _storage.Depth;
+        public bool IsEmpty => _storage.IsEmpty;
 
         public Chunk(ChunkRegion region, ChunkPosition position)
         {
             Region = region ?? throw new ArgumentNullException(nameof(region));
             Position = position;
+
+            _storage = EmptyStorage;
         }
 
         public void InvokeUpdate()
@@ -45,7 +49,7 @@ namespace VoxelPizza.World
 
         public BlockStorage GetBlockStorage()
         {
-            if (_storage == null)
+            if (_storage == EmptyStorage)
             {
                 _storage = new BlockStorage8(Width, Height, Depth);
             }
@@ -54,12 +58,12 @@ namespace VoxelPizza.World
 
         public void GetBlockRow(nuint index, ref uint destination, nuint length)
         {
-            GetBlockStorage().GetBlockRow(index, ref destination, length);
+            _storage.GetBlockRow(index, ref destination, length);
         }
 
         public void GetBlockRow(nuint x, nuint y, nuint z, ref uint destination, nuint length)
         {
-            GetBlockStorage().GetBlockRow(x, y, z, ref destination, length);
+            _storage.GetBlockRow(x, y, z, ref destination, length);
         }
 
         public void SetBlockLayer(nuint y, uint value)

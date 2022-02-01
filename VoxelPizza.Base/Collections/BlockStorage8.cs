@@ -6,36 +6,21 @@ namespace VoxelPizza.Collections
 {
     public sealed class BlockStorage8 : BlockStorage
     {
-        private readonly ushort _width;
-        private readonly ushort _height;
-        private readonly ushort _depth;
         private readonly byte[] _array;
 
         public override BlockStorageType StorageType => BlockStorageType.Unsigned8;
-        public override ushort Width => _width;
-        public override ushort Height => _height;
-        public override ushort Depth => _depth;
-        public override bool IsEmpty => false;
 
-        public BlockStorage8(ushort width, ushort height, ushort depth)
+        public BlockStorage8(ushort width, ushort height, ushort depth) : base(width, height, depth)
         {
-            _width = width;
-            _height = height;
-            _depth = depth;
             _array = new byte[(long)height * depth * width * sizeof(byte)];
+            IsEmpty = false;
         }
 
         public override bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType)
         {
             storageType = BlockStorageType.Unsigned8;
-            if (_array != null)
-            {
-                inlineSpan = _array;
-                return true;
-            }
-
-            inlineSpan = default;
-            return false;
+            inlineSpan = _array;
+            return true;
         }
 
         public override void GetBlockRow(nuint index, ref uint destination, nuint length)
@@ -64,12 +49,6 @@ namespace VoxelPizza.Collections
         public override void SetBlock(nuint x, nuint y, nuint z, uint value)
         {
             SetBlock(GetIndex(x, y, z), value);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override nuint GetIndex(nuint x, nuint y, nuint z)
-        {
-            return GetIndexBase(Depth, Width, y, z) + x;
         }
     }
 }

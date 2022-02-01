@@ -8,10 +8,17 @@ namespace VoxelPizza.Collections
     public abstract class BlockStorage : IBlockStorage
     {
         public abstract BlockStorageType StorageType { get; }
-        public abstract ushort Width { get; }
-        public abstract ushort Height { get; }
-        public abstract ushort Depth { get; }
-        public abstract bool IsEmpty { get; }
+        public ushort Width { get; }
+        public ushort Height { get; }
+        public ushort Depth { get; }
+        public bool IsEmpty { get; protected set; }
+
+        public BlockStorage(ushort width, ushort height, ushort depth)
+        {
+            Width = width;
+            Height = height;
+            Depth = depth;
+        }
 
         public abstract void GetBlockRow(nuint index, ref uint destination, nuint length);
 
@@ -88,7 +95,11 @@ namespace VoxelPizza.Collections
             }
         }
 
-        public abstract nuint GetIndex(nuint x, nuint y, nuint z);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public nuint GetIndex(nuint x, nuint y, nuint z)
+        {
+            return GetIndexBase(Depth, Width, y, z) + x;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static nuint GetIndexBase(nuint depth, nuint width, nuint y, nuint z)

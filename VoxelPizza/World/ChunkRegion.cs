@@ -86,19 +86,16 @@ namespace VoxelPizza.World
                 // Check again after acquiring lock,
                 // as a chunk may have been created while we were waiting.
                 chunk = _chunks[index];
-                if (chunk != null)
+                if (chunk == null)
                 {
-                    chunk.IncrementRef();
-                    return chunk;
+                    chunk = new Chunk(this, position);
+                    chunk.Updated += _cachedChunkUpdated;
+                    chunk.RefZeroed += _cachedChunkRefZeroed;
+                    chunk.IncrementRef(RefCountType.Container);
+
+                    _chunks[index] = chunk;
+                    ChunkAdded?.Invoke(chunk);
                 }
-
-                chunk = new Chunk(this, position);
-                chunk.Updated += _cachedChunkUpdated;
-                chunk.RefZeroed += _cachedChunkRefZeroed;
-                chunk.IncrementRef(RefCountType.Container);
-
-                _chunks[index] = chunk;
-                ChunkAdded?.Invoke(chunk);
             }
             finally
             {
@@ -122,6 +119,7 @@ namespace VoxelPizza.World
                 {
                     return ChunkRemoveStatus.MissingChunk;
                 }
+
                 // Invoke event before decrementing ref to let
                 // others delay the unload.
                 ChunkRemoved?.Invoke(chunk);
@@ -142,6 +140,7 @@ namespace VoxelPizza.World
             Chunk chunk = (Chunk)instance;
 
             chunk.Updated -= _cachedChunkUpdated;
+            chunk.RefZeroed -= _cachedChunkRefZeroed;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

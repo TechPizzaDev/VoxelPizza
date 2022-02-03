@@ -138,18 +138,19 @@ namespace VoxelPizza.World
         public Chunk? GetChunk(ChunkPosition position)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
-            _regionLock.EnterReadLock();
+            ChunkRegion? region = GetRegion(regionPosition);
+            if (region == null)
+            {
+                return null;
+            }
+
             try
             {
-                if (_regions.TryGetValue(regionPosition, out ChunkRegion? region))
-                {
-                    return region.GetChunk(position);
-                }
-                return null;
+                return region.GetChunk(position);
             }
             finally
             {
-                _regionLock.ExitReadLock();
+                region.DecrementRef();
             }
         }
 

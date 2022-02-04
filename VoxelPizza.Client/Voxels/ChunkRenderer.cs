@@ -53,7 +53,7 @@ namespace VoxelPizza.Client
         private uint _lastDrawCalls;
 
         public Dimension Dimension { get; }
-        public HeapPool ChunkMeshPool { get; }
+        public MemoryHeap ChunkMeshHeap { get; }
         public Size3 RegionSize { get; }
         public ChunkMesher ChunkMesher { get; }
 
@@ -68,12 +68,12 @@ namespace VoxelPizza.Client
         public event Action<ChunkMeshRegion>? RenderRegionAdded;
         public event Action<ChunkMeshRegion>? RenderRegionRemoved;
 
-        public ChunkRenderer(Dimension dimension, HeapPool chunkMeshPool, Size3 regionSize)
+        public ChunkRenderer(Dimension dimension, MemoryHeap chunkMeshHeap, Size3 regionSize)
         {
             Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
-            ChunkMeshPool = chunkMeshPool ?? throw new ArgumentNullException(nameof(chunkMeshPool));
+            ChunkMeshHeap = chunkMeshHeap ?? throw new ArgumentNullException(nameof(chunkMeshHeap));
             RegionSize = regionSize;
-            ChunkMesher = new ChunkMesher(ChunkMeshPool);
+            ChunkMesher = new ChunkMesher(ChunkMeshHeap);
 
             _stagingMeshPool = new ChunkStagingMeshPool(16);
             _commandListFencePool = new CommandListFencePool(16 + 2);

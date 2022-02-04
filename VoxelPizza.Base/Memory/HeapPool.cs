@@ -1,10 +1,9 @@
 using System;
-using System.Diagnostics;
-using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace VoxelPizza
 {
-    public partial class HeapPool
+    public unsafe partial class HeapPool : MemoryHeap
     {
         private Segment[] _segments;
 
@@ -12,6 +11,8 @@ namespace VoxelPizza
         private const int MinRangeBits = 8;
 
         private const uint MinMask = ~0u >> (32 - MinRangeBits);
+
+        private const nuint StepSize = 1024;
 
         public ulong AvailableBytes
         {
@@ -26,64 +27,128 @@ namespace VoxelPizza
             }
         }
 
+        public MemoryHeap Heap { get; }
         public uint MaxCapacity { get; }
 
-        public HeapPool(uint maxCapacity)
+        public HeapPool(MemoryHeap heap, uint maxCapacity)
         {
+            Heap = heap ?? throw new ArgumentNullException(nameof(heap));
             MaxCapacity = maxCapacity;
 
-            _segments = new Segment[GetSegmentIndex(MaxCapacity) + 1];
+            _segments = new Segment[GetSegmentIndex(MaxCapacity)];
             for (int i = 0; i < _segments.Length; i++)
             {
-                uint blockSize = GetBlockSizeAt((uint)i);
-                uint maxCount = Math.Max(4u, 1024u >> Math.Max(0, i - 6));
+                nuint blockSize = GetBlockSizeAt((nuint)i);
+                //uint maxCount = Math.Max(4u, 1024u >> Math.Max(0, i - 6));
+                uint maxCount = Math.Max(1024 / (uint)(i + 1), 4);
 
                 _segments[i] = new Segment(blockSize, maxCount);
             }
         }
 
-        private static uint GetSegmentIndex(uint byteCapacity)
+        private static nuint GetSegmentIndex(nuint byteCapacity)
         {
-            Debug.Assert(byteCapacity > 0);
-
-            uint poolIndex = (uint)BitOperations.Log2(byteCapacity - 1 | MinMask) - (MinRangeBits - 1);
-            return poolIndex;
+            //int poolIndex = BitOperations.Log2(byteCapacity - 1 | MinMask) - (MinRangeBits - 1);
+            nuint poolIndex = (byteCapacity - 1) / StepSize;
+            return (nuint)poolIndex;
         }
 
-        private static uint GetBlockSizeAt(uint index)
+        private static nuint GetBlockSizeAt(nuint index)
         {
-            return 1u << ((int)index + MinRangeBits);
+            return (index + 1) * StepSize;
+            //return 1u << ((int)index + MinRangeBits);
         }
 
-        public uint GetBlockSize(uint byteCapacity)
+        public override nuint GetBlockSize(nuint byteCapacity)
         {
-            uint i = GetSegmentIndex(byteCapacity);
+            nuint i = GetSegmentIndex(byteCapacity);
+            if (i >= (nuint)_segments.Length)
+            {
+                return Heap.GetBlockSize(byteCapacity);
+            }
             return GetBlockSizeAt(i);
         }
 
-        public Segment GetSegment(uint byteCapacity)
+        public Segment? GetSegment(nuint byteCapacity)
         {
-            uint index = GetSegmentIndex(byteCapacity);
-            return _segments[index];
+            nuint index = GetSegmentIndex(byteCapacity);
+            Segment[] segments = _segments;
+            if (index >= (nuint)segments.Length)
+            {
+                return null;
+            }
+            return segments[index];
         }
 
-        public IntPtr Rent(uint byteCapacity, out uint actualByteCapacity)
+        public override void* Alloc(nuint byteCapacity, out nuint actualByteCapacity)
         {
-            Segment segment = GetSegment(byteCapacity);
+            Segment? segment = GetSegment(byteCapacity);
+            if (segment == null)
+            {
+                actualByteCapacity = byteCapacity;
+                return Alloc(byteCapacity);
+            }
             actualByteCapacity = segment.BlockSize;
             return segment.Rent();
         }
 
-        public void Return(uint byteCapacity, IntPtr buffer)
+        public override void Free(nuint byteCapacity, void* buffer)
         {
-            if (buffer == IntPtr.Zero)
+            Segment? segment = GetSegment(byteCapacity);
+            if (segment == null)
+            {
+                Free(buffer);
                 return;
+            }
 
-            Segment segment = GetSegment(byteCapacity);
             if (segment.BlockSize != byteCapacity)
+            {
                 throw new InvalidOperationException();
+            }
+            segment.Return(buffer);
+        }
 
-            segment.Free(buffer);
+        public override void* Realloc(
+            void* buffer,
+            nuint previousByteCapacity,
+            nuint requestedByteCapacity,
+            out nuint actualByteCapacity)
+        {
+            if (requestedByteCapacity > MaxCapacity)
+            {
+                actualByteCapacity = requestedByteCapacity;
+                return Realloc(buffer, requestedByteCapacity);
+            }
+
+            return base.Realloc(
+                buffer, 
+                previousByteCapacity, 
+                requestedByteCapacity, 
+                out actualByteCapacity);
+        }
+
+        internal static void* Alloc(nuint byteCount)
+        {
+            if (byteCount == 0)
+            {
+                return null;
+            }
+            return NativeMemory.Alloc(byteCount);
+        }
+
+        internal static void Free(void* buffer)
+        {
+            NativeMemory.Free(buffer);
+        }
+
+        internal static void* Realloc(void* buffer, nuint byteCount)
+        {
+            if (byteCount == 0)
+            {
+                Free(buffer);
+                return null;
+            }
+            return NativeMemory.Realloc(buffer, byteCount);
         }
     }
 }

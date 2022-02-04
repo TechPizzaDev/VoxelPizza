@@ -117,8 +117,8 @@ namespace VoxelPizza.Client
             _worldManager = new WorldManager();
             _currentDimension = _worldManager.CreateDimension();
 
-            HeapPool chunkMeshPool = new(1024 * 1024 * 16);
-            ChunkRenderer = new ChunkRenderer(_currentDimension, chunkMeshPool, new Size3(4, 3, 4));
+            MemoryHeap chunkMeshHeap = NativeMemoryHeap.Instance;
+            ChunkRenderer = new ChunkRenderer(_currentDimension, chunkMeshHeap, new Size3(4, 3, 4));
             ChunkRenderer.CullCamera = _scene.PrimaryCamera;
             _scene.AddUpdateable(ChunkRenderer);
             _scene.AddRenderable(ChunkRenderer);

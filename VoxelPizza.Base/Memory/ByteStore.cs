@@ -4,63 +4,78 @@ using System.Runtime.CompilerServices;
 
 namespace VoxelPizza
 {
+
     public unsafe struct ByteStore<T>
         where T : unmanaged
     {
         private T* _head;
 
-        public HeapPool Pool { get; }
+        public MemoryHeap Heap { get; }
         public T* Buffer { get; private set; }
         public T* Head => _head;
 
-        public uint ByteCapacity { get; private set; }
-        public uint ByteCount => (uint)((byte*)_head - (byte*)Buffer);
+        public nuint ByteCapacity { get; private set; }
+        public nuint ByteCount => (nuint)((byte*)_head - (byte*)Buffer);
 
-        public uint Count => ByteCount / (uint)Unsafe.SizeOf<T>();
-        public uint Capacity => ByteCapacity / (uint)Unsafe.SizeOf<T>();
+        public nuint Count => ByteCount / (nuint)Unsafe.SizeOf<T>();
+        public nuint Capacity => ByteCapacity / (nuint)Unsafe.SizeOf<T>();
 
         public unsafe Span<T> Span => new(Buffer, (int)Count);
         public unsafe Span<T> FullSpan => new(Buffer, (int)Capacity);
 
-        public ByteStore(HeapPool pool, T* buffer, uint byteCapacity)
+        public ByteStore(MemoryHeap heap, T* buffer, nuint byteCapacity)
         {
-            Pool = pool ?? throw new ArgumentNullException(nameof(pool));
+            Heap = heap ?? throw new ArgumentNullException(nameof(heap));
             ByteCapacity = byteCapacity;
             Buffer = buffer;
             _head = Buffer;
         }
 
-        public ByteStore(HeapPool pool) : this(pool, null, 0)
+        public ByteStore(MemoryHeap heap) : this(heap, null, 0)
         {
         }
 
-        public ByteStore(HeapPool pool, uint capacity) : this(pool, null, 0)
+        public ByteStore(MemoryHeap heap, nuint capacity) : this(heap, null, 0)
         {
-            if (capacity < 0)
-                throw new ArgumentOutOfRangeException(nameof(capacity));
             Resize(capacity);
         }
 
-        public ByteStore<T> Clone(HeapPool pool)
+        /// <summary>
+        /// Duplicates the contents of this <see cref="ByteStore{T}"/> by using a new heap.
+        /// </summary>
+        /// <param name="heap">The new heap to use.</param>
+        /// <returns>A new <see cref="ByteStore{T}"/> using the specified <paramref name="heap"/>.</returns>
+        public ByteStore<T> Clone(MemoryHeap heap)
         {
-            uint byteCount = ByteCount;
+            nuint byteCount = ByteCount;
             if (byteCount == 0)
-                return new ByteStore<T>(pool);
+            {
+                return new ByteStore<T>(heap);
+            }
 
-            IntPtr newBuffer = pool.Rent(byteCount, out uint newByteCapacity);
-            Unsafe.CopyBlockUnaligned((void*)newBuffer, Buffer, byteCount);
+            void* newBuffer = heap.Alloc(byteCount, out nuint newByteCapacity);
+            Unsafe.CopyBlockUnaligned(newBuffer, Buffer, (uint)byteCount);
 
-            ByteStore<T> newStore = new(pool, (T*)newBuffer, newByteCapacity);
+            ByteStore<T> newStore = new(heap, (T*)newBuffer, newByteCapacity);
             newStore._head = (T*)((byte*)newStore._head + byteCount);
             return newStore;
         }
 
+        /// <summary>
+        /// Duplicates the contents of this <see cref="ByteStore{T}"/>.
+        /// </summary>
+        /// <returns>A new <see cref="ByteStore{T}"/> using the current <see cref="Heap"/>.</returns>
         public ByteStore<T> Clone()
         {
-            return Clone(Pool);
+            return Clone(Heap);
         }
 
-        public void MoveByteHead(uint byteCount)
+        public void Trim()
+        {
+            Resize(Count);
+        }
+
+        public void MoveByteHead(nuint byteCount)
         {
             Debug.Assert((byte*)_head + byteCount <= (byte*)Buffer + ByteCapacity);
             _head = (T*)((byte*)_head + byteCount);
@@ -72,23 +87,22 @@ namespace VoxelPizza
             _head += count;
         }
 
-        public static ByteStore<T> Create(HeapPool pool, uint capacity)
+        public static ByteStore<T> Create(MemoryHeap heap, nuint capacity)
         {
-            IntPtr buffer = pool.Rent(capacity * (uint)Unsafe.SizeOf<T>(), out uint actualByteCapacity);
-            return new ByteStore<T>(pool, (T*)buffer, actualByteCapacity);
+            void* buffer = heap.Alloc(capacity * (nuint)Unsafe.SizeOf<T>(), out nuint actualByteCapacity);
+            return new ByteStore<T>(heap, (T*)buffer, actualByteCapacity);
         }
 
-        private unsafe void Resize(uint newCapacity)
+        private unsafe void Resize(nuint newCapacity)
         {
-            uint byteCount = ByteCount;
-            IntPtr newBuffer = Pool.Rent(newCapacity * (uint)Unsafe.SizeOf<T>(), out uint newByteCapacity);
+            nuint byteCount = ByteCount;
+            void* newBuffer = Heap.Realloc(
+                Buffer, 
+                ByteCapacity,
+                newCapacity * (uint)Unsafe.SizeOf<T>(), 
+                out nuint newByteCapacity);
 
-            IntPtr oldBuffer = (IntPtr)Buffer;
-            if (oldBuffer != IntPtr.Zero)
-            {
-                Unsafe.CopyBlockUnaligned((void*)newBuffer, (void*)oldBuffer, byteCount);
-                Pool.Return(ByteCapacity, oldBuffer);
-            }
+            //Console.WriteLine($"resized {ByteCapacity} to {newByteCapacity}");
 
             Buffer = (T*)newBuffer;
             _head = (T*)((byte*)Buffer + byteCount);
@@ -96,13 +110,11 @@ namespace VoxelPizza
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void EnsureCapacity(uint capacity)
+        public void EnsureCapacity(nuint capacity)
         {
-            Debug.Assert(Pool != null);
-
-            if (ByteCapacity < capacity * Unsafe.SizeOf<T>())
+            if (ByteCapacity < capacity * (nuint)Unsafe.SizeOf<T>())
             {
-                uint newCapacity = Math.Min(capacity * 2, capacity + 1024 * 64);
+                nuint newCapacity = Math.Min(capacity * 2, capacity + 1024 * 64);
                 Resize(newCapacity);
             }
         }
@@ -148,10 +160,12 @@ namespace VoxelPizza
 
         public void Dispose()
         {
-            IntPtr buffer = (IntPtr)Buffer;
-            if (buffer != IntPtr.Zero)
-                Pool.Return(ByteCapacity, buffer);
+            void* buffer = Buffer;
             Buffer = null;
+            if (buffer != null)
+            {
+                Heap.Free(ByteCapacity, buffer);
+            }
             _head = null;
         }
     }

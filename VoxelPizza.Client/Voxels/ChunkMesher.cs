@@ -13,11 +13,11 @@ namespace VoxelPizza.Client
         private TextureAnimation[] anims;
         private MeshProvider?[] meshProviders;
 
-        public HeapPool Pool { get; }
+        public MemoryHeap Heap { get; }
 
-        public unsafe ChunkMesher(HeapPool pool)
+        public unsafe ChunkMesher(MemoryHeap heap)
         {
-            Pool = pool ?? throw new ArgumentNullException(nameof(pool));
+            Heap = heap ?? throw new ArgumentNullException(nameof(heap));
 
             visualFeatures = new BlockVisualFeatures[1025];
             oppositeBlockingFaces = new CubeFaces[visualFeatures.Length];
@@ -64,20 +64,23 @@ namespace VoxelPizza.Client
             // TODO: chunk/draw layers (seperate mesh provider arrays per layer)?
             //       e.g. this could allow for vertices (including custom) for a "gas" or "fluid" layer 
 
-            uint storePrepareCapacity = 1024;
-            ByteStore<uint> indexStore = new(Pool, storePrepareCapacity * 6);
-            ByteStore<ChunkSpaceVertex> spaceVertexStore = new(Pool, storePrepareCapacity * 4);
-            ByteStore<ChunkPaintVertex> paintVertexStore = new(Pool, storePrepareCapacity * 4);
+            uint storePrepareCapacity = 256;
+
+            ByteStore<uint> indexStore = new(Heap);
+            ByteStore<ChunkSpaceVertex> spaceVertexStore = new(Heap);
+            ByteStore<ChunkPaintVertex> paintVertexStore = new(Heap);
 
             try
             {
+                indexStore.PrepareCapacityFor(storePrepareCapacity * 6);
+                spaceVertexStore.PrepareCapacityFor(storePrepareCapacity * 4);
+                paintVertexStore.PrepareCapacityFor(storePrepareCapacity * 4);
+
                 ChunkMeshOutput meshOutput = new(
                     ref indexStore,
                     ref spaceVertexStore,
                     ref paintVertexStore,
                     0);
-
-                //uint maxBlockIdExclusive = (uint)meshProviders.Length;
 
                 Size3 outerSize = worldSlice.OuterSize;
                 Size3 innerSize = worldSlice.InnerSize;
@@ -118,13 +121,18 @@ namespace VoxelPizza.Client
                     }
                 }
 
-                return ChunkMeshResult.CreateCopyFrom(Pool, indexStore, spaceVertexStore, paintVertexStore);
+                indexStore.Trim();
+                spaceVertexStore.Trim();
+                paintVertexStore.Trim();
+
+                return new ChunkMeshResult(indexStore, spaceVertexStore, paintVertexStore);
             }
-            finally
+            catch
             {
                 indexStore.Dispose();
                 spaceVertexStore.Dispose();
                 paintVertexStore.Dispose();
+                throw;
             }
         }
 

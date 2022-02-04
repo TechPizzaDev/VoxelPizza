@@ -10,46 +10,49 @@ namespace VoxelPizza
         {
             private Stack<IntPtr> _pooled = new();
 
-            public uint BlockSize { get; }
+            public nuint BlockSize { get; }
             public uint MaxCount { get; }
 
             public uint Count => (uint)_pooled.Count;
 
-            public Segment(uint blockSize, uint maxCount)
+            public Segment(nuint blockSize, uint maxCount)
             {
+                if (blockSize > long.MaxValue)
+                    throw new ArgumentOutOfRangeException(nameof(blockSize));
+
                 BlockSize = blockSize;
                 MaxCount = maxCount;
             }
 
-            public IntPtr Rent()
+            public void* Rent()
             {
                 lock (_pooled)
                 {
                     if (_pooled.TryPop(out IntPtr pooled))
                     {
-                        return pooled;
+                        return (void*)pooled;
                     }
                 }
 
                 //Console.WriteLine("allocating " + BlockSize);
-                GC.AddMemoryPressure(BlockSize);
-                return (IntPtr)NativeMemory.Alloc(BlockSize);
+                GC.AddMemoryPressure((long)BlockSize);
+                return NativeMemory.Alloc(BlockSize);
             }
 
-            public void Free(IntPtr buffer)
+            public void Return(void* buffer)
             {
                 lock (_pooled)
                 {
                     if ((uint)_pooled.Count < MaxCount)
                     {
-                        _pooled.Push(buffer);
+                        _pooled.Push((IntPtr)buffer);
                         return;
                     }
                 }
 
                 //Console.WriteLine("freeing " + BlockSize);
-                NativeMemory.Free((void*)buffer);
-                GC.RemoveMemoryPressure(BlockSize);
+                NativeMemory.Free(buffer);
+                GC.RemoveMemoryPressure((long)BlockSize);
             }
         }
     }

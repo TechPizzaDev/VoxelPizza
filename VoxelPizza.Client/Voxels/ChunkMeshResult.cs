@@ -3,23 +3,23 @@ using System.Runtime.CompilerServices;
 
 namespace VoxelPizza.Client
 {
-    public struct ChunkMeshResult
+    public unsafe struct ChunkMeshResult
     {
-        private IntPtr _backingBuffer;
-        private uint _backingByteCount;
+        private void* _backingBuffer;
+        private nuint _backingByteCapacity;
 
         private ByteStore<uint> _indices;
         private ByteStore<ChunkSpaceVertex> _spaceVertices;
         private ByteStore<ChunkPaintVertex> _paintVertices;
 
-        public HeapPool? Pool { get; private set; }
+        public MemoryHeap? Heap { get; private set; }
 
-        public readonly uint IndexCount => _indices.Count;
-        public readonly uint VertexCount => _spaceVertices.Count;
+        public readonly uint IndexCount => (uint)_indices.Count;
+        public readonly uint VertexCount => (uint)_spaceVertices.Count;
 
-        public readonly uint IndexByteCount => _indices.ByteCount;
-        public readonly uint SpaceVertexByteCount => _spaceVertices.ByteCount;
-        public readonly uint PaintVertexByteCount => _paintVertices.ByteCount;
+        public readonly uint IndexByteCount => (uint)_indices.ByteCount;
+        public readonly uint SpaceVertexByteCount => (uint)_spaceVertices.ByteCount;
+        public readonly uint PaintVertexByteCount => (uint)_paintVertices.ByteCount;
 
         public readonly Span<uint> Indices => _indices.Span;
         public readonly Span<ChunkSpaceVertex> SpaceVertices => _spaceVertices.Span;
@@ -33,8 +33,8 @@ namespace VoxelPizza.Client
             ByteStore<ChunkPaintVertex> paintVertices)
         {
             _backingBuffer = default;
-            _backingByteCount = default;
-            Pool = null;
+            _backingByteCapacity = default;
+            Heap = null;
 
             _indices = indices;
             _spaceVertices = spaceVertices;
@@ -42,68 +42,67 @@ namespace VoxelPizza.Client
         }
 
         public static unsafe ChunkMeshResult CreateCopyFrom(
-            HeapPool pool,
+            MemoryHeap heap,
             ByteStore<uint> indices,
             ByteStore<ChunkSpaceVertex> spaceVertices,
             ByteStore<ChunkPaintVertex> paintVertices)
         {
-            if (pool == null)
-                throw new ArgumentNullException(nameof(pool));
+            if (heap == null)
+                throw new ArgumentNullException(nameof(heap));
 
-            uint indexByteCount = indices.ByteCount;
-            uint spaceByteCount = spaceVertices.ByteCount;
-            uint paintByteCount = paintVertices.ByteCount;
+            nuint indexByteCount = indices.ByteCount;
+            nuint spaceByteCount = spaceVertices.ByteCount;
+            nuint paintByteCount = paintVertices.ByteCount;
 
-            uint minByteCapacity = indexByteCount + spaceByteCount + paintByteCount;
-            if (minByteCapacity == 0)
+            nuint byteCount = indexByteCount + spaceByteCount + paintByteCount;
+            if (byteCount == 0)
                 return default;
 
-            uint indexPoolBlockSize = pool.GetBlockSize(indexByteCount);
-            uint spacePoolBlockSize = pool.GetBlockSize(spaceByteCount);
-            uint paintPoolBlockSize = pool.GetBlockSize(paintByteCount);
-            HeapPool.Segment poolSegment = pool.GetSegment(minByteCapacity);
-
-            uint splitBlocksTotalSize = indexPoolBlockSize + spacePoolBlockSize + paintPoolBlockSize;
-            uint unifiedBlockTotalSize = poolSegment.BlockSize;
-            float sizeReductionFactor = splitBlocksTotalSize / (float)unifiedBlockTotalSize;
+            nuint indexBlockSize = heap.GetBlockSize(indexByteCount);
+            nuint spaceBlockSize = heap.GetBlockSize(spaceByteCount);
+            nuint paintBlockSize = heap.GetBlockSize(paintByteCount);
+            
+            nuint totalBlockSize = indexBlockSize + spaceBlockSize + paintBlockSize;
+            nuint unifiedTotalBlockSize = heap.GetBlockSize(byteCount);
+            float sizeReductionFactor = totalBlockSize / (float)unifiedTotalBlockSize;
             if (sizeReductionFactor < 1)
             {
                 return new ChunkMeshResult(indices.Clone(), spaceVertices.Clone(), paintVertices.Clone());
             }
 
-            IntPtr backingBuffer = poolSegment.Rent();
+            void* backingBuffer = heap.Alloc(byteCount, out nuint byteCapacity);
             byte* bytePtr = (byte*)backingBuffer;
             uint* indexPtr = (uint*)bytePtr;
             ChunkSpaceVertex* spacePtr = (ChunkSpaceVertex*)(bytePtr + indexByteCount);
             ChunkPaintVertex* paintPtr = (ChunkPaintVertex*)(bytePtr + indexByteCount + spaceByteCount);
 
-            Unsafe.CopyBlockUnaligned(indexPtr, indices.Buffer, indexByteCount);
-            Unsafe.CopyBlockUnaligned(spacePtr, spaceVertices.Buffer, spaceByteCount);
-            Unsafe.CopyBlockUnaligned(paintPtr, paintVertices.Buffer, paintByteCount);
+            Unsafe.CopyBlockUnaligned(indexPtr, indices.Buffer, (uint)indexByteCount);
+            Unsafe.CopyBlockUnaligned(spacePtr, spaceVertices.Buffer, (uint)spaceByteCount);
+            Unsafe.CopyBlockUnaligned(paintPtr, paintVertices.Buffer, (uint)paintByteCount);
 
-            ByteStore<uint> resultIndices = new(pool, indexPtr, indexByteCount);
+            ByteStore<uint> resultIndices = new(heap, indexPtr, indexByteCount);
             resultIndices.MoveByteHead(indexByteCount);
 
-            ByteStore<ChunkSpaceVertex> resultSpaces = new(pool, spacePtr, spaceByteCount);
+            ByteStore<ChunkSpaceVertex> resultSpaces = new(heap, spacePtr, spaceByteCount);
             resultSpaces.MoveByteHead(spaceByteCount);
 
-            ByteStore<ChunkPaintVertex> resultPaints = new(pool, paintPtr, paintByteCount);
+            ByteStore<ChunkPaintVertex> resultPaints = new(heap, paintPtr, paintByteCount);
             resultPaints.MoveByteHead(paintByteCount);
 
             return new ChunkMeshResult(resultIndices, resultSpaces, resultPaints)
             {
-                Pool = pool,
+                Heap = heap,
                 _backingBuffer = backingBuffer,
-                _backingByteCount = unifiedBlockTotalSize,
+                _backingByteCapacity = byteCapacity,
             };
         }
 
         public void Dispose()
         {
-            if (Pool != null)
+            if (Heap != null)
             {
-                Pool.Return(_backingByteCount, _backingBuffer);
-                _backingBuffer = IntPtr.Zero;
+                Heap.Free(_backingByteCapacity, _backingBuffer);
+                _backingBuffer = null;
 
                 _indices.Clear();
                 _spaceVertices.Clear();

@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 
 namespace VoxelPizza
 {
@@ -85,27 +84,20 @@ namespace VoxelPizza
             Segment? segment = GetSegment(byteCapacity);
             if (segment == null)
             {
-                actualByteCapacity = byteCapacity;
-                return Alloc(byteCapacity);
+                return Heap.Alloc(byteCapacity, out actualByteCapacity);
             }
-            actualByteCapacity = segment.BlockSize;
-            return segment.Rent();
+            return segment.Rent(Heap, out actualByteCapacity);
         }
 
         public override void Free(nuint byteCapacity, void* buffer)
         {
             Segment? segment = GetSegment(byteCapacity);
-            if (segment == null)
+            if (segment != null && segment.BlockSize == byteCapacity)
             {
-                Free(buffer);
+                segment.Return(Heap, buffer);
                 return;
             }
-
-            if (segment.BlockSize != byteCapacity)
-            {
-                throw new InvalidOperationException();
-            }
-            segment.Return(buffer);
+            Heap.Free(byteCapacity, buffer);
         }
 
         public override void* Realloc(
@@ -116,39 +108,18 @@ namespace VoxelPizza
         {
             if (requestedByteCapacity > MaxCapacity)
             {
-                actualByteCapacity = requestedByteCapacity;
-                return Realloc(buffer, requestedByteCapacity);
+                return Heap.Realloc(
+                    buffer,
+                    previousByteCapacity,
+                    requestedByteCapacity,
+                    out actualByteCapacity);
             }
 
             return base.Realloc(
-                buffer, 
-                previousByteCapacity, 
-                requestedByteCapacity, 
+                buffer,
+                previousByteCapacity,
+                requestedByteCapacity,
                 out actualByteCapacity);
-        }
-
-        internal static void* Alloc(nuint byteCount)
-        {
-            if (byteCount == 0)
-            {
-                return null;
-            }
-            return NativeMemory.Alloc(byteCount);
-        }
-
-        internal static void Free(void* buffer)
-        {
-            NativeMemory.Free(buffer);
-        }
-
-        internal static void* Realloc(void* buffer, nuint byteCount)
-        {
-            if (byteCount == 0)
-            {
-                Free(buffer);
-                return null;
-            }
-            return NativeMemory.Realloc(buffer, byteCount);
         }
     }
 }

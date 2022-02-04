@@ -102,8 +102,6 @@ namespace VoxelPizza
                 newCapacity * (uint)Unsafe.SizeOf<T>(), 
                 out nuint newByteCapacity);
 
-            //Console.WriteLine($"resized {ByteCapacity} to {newByteCapacity}");
-
             Buffer = (T*)newBuffer;
             _head = (T*)((byte*)Buffer + byteCount);
             ByteCapacity = newByteCapacity;

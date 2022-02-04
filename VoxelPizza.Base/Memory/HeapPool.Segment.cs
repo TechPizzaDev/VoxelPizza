@@ -24,22 +24,21 @@ namespace VoxelPizza
                 MaxCount = maxCount;
             }
 
-            public void* Rent()
+            public void* Rent(MemoryHeap heap, out nuint actualByteCapacity)
             {
                 lock (_pooled)
                 {
                     if (_pooled.TryPop(out IntPtr pooled))
                     {
+                        actualByteCapacity = BlockSize;
                         return (void*)pooled;
                     }
                 }
 
-                //Console.WriteLine("allocating " + BlockSize);
-                GC.AddMemoryPressure((long)BlockSize);
-                return NativeMemory.Alloc(BlockSize);
+                return heap.Alloc(BlockSize, out actualByteCapacity);
             }
 
-            public void Return(void* buffer)
+            public void Return(MemoryHeap heap, void* buffer)
             {
                 lock (_pooled)
                 {
@@ -50,9 +49,7 @@ namespace VoxelPizza
                     }
                 }
 
-                //Console.WriteLine("freeing " + BlockSize);
-                NativeMemory.Free(buffer);
-                GC.RemoveMemoryPressure((long)BlockSize);
+                heap.Free(BlockSize, buffer);
             }
         }
     }

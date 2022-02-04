@@ -118,6 +118,7 @@ namespace VoxelPizza.Client
             _currentDimension = _worldManager.CreateDimension();
 
             MemoryHeap chunkMeshHeap = NativeMemoryHeap.Instance;
+            chunkMeshHeap = new HeapPool(chunkMeshHeap, 1024 * 64);
             ChunkRenderer = new ChunkRenderer(_currentDimension, chunkMeshHeap, new Size3(4, 3, 4));
             ChunkRenderer.CullCamera = _scene.PrimaryCamera;
             _scene.AddUpdateable(ChunkRenderer);
@@ -236,6 +237,8 @@ namespace VoxelPizza.Client
         public override void Update(in FrameTime time)
         {
             using ProfilerPopToken profilerToken = _sc.Profiler.Push();
+
+            // Console.WriteLine(((HeapPool)ChunkRenderer.ChunkMeshHeap).AvailableBytes / 1024 + "kB");
 
             _imGuiRenderable.Update(time);
 

@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 
 namespace VoxelPizza
@@ -22,12 +23,15 @@ namespace VoxelPizza
             {
                 return null;
             }
+
+            GC.AddMemoryPressure((long)byteCapacity);
             return NativeMemory.Alloc(byteCapacity);
         }
 
         public override void Free(nuint byteCapacity, void* buffer)
         {
             NativeMemory.Free(buffer);
+            GC.RemoveMemoryPressure((long)byteCapacity);
         }
 
         public override unsafe void* Realloc(
@@ -45,10 +49,15 @@ namespace VoxelPizza
             actualByteCapacity = requestedByteCapacity;
             if (requestedByteCapacity == 0)
             {
-                NativeMemory.Free(buffer);
+                Free(previousByteCapacity, buffer);
                 return null;
             }
-            return NativeMemory.Realloc(buffer, requestedByteCapacity);
+
+            GC.AddMemoryPressure((long)requestedByteCapacity);
+            void* newBuffer= NativeMemory.Realloc(buffer, requestedByteCapacity);
+
+            GC.RemoveMemoryPressure((long)previousByteCapacity);
+            return newBuffer;
         }
     }
 }

@@ -53,8 +53,8 @@ namespace VoxelPizza.Client
                         //if (position.Y >= -1 && position.Y <= 1)
                         {
                             ChunkPosition co = currentPosition - centerOffset;
-                            if (position.Y == 0)
-                                loads[position.X - co.X, position.Z - co.Z] = true;
+                            //if (position.Y == 0)
+                            //    loads[position.X - co.X, position.Z - co.Z] = true;
 
                             Chunk chunk = dimension.CreateChunk(position);
                             try

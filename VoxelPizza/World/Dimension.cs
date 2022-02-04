@@ -111,20 +111,17 @@ namespace VoxelPizza.World
             {
                 // Check again after acquiring lock,
                 // as a region may have been created while we were waiting.
-                if (_regions.TryGetValue(position, out region))
+                if (!_regions.TryGetValue(position, out region))
                 {
-                    region.IncrementRef();
-                    return region;
+                    region = new ChunkRegion(this, position);
+                    region.ChunkAdded += _cachedChunkAdded;
+                    region.ChunkUpdated += _cachedChunkUpdated;
+                    region.ChunkRemoved += _cachedChunkRemoved;
+                    region.IncrementRef(RefCountType.Container);
+
+                    _regions.Add(region.Position, region);
+                    RegionAdded?.Invoke(region);
                 }
-
-                region = new ChunkRegion(this, position);
-                region.ChunkAdded += _cachedChunkAdded;
-                region.ChunkUpdated += _cachedChunkUpdated;
-                region.ChunkRemoved += _cachedChunkRemoved;
-                region.IncrementRef(RefCountType.Container);
-
-                _regions.Add(region.Position, region);
-                RegionAdded?.Invoke(region);
             }
             finally
             {
@@ -138,18 +135,19 @@ namespace VoxelPizza.World
         public Chunk? GetChunk(ChunkPosition position)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
-            _regionLock.EnterReadLock();
+            ChunkRegion? region = GetRegion(regionPosition);
+            if (region == null)
+            {
+                return null;
+            }
+
             try
             {
-                if (_regions.TryGetValue(regionPosition, out ChunkRegion? region))
-                {
-                    return region.GetChunk(position);
-                }
-                return null;
+                return region.GetChunk(position);
             }
             finally
             {
-                _regionLock.ExitReadLock();
+                region.DecrementRef();
             }
         }
 

@@ -48,19 +48,24 @@ namespace VoxelPizza.World
                 && Z == other.Z;
         }
 
-        public readonly override bool Equals(object? obj)
+        public override readonly bool Equals(object? obj)
         {
             return obj is ChunkRegionPosition other && Equals(other);
         }
 
-        public readonly override int GetHashCode()
+        public override readonly int GetHashCode()
         {
             return HashCode.Combine(X, Y, Z);
         }
 
-        public readonly override string ToString()
+        public override readonly string ToString()
         {
             return $"X:{X} Y:{Y} Z:{Z}";
+        }
+
+        public readonly string ToNumericString()
+        {
+            return $"{X} {Y} {Z}";
         }
 
         private readonly string GetDebuggerDisplay()

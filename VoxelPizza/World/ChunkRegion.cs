@@ -1,10 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
+    [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
     public class ChunkRegion : RefCounted
     {
         public const int Width = 16;
@@ -174,6 +176,11 @@ namespace VoxelPizza.World
         public static int ChunkToRegionZ(int chunkZ)
         {
             return chunkZ >> 4;
+        }
+
+        private string GetDebuggerDisplay()
+        {
+            return $"{nameof(ChunkRegion)}({Position.ToNumericString()})";
         }
     }
 }

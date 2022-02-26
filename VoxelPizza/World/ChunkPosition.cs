@@ -52,6 +52,11 @@ namespace VoxelPizza.World
             return $"X:{X} Y:{Y} Z:{Z}";
         }
 
+        public readonly string ToNumericString()
+        {
+            return $"{X} {Y} {Z}";
+        }
+
         private readonly string GetDebuggerDisplay()
         {
             return ToString();

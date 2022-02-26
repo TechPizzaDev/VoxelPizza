@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using VoxelPizza.Collections;
@@ -6,6 +7,7 @@ using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
+    [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
     public class Chunk : RefCounted, IBlockStorage
     {
         public BlockStorage0 EmptyStorage { get; } = new(Width, Height, Depth);
@@ -174,9 +176,6 @@ namespace VoxelPizza.World
 
                             if (false)
                             {
-                                //if (rng.NextDouble() > 0.025 * fac * 4)
-                                //    continue;
-
                                 float sin = 64 * (MathF.Sin(blockX / 16f) + 1) * 0.5f;
 
                                 if ((sin + cos) * 0.5f >= blockY)
@@ -267,6 +266,11 @@ namespace VoxelPizza.World
         public bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType)
         {
             return GetBlockStorage().TryGetInline(out inlineSpan, out storageType);
+        }
+
+        private string GetDebuggerDisplay()
+        {
+            return $"{nameof(Chunk)}<{_storage.ToSimpleString()}>({Position.ToNumericString()})";
         }
     }
 }

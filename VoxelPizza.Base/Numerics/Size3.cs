@@ -49,6 +49,11 @@ namespace VoxelPizza.Numerics
             return $"W:{W} H:{H} D:{D}";
         }
 
+        public readonly string ToSimpleString()
+        {
+            return $"{W}x{H}x{D}";
+        }
+
         private readonly string GetDebuggerDisplay()
         {
             return ToString();

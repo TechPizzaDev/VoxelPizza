@@ -1,10 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
 namespace VoxelPizza.Collections
 {
+    [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
     public abstract class BlockStorage : IBlockStorage
     {
         public abstract BlockStorageType StorageType { get; }
@@ -115,6 +117,34 @@ namespace VoxelPizza.Collections
                 BlockStorageType.Unsigned16 => 2,
                 _ => throw new ArgumentOutOfRangeException(nameof(inlineType))
             };
+        }
+
+        public string ToSimpleString()
+        {
+            string value = StorageType switch
+            {
+                BlockStorageType.Undefined => "U",
+                BlockStorageType.Null => "N",
+                BlockStorageType.Specialized => "S",
+                BlockStorageType.Unsigned8 => "U8",
+                BlockStorageType.Unsigned16 => "U16",
+                _ => StorageType.ToString(),
+            };
+            if (IsEmpty)
+            {
+                value += '?';
+            }
+            return value;
+        }
+
+        public override string ToString()
+        {
+            return $"{StorageType}{(IsEmpty ? "?" : "")} {Width}x{Height}x{Depth}";
+        }
+
+        private string GetDebuggerDisplay()
+        {
+            return ToString();
         }
     }
 }

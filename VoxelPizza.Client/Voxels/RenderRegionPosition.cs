@@ -30,7 +30,6 @@ namespace VoxelPizza.Client
             return new BlockPosition((int)factor.W * X, (int)factor.H * Y, (int)factor.D * Z);
         }
 
-
         public readonly ChunkPosition ToChunk(Size3 regionSize)
         {
             return new ChunkPosition((int)regionSize.W * X, (int)regionSize.H * Y, (int)regionSize.D * Z);

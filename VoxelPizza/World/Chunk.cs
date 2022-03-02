@@ -169,8 +169,6 @@ namespace VoxelPizza.World
                                     distSq < thresholdHigh * thresholdHigh)
                                 {
                                     v = (uint)tmp[x + z * Width] + 1;
-                                    if (v > 255)
-                                        v = 255;
                                 }
                             }
 
@@ -181,6 +179,9 @@ namespace VoxelPizza.World
                                 if ((sin + cos) * 0.5f >= blockY)
                                     v = (uint)tmp[x + z * Width] + 1;
                             }
+
+                            if (v > 255)
+                                v = 255;
 
                             //block = v;
                             block8 = (byte)v;

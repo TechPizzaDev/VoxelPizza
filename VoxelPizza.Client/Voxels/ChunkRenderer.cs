@@ -417,17 +417,6 @@ namespace VoxelPizza.Client
         {
             _worldInfo.GlobalTime = time.TotalSeconds;
 
-            if (CullCamera != null)
-            {
-                // TODO: remove this
-
-                Vector3 cullCameraPos = CullCamera.Position;
-                Dimension.PlayerChunkPosition = new BlockPosition(
-                    (int)MathF.Round(cullCameraPos.X),
-                    (int)MathF.Round(cullCameraPos.Y),
-                    (int)MathF.Round(cullCameraPos.Z)).ToChunk();
-            }
-
             ImGuiNET.ImGui.Begin("ChunkRenderer");
             {
                 ImGuiNET.ImGui.Text("Block: " + Dimension.PlayerChunkPosition.ToBlock().ToString());
@@ -652,11 +641,11 @@ namespace VoxelPizza.Client
 
         }
 
-        public BlockMemoryState FetchBlockMemory(BlockMemory memory, BlockPosition origin)
+        public static BlockMemoryState FetchBlockMemory(Dimension dimension, BlockMemory blockBuffer, BlockPosition origin)
         {
-            ref uint data = ref MemoryMarshal.GetArrayDataReference(memory.Data);
-            Size3 outerSize = memory.OuterSize;
-            Size3 innerSize = memory.InnerSize;
+            ref uint data = ref MemoryMarshal.GetArrayDataReference(blockBuffer.Data);
+            Size3 outerSize = blockBuffer.OuterSize;
+            Size3 innerSize = blockBuffer.InnerSize;
             uint xOffset = (outerSize.W - innerSize.W) / 2;
             uint yOffset = (outerSize.H - innerSize.H) / 2;
             uint zOffset = (outerSize.D - innerSize.D) / 2;
@@ -670,8 +659,8 @@ namespace VoxelPizza.Client
             ChunkBoxSliceEnumerator chunkBoxEnumerator = fetchBox.EnumerateChunkBoxSlices();
             int maxChunkCount = chunkBoxEnumerator.GetMaxChunkCount();
 
-            Span<ChunkBoxSlice> chunkBoxes = memory.GetChunkBoxBuffer(maxChunkCount);
-            Span<bool> emptyChunks = memory.GetEmptyChunkBuffer(maxChunkCount);
+            Span<ChunkBoxSlice> chunkBoxes = blockBuffer.GetChunkBoxBuffer(maxChunkCount);
+            Span<bool> emptyChunks = blockBuffer.GetEmptyChunkBuffer(maxChunkCount);
 
             int chunkCount = 0;
             foreach (ChunkBoxSlice chunkBox in chunkBoxEnumerator)
@@ -688,7 +677,7 @@ namespace VoxelPizza.Client
             for (int i = 0; i < chunkCount; i++)
             {
                 ref ChunkBoxSlice chunkBox = ref chunkBoxes[i];
-                Chunk? chunk = Dimension.GetChunk(chunkBox.Chunk);
+                Chunk? chunk = dimension.GetChunk(chunkBox.Chunk);
                 if (chunk == null || chunk.IsEmpty)
                 {
                     emptyChunks[i] = true;
@@ -743,7 +732,7 @@ namespace VoxelPizza.Client
 
             if (isAllEmpty)
             {
-                memory.Data.AsSpan().Clear();
+                blockBuffer.Data.AsSpan().Clear();
                 return BlockMemoryState.Zeroed;
             }
             else
@@ -777,7 +766,7 @@ namespace VoxelPizza.Client
                                 + outerOriginX;
 
                             Unsafe.InitBlockUnaligned(
-                                ref Unsafe.As<uint, byte>(ref memory.Data[outerBaseIndex]),
+                                ref Unsafe.As<uint, byte>(ref blockBuffer.Data[outerBaseIndex]),
                                 0,
                                 innerSizeW * sizeof(uint));
                         }
@@ -785,13 +774,6 @@ namespace VoxelPizza.Client
                 }
                 return BlockMemoryState.Filled;
             }
-        }
-
-        public BlockMemory FetchBlockMemory(BlockPosition origin, Size3 innerSize, Size3 outerSize)
-        {
-            BlockMemory memory = new(innerSize, outerSize);
-            FetchBlockMemory(memory, origin);
-            return memory;
         }
 
         public Size3 GetBlockMemoryInnerSize()

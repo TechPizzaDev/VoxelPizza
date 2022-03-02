@@ -22,10 +22,12 @@ namespace VoxelPizza.Client
         private bool _chunkRegionsNeedUpdate;
         private bool _renderRegionsNeedUpdate;
 
+        private Size3 _regionSize;
+        private Camera? _cullCamera;
+        private Camera? _renderCamera;
+
         private Pipeline _batchDepthLessPipeline;
         private Pipeline _batchDepthPipeline;
-
-        public ChunkRenderer ChunkRenderer { get; }
 
         public bool DrawCameraBounds { get; set; }
         public bool DrawChunks { get; set; }
@@ -35,10 +37,8 @@ namespace VoxelPizza.Client
 
         public override RenderPasses RenderPasses => UseDepth ? RenderPasses.Opaque : RenderPasses.AlphaBlend;
 
-        public ChunkBorderRenderer(ChunkRenderer chunkRenderer)
+        public ChunkBorderRenderer()
         {
-            ChunkRenderer = chunkRenderer ?? throw new ArgumentNullException(nameof(chunkRenderer));
-
             uint cameraQuadCap = 128;
             _cameraBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * cameraQuadCap, 4 * cameraQuadCap);
 
@@ -50,16 +50,29 @@ namespace VoxelPizza.Client
 
             uint renderRegionQuadCap = 1024 * 8;
             _renderRegionBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * renderRegionQuadCap, 4 * renderRegionQuadCap);
+        }
 
-            ChunkRenderer.Dimension.ChunkAdded += ChunkRenderer_ChunkAdded;
-            ChunkRenderer.Dimension.ChunkUpdated += ChunkRenderer_ChunkUpdated;
-            ChunkRenderer.Dimension.ChunkRemoved += ChunkRenderer_ChunkRemoved;
+        public void RegisterDimension(Dimension dimension)
+        {
+            dimension.ChunkAdded += ChunkRenderer_ChunkAdded;
+            dimension.ChunkUpdated += ChunkRenderer_ChunkUpdated;
+            dimension.ChunkRemoved += ChunkRenderer_ChunkRemoved;
 
-            ChunkRenderer.Dimension.RegionAdded += ChunkRenderer_RegionAdded;
-            ChunkRenderer.Dimension.RegionRemoved += ChunkRenderer_RegionRemoved;
+            dimension.RegionAdded += ChunkRenderer_RegionAdded;
+            dimension.RegionRemoved += ChunkRenderer_RegionRemoved;
+        }
 
-            ChunkRenderer.RenderRegionAdded += ChunkRenderer_RenderRegionAdded;
-            ChunkRenderer.RenderRegionRemoved += ChunkRenderer_RenderRegionRemoved;
+        public void RegisterChunkRenderer(
+            Size3 regionSize,
+            Camera? cullCamera,
+            Camera? renderCamera)
+        {
+            _regionSize = regionSize;
+            _cullCamera = cullCamera;
+            _renderCamera = renderCamera;
+
+            //ChunkRenderer.RenderRegionAdded += ChunkRenderer_RenderRegionAdded;
+            //ChunkRenderer.RenderRegionRemoved += ChunkRenderer_RenderRegionRemoved;
         }
 
         private void ChunkRenderer_ChunkAdded(Chunk chunk)
@@ -208,7 +221,7 @@ namespace VoxelPizza.Client
                 return;
             }
 
-            Camera? renderCamera = ChunkRenderer.RenderCamera;
+            Camera? renderCamera = _renderCamera;
             if (renderCamera == null)
             {
                 return;
@@ -262,7 +275,7 @@ namespace VoxelPizza.Client
 
         private unsafe void UpdateCameraBatch()
         {
-            Camera? camera = ChunkRenderer.CullCamera;
+            Camera? camera = _cullCamera;
             if (camera == null)
             {
                 return;
@@ -360,7 +373,7 @@ namespace VoxelPizza.Client
             RgbaByte color0 = new(0, 127, 255, 255);
             RgbaByte color1 = new(127, 0, 255, 255);
 
-            Size3 regionSize = ChunkRenderer.RegionSize;
+            Size3 regionSize = _regionSize;
             Size3f meshSize = regionSize * Chunk.Size;
 
             RenderRegionPosition[] renderRegions;

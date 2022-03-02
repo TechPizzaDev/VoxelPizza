@@ -56,7 +56,7 @@ namespace VoxelPizza.Client
         private WorldManager _worldManager;
         private Dimension _currentDimension;
 
-        public ChunkRenderer ChunkRenderer { get; }
+        public ChunkRenderer? ChunkRenderer { get; }
         public ChunkBorderRenderer ChunkBorderRenderer { get; }
 
         public VoxelPizza() : base(preferredBackend: GraphicsBackend.Vulkan)
@@ -119,16 +119,18 @@ namespace VoxelPizza.Client
 
             MemoryHeap chunkMeshHeap = NativeMemoryHeap.Instance;
             chunkMeshHeap = new HeapPool(chunkMeshHeap, 1024 * 64);
-            ChunkRenderer = new ChunkRenderer(_currentDimension, chunkMeshHeap, new Size3(4, 3, 4));
-            ChunkRenderer.CullCamera = _scene.PrimaryCamera;
-            _scene.AddUpdateable(ChunkRenderer);
-            _scene.AddRenderable(ChunkRenderer);
+            //ChunkRenderer = new ChunkRenderer(_currentDimension, chunkMeshHeap, new Size3(4, 3, 4));
+            //ChunkRenderer.CullCamera = _scene.PrimaryCamera;
+            //_scene.AddUpdateable(ChunkRenderer);
+            //_scene.AddRenderable(ChunkRenderer);
 
-            _worldManager.CreateTestWorld(_currentDimension, true);
-
-            ChunkBorderRenderer = new ChunkBorderRenderer(ChunkRenderer);
+            ChunkBorderRenderer = new ChunkBorderRenderer();
+            ChunkBorderRenderer.RegisterDimension(_currentDimension);
+            //ChunkBorderRenderer.RegisterChunkRenderer()
             _scene.AddUpdateable(ChunkBorderRenderer);
             _scene.AddRenderable(ChunkBorderRenderer);
+
+            _worldManager.CreateTestWorld(_currentDimension, true);
 
             _loadTasks.Add(Task.Run(() =>
             {
@@ -159,7 +161,11 @@ namespace VoxelPizza.Client
 
         private void Scene_CameraChanged(Camera? camera)
         {
-            ChunkRenderer.RenderCamera = camera;
+            ChunkRenderer? renderer = ChunkRenderer;
+            if (renderer != null)
+            {
+                renderer.RenderCamera = camera;
+            }
         }
 
         protected override void WindowResized()
@@ -266,6 +272,17 @@ namespace VoxelPizza.Client
             //audioTest.soloud.seek(audioTest.voicehandle, t + LoudPizza.Time.FromSeconds(0.01));
 
             //_sc.DirectionalLight.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Sin(time.TotalSeconds));
+
+            if (_scene.PrimaryCamera != null)
+            {
+                // TODO: remove this
+
+                Vector3 cullCameraPos = _scene.PrimaryCamera.Position;
+                _currentDimension.PlayerChunkPosition = new BlockPosition(
+                    (int)MathF.Round(cullCameraPos.X),
+                    (int)MathF.Round(cullCameraPos.Y),
+                    (int)MathF.Round(cullCameraPos.Z)).ToChunk();
+            }
 
             if (InputTracker.GetKeyDown(Key.F11))
             {
@@ -395,16 +412,19 @@ namespace VoxelPizza.Client
 
             if (ImGui.Begin("ChunkRenderer control"))
             {
-                if (ImGui.Button("Reupload regions"))
+                ChunkRenderer? renderer = ChunkRenderer;
+                if (renderer != null)
                 {
-                    ChunkRenderer.ReuploadRegions();
-                }
+                    if (ImGui.Button("Reupload regions"))
+                    {
+                        renderer.ReuploadRegions();
+                    }
 
-                if (ImGui.Button("Rebuild chunks"))
-                {
-                    ChunkRenderer.RebuildChunks();
+                    if (ImGui.Button("Rebuild chunks"))
+                    {
+                        renderer.RebuildChunks();
+                    }
                 }
-
                 ImGui.End();
             }
         }
@@ -963,7 +983,7 @@ namespace VoxelPizza.Client
 
         protected override void Dispose(bool disposing)
         {
-            ChunkRenderer.Dispose();
+            ChunkRenderer?.Dispose();
             ChunkBorderRenderer.Dispose();
 
             base.Dispose(disposing);

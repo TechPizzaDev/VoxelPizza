@@ -804,6 +804,20 @@ namespace VoxelPizza.Client
 
                         List<Profiler.Item> items = frameSet.Items;
 
+                        HashSet<string> memberNames = new();
+                        HashSet<string> duplicateMemberNames = new();
+
+                        for (int itemIndex = 0; itemIndex < items.Count; itemIndex++)
+                        {
+                            Profiler.Item item = items[itemIndex];
+
+                            if (parentIndex != item.ParentOffset)
+                                continue;
+
+                            if (!memberNames.Add(item.MemberName))
+                                duplicateMemberNames.Add(item.MemberName);
+                        }
+
                         for (int itemIndex = 0; itemIndex < items.Count; itemIndex++)
                         {
                             Profiler.Item item = items[itemIndex];
@@ -846,7 +860,15 @@ namespace VoxelPizza.Client
                             }
 
                             {
-                                ImGui.Text(item.MemberName);
+                                if (duplicateMemberNames.Contains(item.MemberName))
+                                {
+                                    string fileName = Path.GetFileNameWithoutExtension(item.FilePath);
+                                    ImGui.Text($"{fileName}.{item.MemberName}");
+                                }
+                                else
+                                {
+                                    ImGui.Text(item.MemberName);
+                                }
 
                                 string durationText = item.Duration.TotalMilliseconds.ToString("0.000");
                                 SameLineFor(durationText);

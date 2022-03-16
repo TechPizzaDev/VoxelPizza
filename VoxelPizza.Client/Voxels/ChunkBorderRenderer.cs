@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
+using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
@@ -249,8 +250,10 @@ namespace VoxelPizza.Client
         }
 
         [SkipLocalsInit]
-        public unsafe void Update(in FrameTime time)
+        public unsafe void Update(in UpdateState state)
         {
+            using ProfilerPopToken profilerToken = state.Profiler.Push();
+
             Span<uint> indices = stackalloc uint[ShapeMeshHelper.BoxIndexCount];
             Span<VertexPosition<RgbaByte>> vertices = stackalloc VertexPosition<RgbaByte>[ShapeMeshHelper.BoxMaxVertexCount];
 

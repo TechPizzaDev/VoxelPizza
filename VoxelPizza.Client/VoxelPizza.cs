@@ -246,9 +246,11 @@ namespace VoxelPizza.Client
 
             // Console.WriteLine(((HeapPool)ChunkRenderer.ChunkMeshHeap).AvailableBytes / 1024 + "kB");
 
-            _imGuiRenderable.Update(time);
+            UpdateState updateState = new(time, _sc.Profiler);
 
-            UpdateScene(time);
+            _imGuiRenderable.Update(updateState);
+
+            UpdateScene(updateState);
 
             particlePlane?.Update(time);
 
@@ -290,11 +292,11 @@ namespace VoxelPizza.Client
             }
         }
 
-        private void UpdateScene(in FrameTime time)
+        private void UpdateScene(in UpdateState state)
         {
             using ProfilerPopToken profilerToken = _sc.Profiler.Push();
 
-            _scene.Update(time, _sc);
+            _scene.Update(state, _sc);
         }
 
         public override void Draw()

@@ -413,9 +413,11 @@ namespace VoxelPizza.Client
             _sharedSet.Dispose();
         }
 
-        public void Update(in FrameTime time)
+        public void Update(in UpdateState state)
         {
-            _worldInfo.GlobalTime = time.TotalSeconds;
+            using ProfilerPopToken profilerToken = state.Profiler.Push();
+
+            _worldInfo.GlobalTime = state.Time.TotalSeconds;
 
             ImGuiNET.ImGui.Begin("ChunkRenderer");
             {

@@ -53,11 +53,11 @@ namespace VoxelPizza.Client
             _imGuiRenderer.Render(gd, cl);
         }
 
-        public void Update(in FrameTime time)
+        public void Update(in UpdateState state)
         {
             Debug.Assert(_imGuiRenderer != null);
 
-            _imGuiRenderer.Update(time.DeltaSeconds, InputTracker.FrameSnapshot);
+            _imGuiRenderer.Update(state.Time.DeltaSeconds, InputTracker.FrameSnapshot);
         }
     }
 }

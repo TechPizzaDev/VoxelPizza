@@ -110,14 +110,14 @@ namespace VoxelPizza.Client
             _updateables.Remove(updateable);
         }
 
-        public void Update(in FrameTime time, SceneContext sc)
+        public void Update(in UpdateState state, SceneContext sc)
         {
             foreach (IUpdateable updateable in _updateables)
             {
-                updateable.Update(time);
+                updateable.Update(state);
             }
 
-            sc.CurrentCamera?.Update(time);
+            sc.CurrentCamera?.Update(state);
         }
 
         private readonly Task[] _renderTasks = new Task[4];

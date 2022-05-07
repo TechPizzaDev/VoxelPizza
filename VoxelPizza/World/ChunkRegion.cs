@@ -163,19 +163,19 @@ namespace VoxelPizza.World
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ChunkToRegionX(int chunkX)
         {
-            return chunkX >> 4;
+            return IntMath.DivideRoundDown(chunkX, Width);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ChunkToRegionY(int chunkY)
         {
-            return chunkY >> 4;
+            return IntMath.DivideRoundDown(chunkY, Height);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int ChunkToRegionZ(int chunkZ)
         {
-            return chunkZ >> 4;
+            return IntMath.DivideRoundDown(chunkZ, Depth);
         }
 
         private string GetDebuggerDisplay()

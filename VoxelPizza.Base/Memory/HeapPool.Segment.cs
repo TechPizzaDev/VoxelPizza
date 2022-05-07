@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 namespace VoxelPizza
 {
@@ -40,6 +40,8 @@ namespace VoxelPizza
 
             public void Return(MemoryHeap heap, void* buffer)
             {
+                Debug.Assert(buffer != null);
+
                 lock (_pooled)
                 {
                     if ((uint)_pooled.Count < MaxCount)

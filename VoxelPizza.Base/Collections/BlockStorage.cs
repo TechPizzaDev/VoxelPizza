@@ -39,7 +39,8 @@ namespace VoxelPizza.Collections
         {
             if (Sse2.IsSupported)
             {
-                for (nuint i = 0; i < len / (nuint)Vector128<byte>.Count; i++)
+                nuint i = 0;
+                for (; i + (nuint)Vector128<byte>.Count <= len; i += (nuint)Vector128<byte>.Count)
                 {
                     Vector128<byte> v1_8 = Unsafe.ReadUnaligned<Vector128<byte>>(ref src);
 
@@ -56,11 +57,10 @@ namespace VoxelPizza.Collections
                     Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 2 * (nuint)Unsafe.SizeOf<Vector128<uint>>()), v3_32);
                     Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 3 * (nuint)Unsafe.SizeOf<Vector128<uint>>()), v4_32);
 
-                    src = ref Unsafe.Add(ref src, 4 * (nuint)Unsafe.SizeOf<Vector128<byte>>());
+                    src = ref Unsafe.Add(ref src, 1 * (nuint)Unsafe.SizeOf<Vector128<byte>>());
                     dst = ref Unsafe.Add(ref dst, 4 * (nuint)Unsafe.SizeOf<Vector128<uint>>());
                 }
-
-                len %= (nuint)Vector128<byte>.Count;
+                len -= i;
             }
 
             for (nuint i = 0; i < len / 2; i++)

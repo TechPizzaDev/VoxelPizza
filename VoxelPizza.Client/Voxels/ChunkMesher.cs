@@ -13,6 +13,10 @@ namespace VoxelPizza.Client
         private TextureAnimation[] anims;
         private MeshProvider?[] meshProviders;
 
+        private ByteStore<uint> _indexStore;
+        private ByteStore<ChunkSpaceVertex> _spaceVertexStore;
+        private ByteStore<ChunkPaintVertex> _paintVertexStore;
+
         public MemoryHeap Heap { get; }
 
         public unsafe ChunkMesher(MemoryHeap heap)
@@ -36,26 +40,14 @@ namespace VoxelPizza.Client
                 anims[i] = TextureAnimation.Create(type, stepCount, (rng.NextSingle() + 1) * 2f);
             }
 
-            //TextureAnimation[] anims = new TextureAnimation[]
-            //{
-            //default,
-            //TextureAnimation.Create(TextureAnimationType.Step, 3, 1f),
-            //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1f),
-            //TextureAnimation.Create(TextureAnimationType.Step, 2, 1f),
-            //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1f),
-            //TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.Step, 3, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.MixStep, 3, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.Step, 2, 1.5f),
-            //TextureAnimation.Create(TextureAnimationType.MixStep, 2, 1.5f),
-            //};
+            _indexStore = new(Heap);
+            _spaceVertexStore = new(Heap);
+            _paintVertexStore = new(Heap);
+
+            uint storePrepareCapacity = 1024 * 4;
+            _indexStore.PrepareCapacityFor(storePrepareCapacity * 6);
+            _spaceVertexStore.PrepareCapacityFor(storePrepareCapacity * 4);
+            _paintVertexStore.PrepareCapacityFor(storePrepareCapacity * 4);
         }
 
         [SkipLocalsInit]
@@ -64,22 +56,15 @@ namespace VoxelPizza.Client
             // TODO: chunk/draw layers (seperate mesh provider arrays per layer)?
             //       e.g. this could allow for vertices (including custom) for a "gas" or "fluid" layer 
 
-            uint storePrepareCapacity = 256;
+            _indexStore.Clear();
+            _spaceVertexStore.Clear();
+            _paintVertexStore.Clear();
 
-            ByteStore<uint> indexStore = new(Heap);
-            ByteStore<ChunkSpaceVertex> spaceVertexStore = new(Heap);
-            ByteStore<ChunkPaintVertex> paintVertexStore = new(Heap);
-
-            try
             {
-                indexStore.PrepareCapacityFor(storePrepareCapacity * 6);
-                spaceVertexStore.PrepareCapacityFor(storePrepareCapacity * 4);
-                paintVertexStore.PrepareCapacityFor(storePrepareCapacity * 4);
-
                 ChunkMeshOutput meshOutput = new(
-                    ref indexStore,
-                    ref spaceVertexStore,
-                    ref paintVertexStore,
+                    ref _indexStore,
+                    ref _spaceVertexStore,
+                    ref _paintVertexStore,
                     0);
 
                 Size3 outerSize = worldSlice.OuterSize;
@@ -121,18 +106,11 @@ namespace VoxelPizza.Client
                     }
                 }
 
-                indexStore.Trim();
-                spaceVertexStore.Trim();
-                paintVertexStore.Trim();
-
-                return new ChunkMeshResult(indexStore, spaceVertexStore, paintVertexStore);
-            }
-            catch
-            {
-                indexStore.Dispose();
-                spaceVertexStore.Dispose();
-                paintVertexStore.Dispose();
-                throw;
+                return ChunkMeshResult.CreateCopyFrom(
+                    Heap,
+                    _indexStore,
+                    _spaceVertexStore,
+                    _paintVertexStore);
             }
         }
 

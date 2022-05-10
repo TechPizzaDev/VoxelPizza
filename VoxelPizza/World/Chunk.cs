@@ -10,7 +10,7 @@ namespace VoxelPizza.World
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
     public class Chunk : RefCounted, IBlockStorage
     {
-        public BlockStorage0 EmptyStorage { get; } = new(Width, Height, Depth);
+        public static BlockStorage0 EmptyStorage { get; } = new(Width, Height, Depth);
 
         public const int Width = 16;
         public const int Depth = 16;
@@ -169,8 +169,6 @@ namespace VoxelPizza.World
                                     distSq < thresholdHigh * thresholdHigh)
                                 {
                                     v = (uint)tmp[x + z * Width] + 1;
-                                    if (v > 255)
-                                        v = 255;
                                 }
                             }
 
@@ -181,6 +179,9 @@ namespace VoxelPizza.World
                                 if ((sin + cos) * 0.5f >= blockY)
                                     v = (uint)tmp[x + z * Width] + 1;
                             }
+
+                            if (v > 255)
+                                v = 255;
 
                             //block = v;
                             block8 = (byte)v;
@@ -248,19 +249,19 @@ namespace VoxelPizza.World
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int BlockToChunkX(int blockX)
         {
-            return blockX >> 4;
+            return IntMath.DivideRoundDown(blockX, Width);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int BlockToChunkY(int blockY)
         {
-            return blockY >> 4;
+            return IntMath.DivideRoundDown(blockY, Height);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int BlockToChunkZ(int blockZ)
         {
-            return blockZ >> 4;
+            return IntMath.DivideRoundDown(blockZ, Depth);
         }
 
         public bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType)

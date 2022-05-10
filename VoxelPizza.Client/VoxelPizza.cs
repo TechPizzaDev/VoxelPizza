@@ -124,11 +124,13 @@ namespace VoxelPizza.Client
             _scene.AddUpdateable(ChunkRenderer);
             _scene.AddRenderable(ChunkRenderer);
 
-            _worldManager.CreateTestWorld(_currentDimension, true);
-
-            ChunkBorderRenderer = new ChunkBorderRenderer(ChunkRenderer);
+            ChunkBorderRenderer = new ChunkBorderRenderer();
+            ChunkBorderRenderer.RegisterDimension(_currentDimension);
+            //ChunkBorderRenderer.RegisterChunkRenderer()
             _scene.AddUpdateable(ChunkBorderRenderer);
             _scene.AddRenderable(ChunkBorderRenderer);
+
+            _worldManager.CreateTestWorld(_currentDimension, true);
 
             _loadTasks.Add(Task.Run(() =>
             {
@@ -159,7 +161,11 @@ namespace VoxelPizza.Client
 
         private void Scene_CameraChanged(Camera? camera)
         {
-            ChunkRenderer.RenderCamera = camera;
+            ChunkRenderer? renderer = ChunkRenderer;
+            if (renderer != null)
+            {
+                renderer.RenderCamera = camera;
+            }
         }
 
         protected override void WindowResized()
@@ -240,9 +246,11 @@ namespace VoxelPizza.Client
 
             // Console.WriteLine(((HeapPool)ChunkRenderer.ChunkMeshHeap).AvailableBytes / 1024 + "kB");
 
-            ImGuiRenderable.Update(time);
+            UpdateState updateState = new(time, _sc.Profiler);
 
-            UpdateScene(time);
+            ImGuiRenderable.Update(updateState);
+
+            UpdateScene(updateState);
 
             particlePlane?.Update(time);
 
@@ -267,17 +275,28 @@ namespace VoxelPizza.Client
 
             //_sc.DirectionalLight.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Sin(time.TotalSeconds));
 
+            if (_scene.PrimaryCamera != null)
+            {
+                // TODO: remove this
+
+                Vector3 cullCameraPos = _scene.PrimaryCamera.Position;
+                _currentDimension.PlayerChunkPosition = new BlockPosition(
+                    (int)MathF.Round(cullCameraPos.X),
+                    (int)MathF.Round(cullCameraPos.Y),
+                    (int)MathF.Round(cullCameraPos.Z)).ToChunk();
+            }
+
             if (InputTracker.GetKeyDown(Key.F11))
             {
                 ToggleFullscreenState();
             }
         }
 
-        private void UpdateScene(in FrameTime time)
+        private void UpdateScene(in UpdateState state)
         {
             using ProfilerPopToken profilerToken = _sc.Profiler.Push();
 
-            _scene.Update(time, _sc);
+            _scene.Update(state, _sc);
         }
 
         public override void Draw()
@@ -395,16 +414,19 @@ namespace VoxelPizza.Client
 
             if (ImGui.Begin("ChunkRenderer control"))
             {
-                if (ImGui.Button("Reupload regions"))
+                ChunkRenderer? renderer = ChunkRenderer;
+                if (renderer != null)
                 {
-                    ChunkRenderer.ReuploadRegions();
-                }
+                    if (ImGui.Button("Reupload regions"))
+                    {
+                        renderer.ReuploadRegions();
+                    }
 
-                if (ImGui.Button("Rebuild chunks"))
-                {
-                    ChunkRenderer.RebuildChunks();
+                    if (ImGui.Button("Rebuild chunks"))
+                    {
+                        renderer.RebuildChunks();
+                    }
                 }
-
                 ImGui.End();
             }
         }
@@ -782,6 +804,20 @@ namespace VoxelPizza.Client
 
                         List<Profiler.Item> items = frameSet.Items;
 
+                        HashSet<string> memberNames = new();
+                        HashSet<string> duplicateMemberNames = new();
+
+                        for (int itemIndex = 0; itemIndex < items.Count; itemIndex++)
+                        {
+                            Profiler.Item item = items[itemIndex];
+
+                            if (parentIndex != item.ParentOffset)
+                                continue;
+
+                            if (!memberNames.Add(item.MemberName))
+                                duplicateMemberNames.Add(item.MemberName);
+                        }
+
                         for (int itemIndex = 0; itemIndex < items.Count; itemIndex++)
                         {
                             Profiler.Item item = items[itemIndex];
@@ -824,7 +860,15 @@ namespace VoxelPizza.Client
                             }
 
                             {
-                                ImGui.Text(item.MemberName);
+                                if (duplicateMemberNames.Contains(item.MemberName))
+                                {
+                                    string fileName = Path.GetFileNameWithoutExtension(item.FilePath);
+                                    ImGui.Text($"{fileName}.{item.MemberName}");
+                                }
+                                else
+                                {
+                                    ImGui.Text(item.MemberName);
+                                }
 
                                 string durationText = item.Duration.TotalMilliseconds.ToString("0.000");
                                 SameLineFor(durationText);
@@ -963,7 +1007,7 @@ namespace VoxelPizza.Client
 
         protected override void Dispose(bool disposing)
         {
-            ChunkRenderer.Dispose();
+            ChunkRenderer?.Dispose();
             ChunkBorderRenderer.Dispose();
 
             base.Dispose(disposing);

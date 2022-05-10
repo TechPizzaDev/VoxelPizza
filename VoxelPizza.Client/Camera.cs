@@ -83,9 +83,9 @@ namespace VoxelPizza.Client
 
         public Sdl2ControllerTracker? Controller { get; set; }
 
-        public void Update(in FrameTime time)
+        public void Update(in UpdateState state)
         {
-            float deltaSeconds = time.DeltaSeconds;
+            float deltaSeconds = state.Time.DeltaSeconds;
 
             float sprintFactor = 2.5f;
             if (InputTracker.GetKey(Key.LeftControl))

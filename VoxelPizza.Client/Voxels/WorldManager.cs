@@ -330,7 +330,9 @@ namespace VoxelPizza.Client
 
             if (async)
             {
-                return Task.Run(action);
+                Task task = new(action, TaskCreationOptions.LongRunning);
+                task.Start();
+                return task;
             }
             else
             {

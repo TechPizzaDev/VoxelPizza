@@ -45,7 +45,7 @@ namespace VoxelPizza
                 actualByteCapacity = requestedByteCapacity;
                 return buffer;
             }
-            
+
             actualByteCapacity = requestedByteCapacity;
             if (requestedByteCapacity == 0)
             {
@@ -54,9 +54,11 @@ namespace VoxelPizza
             }
 
             GC.AddMemoryPressure((long)requestedByteCapacity);
-            void* newBuffer= NativeMemory.Realloc(buffer, requestedByteCapacity);
+            void* newBuffer = NativeMemory.Realloc(buffer, requestedByteCapacity);
 
-            GC.RemoveMemoryPressure((long)previousByteCapacity);
+            if (previousByteCapacity != 0)
+                GC.RemoveMemoryPressure((long)previousByteCapacity);
+
             return newBuffer;
         }
     }

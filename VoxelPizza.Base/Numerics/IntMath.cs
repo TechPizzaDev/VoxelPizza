@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -13,7 +14,8 @@ namespace VoxelPizza.Numerics
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int DivideRoundDown(int a, int b)
         {
-            return (a / b) + ((a % b) >> 31);
+            (int q, int r) = Math.DivRem(a, b);
+            return q + (r >> 31);
         }
 
         /// <summary>Returns the integer (ceiling) log of the specified value, base 2.</summary>

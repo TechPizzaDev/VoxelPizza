@@ -242,7 +242,8 @@ namespace VoxelPizza.Client
                     int chunkRemoveRequired = Interlocked.Exchange(ref storedChunk.IsRemoveRequired, 0);
                     if (chunkRemoveRequired == 0)
                     {
-                        BlockMemoryState memoryState = Renderer.FetchBlockMemory(blockBuffer, storedChunk.Position.ToBlock());
+                        BlockMemoryState memoryState = ChunkRenderer.FetchBlockMemory(
+                            Renderer.Dimension, blockBuffer, storedChunk.Position.ToBlock());
 
                         //Size3 o = blockBuffer.OuterSize - blockBuffer.InnerSize;
                         //for (uint z = 0; z < 16; z++)

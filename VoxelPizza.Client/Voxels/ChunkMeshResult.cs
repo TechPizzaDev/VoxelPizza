@@ -101,12 +101,15 @@ namespace VoxelPizza.Client
         {
             if (Heap != null)
             {
-                Heap.Free(_backingByteCapacity, _backingBuffer);
-                _backingBuffer = null;
+                if (_backingBuffer != null)
+                {
+                    Heap.Free(_backingByteCapacity, _backingBuffer);
+                    _backingBuffer = null;
 
-                _indices.Clear();
-                _spaceVertices.Clear();
-                _paintVertices.Clear();
+                    _indices.Clear();
+                    _spaceVertices.Clear();
+                    _paintVertices.Clear();
+                }
             }
             else
             {

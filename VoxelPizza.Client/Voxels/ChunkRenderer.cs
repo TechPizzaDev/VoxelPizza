@@ -413,20 +413,11 @@ namespace VoxelPizza.Client
             _sharedSet.Dispose();
         }
 
-        public void Update(in FrameTime time)
+        public void Update(in UpdateState state)
         {
-            _worldInfo.GlobalTime = time.TotalSeconds;
+            using ProfilerPopToken profilerToken = state.Profiler.Push();
 
-            if (CullCamera != null)
-            {
-                // TODO: remove this
-
-                Vector3 cullCameraPos = CullCamera.Position;
-                Dimension.PlayerChunkPosition = new BlockPosition(
-                    (int)MathF.Round(cullCameraPos.X),
-                    (int)MathF.Round(cullCameraPos.Y),
-                    (int)MathF.Round(cullCameraPos.Z)).ToChunk();
-            }
+            _worldInfo.GlobalTime = state.Time.TotalSeconds;
 
             ImGuiNET.ImGui.Begin("ChunkRenderer");
             {
@@ -652,11 +643,12 @@ namespace VoxelPizza.Client
 
         }
 
-        public BlockMemoryState FetchBlockMemory(BlockMemory memory, BlockPosition origin)
+        public static BlockMemoryState FetchBlockMemory(
+            Dimension dimension, BlockMemory blockBuffer, BlockPosition origin)
         {
-            ref uint data = ref MemoryMarshal.GetArrayDataReference(memory.Data);
-            Size3 outerSize = memory.OuterSize;
-            Size3 innerSize = memory.InnerSize;
+            ref uint data = ref MemoryMarshal.GetArrayDataReference(blockBuffer.Data);
+            Size3 outerSize = blockBuffer.OuterSize;
+            Size3 innerSize = blockBuffer.InnerSize;
             uint xOffset = (outerSize.W - innerSize.W) / 2;
             uint yOffset = (outerSize.H - innerSize.H) / 2;
             uint zOffset = (outerSize.D - innerSize.D) / 2;
@@ -670,10 +662,12 @@ namespace VoxelPizza.Client
             ChunkBoxSliceEnumerator chunkBoxEnumerator = fetchBox.EnumerateChunkBoxSlices();
             int maxChunkCount = chunkBoxEnumerator.GetMaxChunkCount();
 
-            Span<ChunkBoxSlice> chunkBoxes = memory.GetChunkBoxBuffer(maxChunkCount);
-            Span<bool> emptyChunks = memory.GetEmptyChunkBuffer(maxChunkCount);
+            Span<ChunkBoxSlice> chunkBoxes = blockBuffer.GetChunkBoxBuffer(maxChunkCount);
+            Span<bool> emptyChunks = blockBuffer.GetEmptyChunkBuffer(maxChunkCount);
 
             int chunkCount = 0;
+            int emptyCount = 0;
+
             foreach (ChunkBoxSlice chunkBox in chunkBoxEnumerator)
             {
                 chunkBoxes[chunkCount++] = chunkBox;
@@ -682,19 +676,17 @@ namespace VoxelPizza.Client
             chunkBoxes = chunkBoxes[..chunkCount];
             emptyChunks = emptyChunks[..chunkCount];
 
-            emptyChunks.Clear();
-            bool isAllEmpty = true;
-
             for (int i = 0; i < chunkCount; i++)
             {
                 ref ChunkBoxSlice chunkBox = ref chunkBoxes[i];
-                Chunk? chunk = Dimension.GetChunk(chunkBox.Chunk);
+                Chunk? chunk = dimension.GetChunk(chunkBox.Chunk);
                 if (chunk == null || chunk.IsEmpty)
                 {
+                    emptyCount++;
                     emptyChunks[i] = true;
                     continue;
                 }
-                isAllEmpty = false;
+                emptyChunks[i] = false;
 
                 try
                 {
@@ -741,57 +733,52 @@ namespace VoxelPizza.Client
                 }
             }
 
-            if (isAllEmpty)
+            if (emptyCount == chunkCount)
             {
-                memory.Data.AsSpan().Clear();
-                return BlockMemoryState.Zeroed;
+                return BlockMemoryState.Uninitialized;
             }
-            else
+
+            if (emptyCount == 0)
             {
-                for (int i = 0; i < chunkCount; i++)
-                {
-                    if (!emptyChunks[i])
-                    {
-                        continue;
-                    }
-
-                    ref ChunkBoxSlice chunkBox = ref chunkBoxes[i];
-                    nuint outerOriginX = (nuint)chunkBox.OuterOrigin.X;
-                    nuint outerOriginY = (nuint)chunkBox.OuterOrigin.Y;
-                    nuint outerOriginZ = (nuint)chunkBox.OuterOrigin.Z;
-                    nuint outerSizeD = outerSize.D;
-                    nuint outerSizeW = outerSize.W;
-                    nuint innerSizeH = chunkBox.Size.H;
-                    nuint innerSizeD = chunkBox.Size.D;
-                    uint innerSizeW = chunkBox.Size.W;
-
-                    for (nuint y = 0; y < innerSizeH; y++)
-                    {
-                        for (nuint z = 0; z < innerSizeD; z++)
-                        {
-                            nuint outerBaseIndex = BlockMemory.GetIndexBase(
-                                outerSizeD,
-                                outerSizeW,
-                                y + outerOriginY,
-                                z + outerOriginZ)
-                                + outerOriginX;
-
-                            Unsafe.InitBlockUnaligned(
-                                ref Unsafe.As<uint, byte>(ref memory.Data[outerBaseIndex]),
-                                0,
-                                innerSizeW * sizeof(uint));
-                        }
-                    }
-                }
                 return BlockMemoryState.Filled;
             }
-        }
 
-        public BlockMemory FetchBlockMemory(BlockPosition origin, Size3 innerSize, Size3 outerSize)
-        {
-            BlockMemory memory = new(innerSize, outerSize);
-            FetchBlockMemory(memory, origin);
-            return memory;
+            for (int i = 0; i < chunkCount; i++)
+            {
+                if (!emptyChunks[i])
+                {
+                    continue;
+                }
+
+                ref ChunkBoxSlice chunkBox = ref chunkBoxes[i];
+                nuint outerOriginX = (nuint)chunkBox.OuterOrigin.X;
+                nuint outerOriginY = (nuint)chunkBox.OuterOrigin.Y;
+                nuint outerOriginZ = (nuint)chunkBox.OuterOrigin.Z;
+                nuint outerSizeD = outerSize.D;
+                nuint outerSizeW = outerSize.W;
+                nuint innerSizeH = chunkBox.Size.H;
+                nuint innerSizeD = chunkBox.Size.D;
+                uint innerSizeW = chunkBox.Size.W;
+
+                for (nuint y = 0; y < innerSizeH; y++)
+                {
+                    for (nuint z = 0; z < innerSizeD; z++)
+                    {
+                        nuint outerBaseIndex = BlockMemory.GetIndexBase(
+                            outerSizeD,
+                            outerSizeW,
+                            y + outerOriginY,
+                            z + outerOriginZ)
+                            + outerOriginX;
+
+                        Unsafe.InitBlockUnaligned(
+                            ref Unsafe.As<uint, byte>(ref blockBuffer.Data[outerBaseIndex]),
+                            0,
+                            innerSizeW * sizeof(uint));
+                    }
+                }
+            }
+            return BlockMemoryState.Filled;
         }
 
         public Size3 GetBlockMemoryInnerSize()

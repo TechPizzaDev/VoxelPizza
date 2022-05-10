@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 
 namespace VoxelPizza
 {
-
     public unsafe struct ByteStore<T>
         where T : unmanaged
     {

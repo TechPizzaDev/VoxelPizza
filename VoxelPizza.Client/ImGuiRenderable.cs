@@ -12,6 +12,8 @@ namespace VoxelPizza.Client
 
         public override RenderPasses RenderPasses => RenderPasses.Overlay;
 
+        public ImGuiRenderer Renderer => _imGuiRenderer;
+
         public ImGuiRenderable(int width, int height)
         {
             _width = width;

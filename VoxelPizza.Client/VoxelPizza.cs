@@ -35,7 +35,6 @@ namespace VoxelPizza.Client
         private List<FencedCommandList> _commandLists = new();
         private List<FencedCommandList> _submittedCommandLists = new();
 
-        private ImGuiRenderable _imGuiRenderable;
         private FullScreenQuad _fsq;
         private bool _controllerDebugMenu;
 
@@ -60,6 +59,7 @@ namespace VoxelPizza.Client
         private RenderRegionManager _renderRegionManager;
         private RenderRegionRenderer _renderRegionRenderer;
 
+        public ImGuiRenderable ImGuiRenderable { get; }
         public ChunkRenderer? ChunkRenderer { get; }
         public ChunkBorderRenderer ChunkBorderRenderer { get; }
 
@@ -90,9 +90,9 @@ namespace VoxelPizza.Client
             _scene.PrimaryCamera.Yaw = MathF.PI * 1.25f;
             _scene.PrimaryCamera.Pitch = 0;
 
-            _imGuiRenderable = new ImGuiRenderable(Window.Width, Window.Height);
-            _resizeHandled += (w, h) => _imGuiRenderable.WindowResized(w, h);
-            _scene.AddRenderable(_imGuiRenderable);
+            ImGuiRenderable = new ImGuiRenderable(Window.Width, Window.Height);
+            _resizeHandled += (w, h) => ImGuiRenderable.WindowResized(w, h);
+            _scene.AddRenderable(ImGuiRenderable);
 
             ShadowmapDrawer texDrawIndexeder = new(() => Window, () => _sc.NearShadowMapView);
             _resizeHandled += (w, h) => texDrawIndexeder.OnWindowResized();
@@ -269,7 +269,7 @@ namespace VoxelPizza.Client
 
             UpdateState updateState = new(time, _sc.Profiler);
 
-            _imGuiRenderable.Update(updateState);
+            ImGuiRenderable.Update(updateState);
 
             UpdateScene(updateState);
 

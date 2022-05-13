@@ -50,7 +50,7 @@ namespace VoxelPizza.Client
                         //bool a = currentChunks.Add(position);
                         //Debug.Assert(a);
 
-                        //if (position.Y >= -1 && position.Y <= 1)
+                        if (position.Y == 0)
                         {
                             ChunkPosition co = currentPosition - centerOffset;
                             //if (position.Y == 0)

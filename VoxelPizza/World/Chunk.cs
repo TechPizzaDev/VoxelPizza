@@ -114,7 +114,7 @@ namespace VoxelPizza.World
             if (cDistSq <= (thresholdLow - 16) * (thresholdLow - 16) ||
                 cDistSq >= (thresholdHigh + 16) * (thresholdHigh + 16))
             {
-                return false;
+                //return false;
             }
 
             if (!TryGetInline(out Span<byte> blocks8, out BlockStorageType storageType))
@@ -130,6 +130,9 @@ namespace VoxelPizza.World
             seed = seed * 31 + (uint)Y;
             seed = seed * 31 + (uint)Z;
             XoshiroRandom rng = new(seed);
+
+            rng.NextBytes(blocks8.Slice(0, Width * Depth));
+            return true;
 
             if (true)
             {

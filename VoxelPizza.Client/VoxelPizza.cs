@@ -14,6 +14,7 @@ using Veldrid.ImageSharp;
 using Veldrid.Sdl2;
 using Veldrid.Utilities;
 using VoxelPizza.Client.Objects;
+using VoxelPizza.Client.Rendering.Voxels;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
@@ -56,6 +57,9 @@ namespace VoxelPizza.Client
         private WorldManager _worldManager;
         private Dimension _currentDimension;
 
+        private RenderRegionManager _renderRegionManager;
+        private RenderRegionRenderer _renderRegionRenderer;
+
         public ChunkRenderer? ChunkRenderer { get; }
         public ChunkBorderRenderer ChunkBorderRenderer { get; }
 
@@ -82,7 +86,7 @@ namespace VoxelPizza.Client
             _scene.SecondaryCamera.Controller = _controllerTracker;
             _sc.AddCamera(_scene.SecondaryCamera);
 
-            _scene.PrimaryCamera.Position = new Vector3(-6, 24f, -0.43f);
+            _scene.PrimaryCamera.Position = new Vector3(-6, 64f, -0.43f);
             _scene.PrimaryCamera.Yaw = MathF.PI * 1.25f;
             _scene.PrimaryCamera.Pitch = 0;
 
@@ -118,11 +122,22 @@ namespace VoxelPizza.Client
             _currentDimension = _worldManager.CreateDimension();
 
             MemoryHeap chunkMeshHeap = NativeMemoryHeap.Instance;
-            chunkMeshHeap = new HeapPool(chunkMeshHeap, 1024 * 64);
+            chunkMeshHeap = new HeapPool(chunkMeshHeap, 1024 * 64 * 4);
             //ChunkRenderer = new ChunkRenderer(_currentDimension, chunkMeshHeap, new Size3(4, 3, 4));
             //ChunkRenderer.CullCamera = _scene.PrimaryCamera;
             //_scene.AddUpdateable(ChunkRenderer);
             //_scene.AddRenderable(ChunkRenderer);
+
+            _renderRegionManager = new RenderRegionManager(_currentDimension, chunkMeshHeap, new Size3(4, 3, 4));
+            _scene.AddUpdateable(_renderRegionManager);
+
+            _renderRegionRenderer = new RenderRegionRenderer(_renderRegionManager);
+            _scene.AddUpdateable(_renderRegionRenderer);
+            _scene.AddRenderable(_renderRegionRenderer);
+
+            _renderRegionManager.RegionAdded += (region) => _renderRegionRenderer.AddRegion(region.Position);
+            _renderRegionManager.RegionUpdated += (region) => _renderRegionRenderer.UpdateRegion(region.Position);
+            _renderRegionManager.RegionRemoved += (region) => _renderRegionRenderer.RemoveRegion(region.Position);
 
             ChunkBorderRenderer = new ChunkBorderRenderer();
             ChunkBorderRenderer.RegisterDimension(_currentDimension);
@@ -165,6 +180,12 @@ namespace VoxelPizza.Client
             if (renderer != null)
             {
                 renderer.RenderCamera = camera;
+            }
+
+            RenderRegionRenderer? renderRegionRenderer = _renderRegionRenderer;
+            if (renderRegionRenderer != null)
+            {
+                renderRegionRenderer.RenderCamera = camera;
             }
         }
 
@@ -793,6 +814,11 @@ namespace VoxelPizza.Client
             {
                 if (ImGui.Begin("Profiler"))
                 {
+                    if (_renderRegionManager.ChunkMeshHeap is HeapPool heapPool)
+                    {
+                        ImGui.Text((heapPool.AvailableBytes / 1024) + "kB");
+                    }
+
                     void SameLineFor(string text)
                     {
                         ImGui.SameLine(ImGui.GetWindowContentRegionWidth() - ImGui.CalcTextSize(text).X + 8);

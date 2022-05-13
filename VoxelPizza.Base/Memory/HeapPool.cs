@@ -11,7 +11,7 @@ namespace VoxelPizza
 
         private const uint MinMask = ~0u >> (32 - MinRangeBits);
 
-        private const nuint StepSize = 4096;
+        private const nuint StepSize = 1024 * 8;
 
         public ulong AvailableBytes
         {
@@ -39,7 +39,7 @@ namespace VoxelPizza
             {
                 nuint blockSize = GetBlockSizeAt((nuint)i);
                 //uint maxCount = Math.Max(4u, 1024u >> Math.Max(0, i - 6));
-                uint maxCount = Math.Max(512 / (uint)(i / 2 + 1), 4);
+                uint maxCount = Math.Max(2048 / (uint)(i + 1), 4);
 
                 _segments[i] = new Segment(blockSize, maxCount);
             }

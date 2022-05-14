@@ -8,7 +8,8 @@ namespace VoxelPizza.Numerics
     {
         public static int Abs(int x)
         {
-            return (x ^ (x >> 31)) - (x >> 31);
+            int sign = x >> 31;
+            return (x ^ sign) - sign;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

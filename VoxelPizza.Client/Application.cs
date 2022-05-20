@@ -128,14 +128,14 @@ namespace VoxelPizza.Client
             _previousTicks = Stopwatch.GetTimestamp();
 
             PumpSdlEvents();
-            if (RunOnce())
+            if (RunOnce(true))
             {
                 Window.Visible = true;
 
                 while (Window.Exists)
                 {
                     PumpSdlEvents();
-                    if (!RunOnce())
+                    if (!RunOnce(false))
                         break;
                 }
             }
@@ -144,11 +144,11 @@ namespace VoxelPizza.Client
             _graphicsDevice = null!;
         }
 
-        public bool RunOnce()
+        public bool RunOnce(bool forceDraw)
         {
             try
             {
-                return RunBody();
+                return RunBody(forceDraw);
             }
             finally
             {
@@ -156,7 +156,7 @@ namespace VoxelPizza.Client
             }
         }
 
-        protected virtual bool RunBody()
+        protected virtual bool RunBody(bool forceDraw)
         {
             if (_inRun)
             {
@@ -187,13 +187,13 @@ namespace VoxelPizza.Client
                     return false;
                 }
 
-                if (!Window.Exists || _graphicsDevice == null)
+                if (!forceDraw && !Window.Exists || _graphicsDevice == null)
                 {
                     return false;
                 }
 
                 WindowState windowState = Window.WindowState;
-                bool hasSurface = windowState is not WindowState.Minimized and not WindowState.Hidden;
+                bool hasSurface = forceDraw || windowState is not WindowState.Minimized and not WindowState.Hidden;
 
                 if (time.IsActive)
                 {
@@ -341,7 +341,7 @@ namespace VoxelPizza.Client
         {
             if (!_inRun)
             {
-                RunOnce();
+                RunOnce(false);
             }
         }
 

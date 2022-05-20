@@ -228,13 +228,13 @@ namespace VoxelPizza.Client
             _scene.PrimaryCamera.UpdateGraphicsBackend(GraphicsDevice, Window);
         }
 
-        protected override bool RunBody()
+        protected override bool RunBody(bool forceDraw)
         {
             Profiler? profiler = _sc.Profiler;
             profiler?.Start();
             try
             {
-                return base.RunBody();
+                return base.RunBody(forceDraw);
             }
             finally
             {

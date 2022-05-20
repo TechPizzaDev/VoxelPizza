@@ -1,9 +1,11 @@
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
-    public readonly struct ChunkBox
+    public readonly partial struct ChunkBox : IEnumerable<ChunkPosition>
     {
         public ChunkPosition Origin { get; }
         public ChunkPosition Max { get; }
@@ -53,13 +55,28 @@ namespace VoxelPizza.World
 
         public bool Contains(ChunkPosition position)
         {
-            return 
+            return
                 position.X >= Origin.X &&
                 position.Y >= Origin.Y &&
                 position.Z >= Origin.Z &&
                 position.X < Max.X &&
                 position.Y < Max.Y &&
                 position.Z < Max.Z;
+        }
+
+        public Enumerator GetEnumerator()
+        {
+            return new Enumerator(Origin, Max);
+        }
+
+        IEnumerator<ChunkPosition> IEnumerable<ChunkPosition>.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
     }
 }

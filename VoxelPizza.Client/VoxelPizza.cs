@@ -269,6 +269,8 @@ namespace VoxelPizza.Client
 
             UpdateState updateState = new(time, _sc.Profiler);
 
+            _currentDimension.Update();
+
             ImGuiRenderable.Update(updateState);
 
             UpdateScene(updateState);

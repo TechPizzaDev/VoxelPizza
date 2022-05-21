@@ -30,6 +30,18 @@ namespace VoxelPizza
             }
             return count;
         }
+
+        ~RefCounted()
+        {
+            if (_refCount != 0)
+            {
+                LeakAtFinalizer();
+            }
+        }
+
+        protected virtual void LeakAtFinalizer()
+        {
+        }
     }
 
     public enum RefCountType

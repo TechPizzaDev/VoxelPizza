@@ -15,7 +15,8 @@ namespace VoxelPizza.World
 
         public static Size3 Size => new(Width, Height, Depth);
 
-        private Chunk?[] _chunks;
+        private Chunk?[]? _chunks;
+        private int _chunkCount;
         private ReaderWriterLockSlim _chunkLock = new();
         private ChunkAction _cachedChunkUpdated;
         private RefCountedAction _cachedChunkRefZeroed;
@@ -26,6 +27,9 @@ namespace VoxelPizza.World
         public event ChunkAction? ChunkAdded;
         public event ChunkAction? ChunkUpdated;
         public event ChunkAction? ChunkRemoved;
+        public event ChunkRegionAction? Empty;
+
+        public bool HasChunks => _chunkCount > 0;
 
         public ChunkRegion(Dimension dimension, ChunkRegionPosition position)
         {
@@ -48,7 +52,13 @@ namespace VoxelPizza.World
             _chunkLock.EnterReadLock();
             try
             {
-                Chunk? chunk = _chunks[index];
+                Chunk?[]? chunks = _chunks;
+                if (chunks == null)
+                {
+                    return null;
+                }
+
+                Chunk? chunk = chunks[index];
                 chunk?.IncrementRef();
                 return chunk;
             }
@@ -70,24 +80,30 @@ namespace VoxelPizza.World
             return GetLocalChunk(localPosition);
         }
 
-        public Chunk CreateChunk(ChunkPosition position)
+        public ChunkAddStatus CreateChunk(ChunkPosition position, out Chunk? chunk)
         {
             ChunkPosition localPosition = GetLocalChunkPosition(position);
             int index = GetChunkIndex(localPosition);
 
-            Chunk? chunk = GetLocalChunk(index);
+            chunk = GetLocalChunk(index);
             if (chunk != null)
             {
                 // GetLocalChunk increments refcount
-                return chunk;
+                return ChunkAddStatus.Success;
             }
 
             _chunkLock.EnterWriteLock();
             try
             {
+                Chunk?[]? chunks = _chunks;
+                if (chunks == null)
+                {
+                    return ChunkAddStatus.MissingRegion;
+                }
+
                 // Check again after acquiring lock,
                 // as a chunk may have been created while we were waiting.
-                chunk = _chunks[index];
+                chunk = chunks[index];
                 if (chunk == null)
                 {
                     chunk = new Chunk(this, position);
@@ -95,17 +111,19 @@ namespace VoxelPizza.World
                     chunk.RefZeroed += _cachedChunkRefZeroed;
                     chunk.IncrementRef(RefCountType.Container);
 
-                    _chunks[index] = chunk;
+                    chunks[index] = chunk;
+                    _chunkCount++;
+
                     ChunkAdded?.Invoke(chunk);
                 }
+
+                chunk.IncrementRef();
+                return ChunkAddStatus.Success;
             }
             finally
             {
                 _chunkLock.ExitWriteLock();
             }
-
-            chunk.IncrementRef();
-            return chunk;
         }
 
         public ChunkRemoveStatus RemoveChunk(ChunkPosition position)
@@ -116,19 +134,28 @@ namespace VoxelPizza.World
             _chunkLock.EnterWriteLock();
             try
             {
-                Chunk? chunk = _chunks[index];
+                Chunk?[]? chunks = _chunks;
+                if (chunks == null)
+                {
+                    return ChunkRemoveStatus.MissingRegion;
+                }
+
+                Chunk? chunk = chunks[index];
                 if (chunk == null)
                 {
                     return ChunkRemoveStatus.MissingChunk;
                 }
 
-                // Invoke event before decrementing ref to let
-                // others delay the unload.
-                ChunkRemoved?.Invoke(chunk);
+                DecrementChunkRef(chunk);
 
-                chunk.DecrementRef(RefCountType.Container);
+                chunks[index] = null;
+                _chunkCount--;
 
-                _chunks[index] = null;
+                if (_chunkCount == 0)
+                {
+                    Empty?.Invoke(this);
+                }
+
                 return ChunkRemoveStatus.Success;
             }
             finally
@@ -137,12 +164,23 @@ namespace VoxelPizza.World
             }
         }
 
+        private void DecrementChunkRef(Chunk chunk)
+        {
+            // Invoke event before decrementing ref to let
+            // others delay the unload.
+            ChunkRemoved?.Invoke(chunk);
+
+            chunk.DecrementRef(RefCountType.Container);
+        }
+
         private void Chunk_RefCountZero(RefCounted instance)
         {
             Chunk chunk = (Chunk)instance;
 
             chunk.Updated -= _cachedChunkUpdated;
             chunk.RefZeroed -= _cachedChunkRefZeroed;
+
+            chunk.Destroy();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -181,6 +219,27 @@ namespace VoxelPizza.World
         private string GetDebuggerDisplay()
         {
             return $"{nameof(ChunkRegion)}({Position.ToNumericString()})";
+        }
+
+        public void Destroy()
+        {
+            if (_chunks != null)
+            {
+                foreach (Chunk? chunk in _chunks)
+                {
+                    if (chunk != null)
+                    {
+                        DecrementChunkRef(chunk);
+                    }
+                }
+
+                _chunks = null;
+            }
+        }
+
+        protected override void LeakAtFinalizer()
+        {
+            // TODO:
         }
     }
 }

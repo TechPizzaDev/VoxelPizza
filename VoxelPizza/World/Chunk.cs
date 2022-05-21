@@ -276,5 +276,15 @@ namespace VoxelPizza.World
         {
             return $"{nameof(Chunk)}<{_storage.ToSimpleString()}>({Position.ToNumericString()})";
         }
+
+        public void Destroy()
+        {
+            _storage = null!;
+        }
+
+        protected override void LeakAtFinalizer()
+        {
+            // TODO:
+        }
     }
 }

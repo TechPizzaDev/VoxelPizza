@@ -7,6 +7,8 @@ namespace VoxelPizza.Numerics
     [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
     public struct Size3 : IEquatable<Size3>
     {
+        public static Size3 Zero => default;
+
         public uint W;
         public uint H;
         public uint D;
@@ -87,6 +89,16 @@ namespace VoxelPizza.Numerics
         public static Size3 operator -(Size3 left, Size3 right)
         {
             return new Size3(left.W - right.W, left.H - right.H, left.D - right.D);
+        }
+
+        public static bool operator ==(Size3 left, Size3 right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(Size3 left, Size3 right)
+        {
+            return !(left == right);
         }
     }
 }

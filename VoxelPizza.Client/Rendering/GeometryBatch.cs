@@ -119,6 +119,12 @@ namespace VoxelPizza.Client
             PushBuffers();
         }
 
+        public void Clear()
+        {
+            Begin();
+            End();
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EnsureExtraCapacity(uint extraLength, string? paramName)
         {

@@ -86,7 +86,7 @@ namespace VoxelPizza.Client
             _scene.SecondaryCamera.Controller = _controllerTracker;
             _sc.AddCamera(_scene.SecondaryCamera);
 
-            _scene.PrimaryCamera.Position = new Vector3(-6, 64f, -0.43f);
+            _scene.PrimaryCamera.Position = new Vector3(16, 16, 16);
             _scene.PrimaryCamera.Yaw = MathF.PI * 1.25f;
             _scene.PrimaryCamera.Pitch = 0;
 
@@ -141,7 +141,6 @@ namespace VoxelPizza.Client
 
             ChunkBorderRenderer = new ChunkBorderRenderer();
             ChunkBorderRenderer.RegisterDimension(_currentDimension);
-            //ChunkBorderRenderer.RegisterChunkRenderer()
             _scene.AddUpdateable(ChunkBorderRenderer);
             _scene.AddRenderable(ChunkBorderRenderer);
 
@@ -186,6 +185,11 @@ namespace VoxelPizza.Client
             if (renderRegionRenderer != null)
             {
                 renderRegionRenderer.RenderCamera = camera;
+
+                ChunkBorderRenderer.RegisterChunkRenderer(
+                    _renderRegionRenderer.RegionSize,
+                    renderRegionRenderer.CullCamera,
+                    renderRegionRenderer.RenderCamera);
             }
         }
 
@@ -853,6 +857,13 @@ namespace VoxelPizza.Client
                             if (parentIndex != item.ParentOffset)
                                 continue;
 
+                            string memberName = item.MemberName;
+                            if (duplicateMemberNames.Contains(memberName))
+                            {
+                                string fileName = Path.GetFileNameWithoutExtension(item.FilePath);
+                                memberName = $"{fileName}.{memberName}";
+                            }
+
                             if (setIndex + 1 < frameSets.Count)
                             {
                                 bool hasMatchingSubItems = false;
@@ -867,7 +878,7 @@ namespace VoxelPizza.Client
 
                                 if (hasMatchingSubItems)
                                 {
-                                    if (ImGui.CollapsingHeader(item.MemberName))
+                                    if (ImGui.CollapsingHeader(memberName))
                                     {
                                         string durationText = item.Duration.TotalMilliseconds.ToString("0.000");
                                         SameLineFor(durationText);
@@ -888,15 +899,7 @@ namespace VoxelPizza.Client
                             }
 
                             {
-                                if (duplicateMemberNames.Contains(item.MemberName))
-                                {
-                                    string fileName = Path.GetFileNameWithoutExtension(item.FilePath);
-                                    ImGui.Text($"{fileName}.{item.MemberName}");
-                                }
-                                else
-                                {
-                                    ImGui.Text(item.MemberName);
-                                }
+                                ImGui.Text(memberName);
 
                                 string durationText = item.Duration.TotalMilliseconds.ToString("0.000");
                                 SameLineFor(durationText);

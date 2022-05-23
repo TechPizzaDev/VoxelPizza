@@ -15,6 +15,8 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
         private ConcurrentQueue<ChunkChange> _chunkChanges = new();
         private Dictionary<RenderRegionPosition, LogicalRegion> _regions = new();
+        private LogicalRegion[] _regionArray = Array.Empty<LogicalRegion>();
+        private int[] _regionDistanceArray = Array.Empty<int>();
 
         public Dimension Dimension { get; }
         public MemoryHeap ChunkMeshHeap { get; }
@@ -145,7 +147,12 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 bool wasBroken = false;
 
                 _updateWatch.Restart();
-                foreach (LogicalRegion region in _regions.Values)
+
+                ChunkPosition origin = Dimension.PlayerChunkPosition;
+
+                Span<LogicalRegion> sortedRegions = GetSortedRegions(origin);
+
+                foreach (LogicalRegion region in sortedRegions)
                 {
                     bool updated = region.Update(Dimension, _blockBuffer, ChunkMesher);
                     if (updated)
@@ -166,6 +173,43 @@ namespace VoxelPizza.Client.Rendering.Voxels
                     _pendingRegionUpdate = false;
                 }
             }
+        }
+
+        private Span<LogicalRegion> GetSortedRegions(ChunkPosition origin)
+        {
+            int count = _regions.Values.Count;
+            if (_regionArray.Length < count)
+            {
+                int newSize = (count + 63) / 64 * 64;
+                Array.Resize(ref _regionArray, newSize);
+                Array.Resize(ref _regionDistanceArray, newSize);
+            }
+
+            _regions.Values.CopyTo(_regionArray, 0);
+
+            Span<LogicalRegion> regions = _regionArray.AsSpan(0, count);
+            Span<int> regionDistances = _regionDistanceArray.AsSpan(0, count);
+
+            ChunkPosition offsetOrigin = origin - new ChunkPosition(
+                (int)(RegionSize.W / 2),
+                (int)(RegionSize.H / 2),
+                (int)(RegionSize.D / 2));
+
+            for (int i = 0; i < regions.Length; i++)
+            {
+                regionDistances[i] = GetDistance(regions[i].Position.ToChunk(RegionSize), offsetOrigin);
+            }
+            regionDistances.Sort(regions);
+
+            return regions;
+        }
+
+        private static int GetDistance(ChunkPosition left, ChunkPosition right)
+        {
+            int dx = IntMath.Abs(right.X - left.X);
+            int dy = IntMath.Abs(right.Y - left.Y);
+            int dz = IntMath.Abs(right.Z - left.Z);
+            return dx + dy + dz;
         }
 
         private void Dimension_ChunkAdded(Chunk chunk)

@@ -7,47 +7,47 @@ using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
-    public struct ChunkBoxSliceEnumerator : IEnumerator<ChunkBoxSlice>
+    public struct ChunkRegionBoxSliceEnumerator : IEnumerator<ChunkRegionBoxSlice>
     {
         private int processedY;
-        private int blockY;
         private int chunkY;
+        private int regionY;
         private int innerY;
         private int height;
 
         private int processedZ;
-        private int blockZ;
         private int chunkZ;
+        private int regionZ;
         private int innerZ;
         private int depth;
 
         private int processedX;
-        private int blockX;
         private int chunkX;
+        private int regionX;
         private int width;
 
-        public BlockPosition Origin { get; }
+        public ChunkPosition Origin { get; }
         public Size3 Size { get; }
-        public BlockPosition Max { get; }
+        public ChunkPosition Max { get; }
 
-        public readonly ChunkPosition CurrentChunk => new(chunkX, chunkY, chunkZ);
+        public readonly ChunkRegionPosition CurrentRegion => new(regionX, regionY, regionZ);
 
-        public readonly BlockPosition CurrentInnerOrigin
+        public readonly ChunkPosition CurrentInnerOrigin
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => new(
-                (int)((uint)blockX % Chunk.Width),
+                (int)((uint)chunkX % ChunkRegion.Width),
                 innerY,
                 innerZ);
         }
 
-        public readonly BlockPosition CurrentOuterOrigin
+        public readonly ChunkPosition CurrentOuterOrigin
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => new(
-                blockX - Origin.X,
-                blockY - Origin.Y,
-                blockZ - Origin.Z);
+                chunkX - Origin.X,
+                chunkY - Origin.Y,
+                chunkZ - Origin.Z);
         }
 
         public readonly Size3 CurrentSize
@@ -60,53 +60,45 @@ namespace VoxelPizza.World
             }
         }
 
-        public readonly ChunkBoxSlice Current
+        public readonly ChunkRegionBoxSlice Current
         {
             get
             {
-                ChunkPosition chunk = CurrentChunk;
-                BlockPosition outerOrigin = CurrentOuterOrigin;
-                BlockPosition innerOrigin = CurrentInnerOrigin;
+                ChunkRegionPosition region = CurrentRegion;
+                ChunkPosition outerOrigin = CurrentOuterOrigin;
+                ChunkPosition innerOrigin = CurrentInnerOrigin;
                 Size3 size = CurrentSize;
-                return new ChunkBoxSlice(chunk, outerOrigin, innerOrigin, size);
+                return new ChunkRegionBoxSlice(region, outerOrigin, innerOrigin, size);
             }
         }
 
         readonly object IEnumerator.Current => Current;
 
-        public ChunkBoxSliceEnumerator(BlockPosition origin, BlockPosition max) : this()
+        public ChunkRegionBoxSliceEnumerator(ChunkPosition origin, ChunkPosition max) : this()
         {
             Origin = origin;
             Max = max;
 
-            BlockPosition size = max - origin;
+            ChunkPosition size = max - origin;
             Size = new Size3((uint)size.X, (uint)size.Y, (uint)size.Z);
 
             UpdateY();
             UpdateZ();
         }
 
-        public readonly ChunkBoxSliceEnumerator GetEnumerator()
+        public readonly ChunkRegionBoxSliceEnumerator GetEnumerator()
         {
             return this;
         }
 
-        public readonly int GetMaxChunkCount()
-        {
-            uint w = Size.W / Chunk.Width + 2;
-            uint h = Size.H / Chunk.Height + 2;
-            uint d = Size.D / Chunk.Depth + 2;
-            return (int)(w * h * d);
-        }
-
         private void UpdateY()
         {
-            blockY = Origin.Y + processedY;
-            chunkY = Chunk.BlockToChunkY(blockY);
-            innerY = (int)((uint)blockY % Chunk.Height);
+            chunkY = Origin.Y + processedY;
+            regionY = ChunkRegion.ChunkToRegionY(chunkY);
+            innerY = (int)((uint)chunkY % ChunkRegion.Height);
 
-            int min1Y = chunkY * Chunk.Height;
-            int max1Y = min1Y + Chunk.Height;
+            int min1Y = regionY * ChunkRegion.Height;
+            int max1Y = min1Y + ChunkRegion.Height;
             int bottomSide = Math.Max(min1Y, Origin.Y);
             int topSide = Math.Min(max1Y, Max.Y);
             height = topSide - bottomSide;
@@ -114,12 +106,12 @@ namespace VoxelPizza.World
 
         private void UpdateZ()
         {
-            blockZ = Origin.Z + processedZ;
-            chunkZ = Chunk.BlockToChunkZ(blockZ);
-            innerZ = (int)((uint)blockZ % Chunk.Depth);
+            chunkZ = Origin.Z + processedZ;
+            regionZ = ChunkRegion.ChunkToRegionZ(chunkZ);
+            innerZ = (int)((uint)chunkZ % ChunkRegion.Depth);
 
-            int min1Z = chunkZ * Chunk.Depth;
-            int max1Z = min1Z + Chunk.Depth;
+            int min1Z = regionZ * ChunkRegion.Depth;
+            int max1Z = min1Z + ChunkRegion.Depth;
             int backSide = Math.Max(min1Z, Origin.Z);
             int frontSide = Math.Min(max1Z, Max.Z);
             depth = frontSide - backSide;
@@ -133,11 +125,11 @@ namespace VoxelPizza.World
                 {
                     while (processedX < Size.W)
                     {
-                        blockX = Origin.X + processedX;
-                        chunkX = Chunk.BlockToChunkX(blockX);
+                        chunkX = Origin.X + processedX;
+                        regionX = ChunkRegion.ChunkToRegionX(chunkX);
 
-                        int min1X = chunkX * Chunk.Width;
-                        int max1X = min1X + Chunk.Width;
+                        int min1X = regionX * ChunkRegion.Width;
+                        int max1X = min1X + ChunkRegion.Width;
                         int leftSide = Math.Max(min1X, Origin.X);
                         int rightSide = Math.Min(max1X, Max.X);
                         width = rightSide - leftSide;
@@ -172,9 +164,9 @@ namespace VoxelPizza.World
             processedZ = 0;
             UpdateZ();
 
-            blockX = 0;
             processedX = 0;
             chunkX = 0;
+            regionX = 0;
             width = 0;
         }
 

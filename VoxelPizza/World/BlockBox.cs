@@ -105,12 +105,12 @@ namespace VoxelPizza.World
 
         public ChunkBoxSliceEnumerator EnumerateChunkBoxSlices()
         {
-            return new ChunkBoxSliceEnumerator(Origin, Size);
+            return new ChunkBoxSliceEnumerator(Origin, Max);
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Origin, Size);
+            return HashCode.Combine(Origin, Max);
         }
 
         public override string ToString()

@@ -36,7 +36,8 @@ namespace VoxelPizza.Diagnostics
         public void Push(
             string memberName,
             string filePath,
-            int lineNumber)
+            int lineNumber,
+            StackFrame? frame = null)
         {
             TimeSpan timeOfPush = _watch.Elapsed;
 
@@ -60,7 +61,7 @@ namespace VoxelPizza.Diagnostics
             item.TimeOfPush = timeOfPush;
             item.TimeOfPop = default;
 
-            item.Frame = default;
+            item.Frame = frame;
             item.MemberName = memberName;
             item.FilePath = filePath;
             item.LineNumber = lineNumber;

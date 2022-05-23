@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -12,6 +13,13 @@ namespace VoxelPizza.Client
 {
     public partial class ChunkBorderRenderer : Renderable, IUpdateable
     {
+        private enum EventType
+        {
+            Add, Update, Remove
+        }
+
+        private record struct Event<T>(EventType Type, T Position);
+
         private GeometryBatch<VertexPosition<RgbaByte>> _cameraBatch;
         private GeometryBatch<VertexPosition<RgbaByte>> _chunkBatch;
         private GeometryBatch<VertexPosition<RgbaByte>> _chunkRegionBatch;
@@ -22,6 +30,10 @@ namespace VoxelPizza.Client
         private bool _chunksNeedUpdate;
         private bool _chunkRegionsNeedUpdate;
         private bool _renderRegionsNeedUpdate;
+
+        private ConcurrentQueue<Event<ChunkPosition>> _chunkEvents = new();
+        private ConcurrentQueue<Event<ChunkRegionPosition>> _chunkRegionEvents = new();
+        private ConcurrentQueue<Event<RenderRegionPosition>> _renderRegionEvents = new();
 
         private Size3 _regionSize;
         private Camera? _cullCamera;
@@ -78,77 +90,56 @@ namespace VoxelPizza.Client
 
         private void ChunkRenderer_ChunkAdded(Chunk chunk)
         {
+            if (!DrawChunks)
+                return;
+
             if (!chunk.IsEmpty)
-            {
-                lock (_chunks)
-                {
-                    _chunks.Add(chunk.Position);
-                    _chunksNeedUpdate = true;
-                }
-            }
+                _chunkEvents.Enqueue(new(EventType.Add, chunk.Position));
         }
 
         private void ChunkRenderer_ChunkUpdated(Chunk chunk)
         {
-            lock (_chunks)
+            if (!DrawChunks)
+                return;
+
+            if (!chunk.IsEmpty)
             {
-                if (!chunk.IsEmpty)
-                {
-                    if (_chunks.Add(chunk.Position))
-                        _chunksNeedUpdate = true;
-                }
-                else
-                {
-                    if (_chunks.Remove(chunk.Position))
-                        _chunksNeedUpdate = true;
-                }
+                _chunkEvents.Enqueue(new(EventType.Update, chunk.Position));
+            }
+            else
+            {
+                _chunkEvents.Enqueue(new(EventType.Remove, chunk.Position));
             }
         }
 
         private void ChunkRenderer_ChunkRemoved(Chunk chunk)
         {
-            lock (_chunks)
-            {
-                _chunks.Remove(chunk.Position);
-                _chunksNeedUpdate = true;
-            }
+            if (DrawChunks)
+                _chunkEvents.Enqueue(new(EventType.Remove, chunk.Position));
         }
 
         private void ChunkRenderer_RegionAdded(ChunkRegion chunkRegion)
         {
-            lock (_chunkRegions)
-            {
-                _chunkRegions.Add(chunkRegion.Position);
-                _chunkRegionsNeedUpdate = true;
-            }
+            if (DrawChunkRegions)
+                _chunkRegionEvents.Enqueue(new(EventType.Add, chunkRegion.Position));
         }
 
         private void ChunkRenderer_RegionRemoved(ChunkRegion chunkRegion)
         {
-            lock (_chunkRegions)
-            {
-                _chunkRegions.Remove(chunkRegion.Position);
-                _chunkRegionsNeedUpdate = true;
-            }
+            if (DrawChunkRegions)
+                _chunkRegionEvents.Enqueue(new(EventType.Remove, chunkRegion.Position));
         }
-
 
         private void ChunkRenderer_RenderRegionAdded(ChunkMeshRegion chunkRegion)
         {
-            lock (_renderRegions)
-            {
-                _renderRegions.Add(chunkRegion.Position);
-                _renderRegionsNeedUpdate = true;
-            }
+            if (DrawRenderRegions)
+                _renderRegionEvents.Enqueue(new(EventType.Add, chunkRegion.Position));
         }
 
         private void ChunkRenderer_RenderRegionRemoved(ChunkMeshRegion chunkRegion)
         {
-            lock (_renderRegions)
-            {
-                _renderRegions.Remove(chunkRegion.Position);
-                _renderRegionsNeedUpdate = true;
-            }
+            if (DrawRenderRegions)
+                _renderRegionEvents.Enqueue(new(EventType.Remove, chunkRegion.Position));
         }
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
@@ -257,23 +248,61 @@ namespace VoxelPizza.Client
             Span<uint> indices = stackalloc uint[ShapeMeshHelper.BoxIndexCount];
             Span<VertexPosition<RgbaByte>> vertices = stackalloc VertexPosition<RgbaByte>[ShapeMeshHelper.BoxMaxVertexCount];
 
-            if (DrawChunks && _chunksNeedUpdate)
+            if (DrawChunks)
             {
-                UpdateChunkBatch(indices, vertices);
-                _chunksNeedUpdate = false;
+                _chunksNeedUpdate |= PumpEvents(_chunkEvents, _chunks, state.Profiler);
+                if (_chunksNeedUpdate)
+                {
+                    UpdateChunkBatch(indices, vertices);
+                    _chunksNeedUpdate = false;
+                }
             }
 
-            if (DrawChunkRegions && _chunkRegionsNeedUpdate)
+            if (DrawChunkRegions)
             {
-                UpdateChunkRegionBatch(indices, vertices);
-                _chunkRegionsNeedUpdate = false;
+                _chunkRegionsNeedUpdate |= PumpEvents(_chunkRegionEvents, _chunkRegions, state.Profiler);
+                if (_chunkRegionsNeedUpdate)
+                {
+                    UpdateChunkRegionBatch(indices, vertices);
+                    _chunkRegionsNeedUpdate = false;
+                }
             }
 
-            if (DrawRenderRegions && _renderRegionsNeedUpdate)
+            if (DrawRenderRegions)
             {
-                UpdateRenderRegionBatch(indices, vertices);
-                _renderRegionsNeedUpdate = false;
+                _renderRegionsNeedUpdate |= PumpEvents(_renderRegionEvents, _renderRegions, state.Profiler);
+                if (_renderRegionsNeedUpdate)
+                {
+                    UpdateRenderRegionBatch(indices, vertices);
+                    _renderRegionsNeedUpdate = false;
+                }
             }
+        }
+
+        private static bool PumpEvents<T>(ConcurrentQueue<Event<T>> queue, HashSet<T> set, Profiler? profiler)
+        {
+            using ProfilerPopToken profilerToken = profiler.Push();
+
+            bool changed = false;
+
+            while (queue.TryDequeue(out Event<T> ev))
+            {
+                switch (ev.Type)
+                {
+                    case EventType.Add:
+                    case EventType.Update:
+                        if (set.Add(ev.Position))
+                            changed = true;
+                        break;
+
+                    case EventType.Remove:
+                        if (set.Remove(ev.Position))
+                            changed = true;
+                        break;
+                }
+            }
+
+            return changed;
         }
 
         private unsafe void UpdateCameraBatch()
@@ -328,15 +357,9 @@ namespace VoxelPizza.Client
 
             Size3f meshSize = Chunk.Size;
 
-            ChunkPosition[] chunks;
-            lock (_chunks)
-            {
-                chunks = _chunks.ToArray();
-            }
-
             _chunkBatch.Begin();
 
-            foreach (ChunkPosition chunk in chunks)
+            foreach (ChunkPosition chunk in _chunks)
             {
                 Vector3 position = chunk.ToBlock();
                 UpdateBatchItem(_chunkBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
@@ -353,15 +376,9 @@ namespace VoxelPizza.Client
 
             Size3f meshSize = ChunkRegion.Size * Chunk.Size;
 
-            ChunkRegionPosition[] chunkRegions;
-            lock (_chunkRegions)
-            {
-                chunkRegions = _chunkRegions.ToArray();
-            }
-
             _chunkRegionBatch.Begin();
 
-            foreach (ChunkRegionPosition chunkRegion in chunkRegions)
+            foreach (ChunkRegionPosition chunkRegion in _chunkRegions)
             {
                 Vector3 position = chunkRegion.ToChunk().ToBlock();
                 UpdateBatchItem(_chunkRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);
@@ -372,22 +389,22 @@ namespace VoxelPizza.Client
 
         private void UpdateRenderRegionBatch(Span<uint> indices, Span<VertexPosition<RgbaByte>> vertices)
         {
+            Size3 regionSize = _regionSize;
+            if (regionSize == Size3.Zero)
+            {
+                _renderRegionBatch.Clear();
+                return;
+            }
+
             float lineWidth = 0.175f;
             RgbaByte color0 = new(0, 127, 255, 255);
             RgbaByte color1 = new(127, 0, 255, 255);
 
-            Size3 regionSize = _regionSize;
             Size3f meshSize = regionSize * Chunk.Size;
-
-            RenderRegionPosition[] renderRegions;
-            lock (_renderRegions)
-            {
-                renderRegions = _renderRegions.ToArray();
-            }
 
             _renderRegionBatch.Begin();
 
-            foreach (RenderRegionPosition chunkRegion in renderRegions)
+            foreach (RenderRegionPosition chunkRegion in _renderRegions)
             {
                 Vector3 position = chunkRegion.ToBlock(regionSize);
                 UpdateBatchItem(_renderRegionBatch, position, meshSize, lineWidth, color0, color1, indices, vertices);

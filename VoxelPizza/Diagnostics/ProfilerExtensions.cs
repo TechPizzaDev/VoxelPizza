@@ -10,7 +10,7 @@ namespace VoxelPizza.Diagnostics
             [CallerFilePath] string filePath = "",
             [CallerLineNumber] int lineNumber = 0)
         {
-            if (profiler != null)
+            if (profiler != null && profiler.IsRecording)
             {
                 profiler.Push(memberName, filePath, lineNumber);
             }

@@ -132,30 +132,31 @@ namespace VoxelPizza.World
 
                 return true;
             }
+
             return MoveNextZY();
         }
 
         private bool MoveNextZY()
         {
+            processedX = 0;
+            // X will be updated in the next call
+
+            processedZ += depth;
+            UpdateZ();
+
             if (processedZ < Size.D)
             {
-                processedX = 0;
-                // X will be updated in the next call
-
-                processedZ += depth;
-                UpdateZ();
-
                 return MoveNext();
             }
 
+            processedZ = 0;
+            UpdateZ();
+
+            processedY += height;
+            UpdateY();
+
             if (processedY < Size.H)
             {
-                processedZ = 0;
-                UpdateZ();
-
-                processedY += height;
-                UpdateY();
-
                 return MoveNext();
             }
 

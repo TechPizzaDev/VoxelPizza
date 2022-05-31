@@ -127,38 +127,47 @@ namespace VoxelPizza.World
 
         public bool MoveNext()
         {
-            while (processedY < Size.H)
+            if (processedX < Size.W)
             {
-                while (processedZ < Size.D)
-                {
-                    while (processedX < Size.W)
-                    {
-                        blockX = Origin.X + processedX;
-                        chunkX = Chunk.BlockToChunkX(blockX);
+                blockX = Origin.X + processedX;
+                chunkX = Chunk.BlockToChunkX(blockX);
 
-                        int min1X = chunkX * Chunk.Width;
-                        int max1X = min1X + Chunk.Width;
-                        int leftSide = Math.Max(min1X, Origin.X);
-                        int rightSide = Math.Min(max1X, Max.X);
-                        width = rightSide - leftSide;
+                int min1X = chunkX * Chunk.Width;
+                int max1X = min1X + Chunk.Width;
+                int leftSide = Math.Max(min1X, Origin.X);
+                int rightSide = Math.Min(max1X, Max.X);
+                width = rightSide - leftSide;
 
-                        processedX += width;
+                processedX += width;
 
-                        return true;
-                    }
+                return true;
+            }
 
-                    processedX = 0;
-                    // X will be updated in the next call
+            return MoveNextZY();
+        }
 
-                    processedZ += depth;
-                    UpdateZ();
-                }
+        private bool MoveNextZY()
+        {
+            processedX = 0;
+            // X will be updated in the next call
 
-                processedZ = 0;
-                UpdateZ();
+            processedZ += depth;
+            UpdateZ();
 
-                processedY += height;
-                UpdateY();
+            if (processedZ < Size.D)
+            {
+                return MoveNext();
+            }
+
+            processedZ = 0;
+            UpdateZ();
+
+            processedY += height;
+            UpdateY();
+
+            if (processedY < Size.H)
+            {
+                return MoveNext();
             }
 
             return false;

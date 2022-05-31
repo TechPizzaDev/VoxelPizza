@@ -680,16 +680,16 @@ namespace VoxelPizza.Client
             {
                 ref ChunkBoxSlice chunkBox = ref chunkBoxes[i];
                 Chunk? chunk = dimension.GetChunk(chunkBox.Chunk);
-                if (chunk == null || chunk.IsEmpty)
-                {
-                    emptyCount++;
-                    emptyChunks[i] = true;
-                    continue;
-                }
-                emptyChunks[i] = false;
-
                 try
                 {
+                    if (chunk == null || chunk.IsEmpty)
+                    {
+                        emptyCount++;
+                        emptyChunks[i] = true;
+                        continue;
+                    }
+                    emptyChunks[i] = false;
+
                     nuint outerOriginX = (nuint)chunkBox.OuterOrigin.X;
                     nuint outerOriginY = (nuint)chunkBox.OuterOrigin.Y;
                     nuint outerOriginZ = (nuint)chunkBox.OuterOrigin.Z;
@@ -729,7 +729,7 @@ namespace VoxelPizza.Client
                 }
                 finally
                 {
-                    chunk.DecrementRef();
+                    chunk?.DecrementRef();
                 }
             }
 

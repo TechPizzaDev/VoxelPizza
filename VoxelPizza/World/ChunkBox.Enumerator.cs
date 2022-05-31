@@ -10,8 +10,8 @@ namespace VoxelPizza.World
             private ChunkPosition _position;
             private ChunkPosition _current;
 
-            public ChunkPosition Origin { get; }
-            public ChunkPosition Max { get; }
+            public readonly ChunkPosition Origin;
+            public readonly ChunkPosition Max;
 
             public readonly ChunkPosition Current => _current;
 
@@ -36,7 +36,7 @@ namespace VoxelPizza.World
                 }
                 return MoveNextZY();
             }
-            
+
             private bool MoveNextZY()
             {
                 if (_position.Z < Max.Z)

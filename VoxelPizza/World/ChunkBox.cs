@@ -7,8 +7,8 @@ namespace VoxelPizza.World
 {
     public readonly partial struct ChunkBox : IEnumerable<ChunkPosition>
     {
-        public ChunkPosition Origin { get; }
-        public ChunkPosition Max { get; }
+        public readonly ChunkPosition Origin;
+        public readonly ChunkPosition Max;
 
         public Size3 Size
         {

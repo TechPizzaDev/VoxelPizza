@@ -26,9 +26,9 @@ namespace VoxelPizza.World
         private int regionX;
         private int width;
 
-        public ChunkPosition Origin { get; }
-        public Size3 Size { get; }
-        public ChunkPosition Max { get; }
+        public readonly ChunkPosition Origin;
+        public readonly Size3 Size;
+        public readonly ChunkPosition Max;
 
         public readonly ChunkRegionPosition CurrentRegion => new(regionX, regionY, regionZ);
 
@@ -53,11 +53,7 @@ namespace VoxelPizza.World
         public readonly Size3 CurrentSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get
-            {
-                Debug.Assert(width >= 0 && height >= 0 && depth >= 0);
-                return new Size3((uint)width, (uint)height, (uint)depth);
-            }
+            get => new((uint)width, (uint)height, (uint)depth);
         }
 
         public readonly ChunkRegionBoxSlice Current
@@ -76,6 +72,8 @@ namespace VoxelPizza.World
 
         public ChunkRegionBoxSliceEnumerator(ChunkPosition origin, ChunkPosition max) : this()
         {
+            Debug.Assert(origin.X <= max.X && origin.Y <= max.Y && origin.Z <= max.Z);
+
             Origin = origin;
             Max = max;
 
@@ -119,38 +117,46 @@ namespace VoxelPizza.World
 
         public bool MoveNext()
         {
-            while (processedY < Size.H)
+            if (processedX < Size.W)
             {
-                while (processedZ < Size.D)
-                {
-                    while (processedX < Size.W)
-                    {
-                        chunkX = Origin.X + processedX;
-                        regionX = ChunkRegion.ChunkToRegionX(chunkX);
+                chunkX = Origin.X + processedX;
+                regionX = ChunkRegion.ChunkToRegionX(chunkX);
 
-                        int min1X = regionX * ChunkRegion.Width;
-                        int max1X = min1X + ChunkRegion.Width;
-                        int leftSide = Math.Max(min1X, Origin.X);
-                        int rightSide = Math.Min(max1X, Max.X);
-                        width = rightSide - leftSide;
+                int min1X = regionX * ChunkRegion.Width;
+                int max1X = min1X + ChunkRegion.Width;
+                int leftSide = Math.Max(min1X, Origin.X);
+                int rightSide = Math.Min(max1X, Max.X);
+                width = rightSide - leftSide;
 
-                        processedX += width;
+                processedX += width;
 
-                        return true;
-                    }
+                return true;
+            }
+            return MoveNextZY();
+        }
 
-                    processedX = 0;
-                    // X will be updated in the next call
+        private bool MoveNextZY()
+        {
+            if (processedZ < Size.D)
+            {
+                processedX = 0;
+                // X will be updated in the next call
 
-                    processedZ += depth;
-                    UpdateZ();
-                }
+                processedZ += depth;
+                UpdateZ();
 
+                return MoveNext();
+            }
+
+            if (processedY < Size.H)
+            {
                 processedZ = 0;
                 UpdateZ();
 
                 processedY += height;
                 UpdateY();
+
+                return MoveNext();
             }
 
             return false;

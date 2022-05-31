@@ -26,9 +26,9 @@ namespace VoxelPizza.World
         private int chunkX;
         private int width;
 
-        public BlockPosition Origin { get; }
-        public Size3 Size { get; }
-        public BlockPosition Max { get; }
+        public readonly BlockPosition Origin;
+        public readonly Size3 Size;
+        public readonly BlockPosition Max;
 
         public readonly ChunkPosition CurrentChunk => new(chunkX, chunkY, chunkZ);
 

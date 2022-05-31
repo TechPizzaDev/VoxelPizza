@@ -4,10 +4,10 @@ namespace VoxelPizza.World
 {
     public readonly struct ChunkRegionBoxSlice
     {
-        public ChunkRegionPosition Region { get; }
-        public ChunkPosition OuterOrigin { get; }
-        public ChunkPosition InnerOrigin { get; }
-        public Size3 Size { get; }
+        public readonly ChunkRegionPosition Region;
+        public readonly ChunkPosition OuterOrigin;
+        public readonly ChunkPosition InnerOrigin;
+        public readonly Size3 Size;
 
         public ChunkRegionBoxSlice(
             ChunkRegionPosition region,

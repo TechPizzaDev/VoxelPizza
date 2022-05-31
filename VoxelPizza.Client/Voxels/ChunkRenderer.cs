@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using Veldrid;
 using VoxelPizza.Collections;
 using VoxelPizza.Diagnostics;
+using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
@@ -679,57 +680,51 @@ namespace VoxelPizza.Client
             for (int i = 0; i < chunkCount; i++)
             {
                 ref ChunkBoxSlice chunkBox = ref chunkBoxes[i];
-                Chunk? chunk = dimension.GetChunk(chunkBox.Chunk);
-                try
+                using RefCounted<Chunk?> countedChunk = dimension.GetChunk(chunkBox.Chunk);
+
+                if (!countedChunk.TryGetValue(out Chunk? chunk) || chunk.IsEmpty)
                 {
-                    if (chunk == null || chunk.IsEmpty)
-                    {
-                        emptyCount++;
-                        emptyChunks[i] = true;
-                        continue;
-                    }
-                    emptyChunks[i] = false;
-
-                    nuint outerOriginX = (nuint)chunkBox.OuterOrigin.X;
-                    nuint outerOriginY = (nuint)chunkBox.OuterOrigin.Y;
-                    nuint outerOriginZ = (nuint)chunkBox.OuterOrigin.Z;
-                    nuint outerSizeD = outerSize.D;
-                    nuint outerSizeW = outerSize.W;
-                    nuint innerSizeH = chunkBox.Size.H;
-                    nuint innerSizeD = chunkBox.Size.D;
-                    nuint innerSizeW = chunkBox.Size.W;
-
-                    nuint innerOriginX = (nuint)chunkBox.InnerOrigin.X;
-                    nuint innerOriginY = (nuint)chunkBox.InnerOrigin.Y;
-                    nuint innerOriginZ = (nuint)chunkBox.InnerOrigin.Z;
-
-                    BlockStorage storage = chunk.GetBlockStorage();
-
-                    for (nuint y = 0; y < innerSizeH; y++)
-                    {
-                        for (nuint z = 0; z < innerSizeD; z++)
-                        {
-                            nuint outerBaseIndex = BlockMemory.GetIndexBase(
-                                outerSizeD,
-                                outerSizeW,
-                                y + outerOriginY,
-                                z + outerOriginZ)
-                                + outerOriginX;
-
-                            ref uint destination = ref Unsafe.Add(ref data, outerBaseIndex);
-
-                            storage.GetBlockRow(
-                                innerOriginX,
-                                y + innerOriginY,
-                                z + innerOriginZ,
-                                ref destination,
-                                innerSizeW);
-                        }
-                    }
+                    emptyCount++;
+                    emptyChunks[i] = true;
+                    continue;
                 }
-                finally
+                emptyChunks[i] = false;
+
+                nuint outerOriginX = (nuint)chunkBox.OuterOrigin.X;
+                nuint outerOriginY = (nuint)chunkBox.OuterOrigin.Y;
+                nuint outerOriginZ = (nuint)chunkBox.OuterOrigin.Z;
+                nuint outerSizeD = outerSize.D;
+                nuint outerSizeW = outerSize.W;
+                nuint innerSizeH = chunkBox.Size.H;
+                nuint innerSizeD = chunkBox.Size.D;
+                nuint innerSizeW = chunkBox.Size.W;
+
+                nuint innerOriginX = (nuint)chunkBox.InnerOrigin.X;
+                nuint innerOriginY = (nuint)chunkBox.InnerOrigin.Y;
+                nuint innerOriginZ = (nuint)chunkBox.InnerOrigin.Z;
+
+                BlockStorage storage = chunk.GetBlockStorage();
+
+                for (nuint y = 0; y < innerSizeH; y++)
                 {
-                    chunk?.DecrementRef();
+                    for (nuint z = 0; z < innerSizeD; z++)
+                    {
+                        nuint outerBaseIndex = BlockMemory.GetIndexBase(
+                            outerSizeD,
+                            outerSizeW,
+                            y + outerOriginY,
+                            z + outerOriginZ)
+                            + outerOriginX;
+
+                        ref uint destination = ref Unsafe.Add(ref data, outerBaseIndex);
+
+                        storage.GetBlockRow(
+                            innerOriginX,
+                            y + innerOriginY,
+                            z + innerOriginZ,
+                            ref destination,
+                            innerSizeW);
+                    }
                 }
             }
 

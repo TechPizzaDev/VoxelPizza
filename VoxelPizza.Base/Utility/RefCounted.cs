@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Threading;
 
-namespace VoxelPizza
+namespace VoxelPizza.Memory
 {
     public delegate void RefCountedAction(RefCounted instance);
 

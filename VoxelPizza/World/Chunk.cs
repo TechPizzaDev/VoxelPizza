@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using VoxelPizza.Collections;
+using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
@@ -11,6 +12,7 @@ namespace VoxelPizza.World
     public class Chunk : RefCounted, IBlockStorage
     {
         public static BlockStorage0 EmptyStorage { get; } = new(Width, Height, Depth);
+        public static BlockStorage0 DestroyedStorage { get; } = new(Width, Height, Depth);
 
         public const int Width = 16;
         public const int Depth = 16;
@@ -277,9 +279,18 @@ namespace VoxelPizza.World
             return $"{nameof(Chunk)}<{_storage.ToSimpleString()}>({Position.ToNumericString()})";
         }
 
+        private void SwapStorage(BlockStorage newStorage)
+        {
+            Debug.Assert(_storage != newStorage);
+
+            _storage.Dispose();
+
+            _storage = newStorage;
+        }
+
         public void Destroy()
         {
-            _storage = null!;
+            SwapStorage(DestroyedStorage);
         }
 
         protected override void LeakAtFinalizer()

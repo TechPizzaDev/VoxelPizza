@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
@@ -56,22 +57,15 @@ namespace VoxelPizza.Client
                             //if (position.Y == 0)
                             //    loads[position.X - co.X, position.Z - co.Z] = true;
 
-                            region.CreateChunk(position, out Chunk? chunk);
-                            if (chunk != null)
+                            using RefCounted<Chunk?> countedChunk = region.CreateChunk(position, out _);
+                            if (countedChunk.TryGetValue(out Chunk? chunk))
                             {
-                                try
+                                if (!chunk.Generate())
                                 {
-                                    if (!chunk.Generate())
-                                    {
-                                        return;
-                                    }
-                                    //chunk.SetBlockLayer(0, 10);
-                                    chunk.InvokeUpdate();
+                                    return;
                                 }
-                                finally
-                                {
-                                    chunk.DecrementRef();
-                                }
+                                //chunk.SetBlockLayer(0, 10);
+                                chunk.InvokeUpdate();
                             }
                         }
                     }
@@ -81,28 +75,22 @@ namespace VoxelPizza.Client
 
                     foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(currentOrigin, currentMax))
                     {
-                        ChunkRegion region = dimension.CreateRegion(regionSlice.Region);
-                        try
-                        {
-                            ChunkBox chunkBox = regionSlice.GetChunkBox();
-                            ChunkPosition origin = chunkBox.Origin;
-                            ChunkPosition max = chunkBox.Max;
+                        using RefCounted<ChunkRegion> region = dimension.CreateRegion(regionSlice.Region);
 
-                            ChunkPosition position;
-                            for (position.Y = origin.Y; position.Y < max.Y; position.Y++)
+                        ChunkBox chunkBox = regionSlice.GetChunkBox();
+                        ChunkPosition origin = chunkBox.Origin;
+                        ChunkPosition max = chunkBox.Max;
+
+                        ChunkPosition position;
+                        for (position.Y = origin.Y; position.Y < max.Y; position.Y++)
+                        {
+                            for (position.Z = origin.Z; position.Z < max.Z; position.Z++)
                             {
-                                for (position.Z = origin.Z; position.Z < max.Z; position.Z++)
+                                for (position.X = origin.X; position.X < max.X; position.X++)
                                 {
-                                    for (position.X = origin.X; position.X < max.X; position.X++)
-                                    {
-                                        AddChunk(region, position);
-                                    }
+                                    AddChunk(region.Value, position);
                                 }
                             }
-                        }
-                        finally
-                        {
-                            region.DecrementRef();
                         }
                     }
 
@@ -128,69 +116,56 @@ namespace VoxelPizza.Client
 
                         foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(previousOrigin, previousMax))
                         {
-                            ChunkRegion? region = dimension.GetRegion(regionSlice.Region);
-                            if (region == null)
+                            using RefCounted<ChunkRegion?> region = dimension.GetRegion(regionSlice.Region);
+                            if (!region.HasValue)
                             {
                                 continue;
                             }
 
-                            try
+                            ChunkBox chunkBox = regionSlice.GetChunkBox();
+                            ChunkPosition origin = chunkBox.Origin;
+                            ChunkPosition max = chunkBox.Max;
+
+                            ChunkPosition position;
+                            for (position.Y = origin.Y; position.Y < max.Y; position.Y++)
                             {
-                                ChunkBox chunkBox = regionSlice.GetChunkBox();
-                                ChunkPosition origin = chunkBox.Origin;
-                                ChunkPosition max = chunkBox.Max;
-
-                                ChunkPosition position;
-                                for (position.Y = origin.Y; position.Y < max.Y; position.Y++)
+                                for (position.Z = origin.Z; position.Z < max.Z; position.Z++)
                                 {
-                                    for (position.Z = origin.Z; position.Z < max.Z; position.Z++)
+                                    for (position.X = origin.X; position.X < max.X; position.X++)
                                     {
-                                        for (position.X = origin.X; position.X < max.X; position.X++)
+                                        if (!currentBox.Contains(position))
                                         {
-                                            if (!currentBox.Contains(position))
-                                            {
-                                                //if (position.Y == 0)
-                                                //    loads[position.X - previousOrigin.X, position.Z - previousOrigin.Z] = false;
+                                            //if (position.Y == 0)
+                                            //    loads[position.X - previousOrigin.X, position.Z - previousOrigin.Z] = false;
 
-                                                region.RemoveChunk(position);
-                                            }
+                                            region.Value.RemoveChunk(position);
                                         }
                                     }
                                 }
-                            }
-                            finally
-                            {
-                                region.DecrementRef();
                             }
                         }
 
                         foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(currentOrigin, currentMax))
                         {
-                            ChunkRegion region = dimension.CreateRegion(regionSlice.Region);
-                            try
-                            {
-                                ChunkBox chunkBox = regionSlice.GetChunkBox();
-                                ChunkPosition origin = chunkBox.Origin;
-                                ChunkPosition max = chunkBox.Max;
+                            using RefCounted<ChunkRegion> region = dimension.CreateRegion(regionSlice.Region);
 
-                                ChunkPosition position;
-                                for (position.Y = origin.Y; position.Y < max.Y; position.Y++)
+                            ChunkBox chunkBox = regionSlice.GetChunkBox();
+                            ChunkPosition origin = chunkBox.Origin;
+                            ChunkPosition max = chunkBox.Max;
+
+                            ChunkPosition position;
+                            for (position.Y = origin.Y; position.Y < max.Y; position.Y++)
+                            {
+                                for (position.Z = origin.Z; position.Z < max.Z; position.Z++)
                                 {
-                                    for (position.Z = origin.Z; position.Z < max.Z; position.Z++)
+                                    for (position.X = origin.X; position.X < max.X; position.X++)
                                     {
-                                        for (position.X = origin.X; position.X < max.X; position.X++)
+                                        if (!previousBox.Contains(position))
                                         {
-                                            if (!previousBox.Contains(position))
-                                            {
-                                                AddChunk(region, position);
-                                            }
+                                            AddChunk(region.Value, position);
                                         }
                                     }
                                 }
-                            }
-                            finally
-                            {
-                                region.DecrementRef();
                             }
                         }
 
@@ -257,8 +232,8 @@ namespace VoxelPizza.Client
                     int count = 0;
                     foreach ((int x, int y, int z) in list)
                     {
-                        dimension.CreateChunk(new(x, y, z), out Chunk? chunk);
-                        if (chunk == null)
+                        using RefCounted<Chunk?> countedChunk = dimension.CreateChunk(new(x, y, z), out _);
+                        if (!countedChunk.TryGetValue(out Chunk? chunk))
                             continue;
 
                         if (y < 0)
@@ -292,8 +267,8 @@ namespace VoxelPizza.Client
                     {
                         foreach ((int x, int y, int z) in list)
                         {
-                            Chunk? chunk = dimension.GetChunk(new(x, y, z));
-                            if (chunk != null)
+                            using RefCounted<Chunk?> countedChunk = dimension.GetChunk(new(x, y, z));
+                            if (countedChunk.TryGetValue(out Chunk? chunk))
                             {
                                 if (y >= 0 && x >= off && z >= off &&
                                     x < width - off &&
@@ -301,7 +276,6 @@ namespace VoxelPizza.Client
                                 {
                                     chunk.InvokeUpdate();
                                 }
-                                chunk.DecrementRef();
                             }
                         }
                     }
@@ -319,8 +293,8 @@ namespace VoxelPizza.Client
                                     {
                                         int xd = rng.Next(2);
                                         int max = xd == 0 ? 512 : 128;
-                                        Chunk? c = dimension.GetChunk(new ChunkPosition(x, y, z));
-                                        if (c != null)
+                                        using RefCounted<Chunk?> countedChunk = dimension.GetChunk(new ChunkPosition(x, y, z));
+                                        if (countedChunk.TryGetValue(out Chunk? c))
                                         {
                                             //uint[] blocks = c.Blocks;
                                             //for (int b = 0; b < blocks.Length; b++)
@@ -332,8 +306,6 @@ namespace VoxelPizza.Client
 
                                             //ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
                                             //_regions[regionPosition].UpdateChunk(c);
-
-                                            c.DecrementRef();
                                         }
                                     }
                                 }
@@ -359,19 +331,12 @@ namespace VoxelPizza.Client
                                 int x = rng.Next(width - off * 2) + off;
                                 int z = rng.Next(depth - off * 2) + off;
                                 int y = rng.Next(height);
-                                Chunk? c = dimension.GetChunk(new ChunkPosition(x, y, z));
-                                if (c != null)
+                                using RefCounted<Chunk?> countedChunk = dimension.GetChunk(new ChunkPosition(x, y, z));
+                                if (countedChunk.TryGetValue(out Chunk? chunk))
                                 {
-                                    try
-                                    {
-                                        c.SetBlock((nuint)rng.Next(16 * 16 * 16), (uint)rng.Next(128));
+                                    chunk.SetBlock((nuint)rng.Next(16 * 16 * 16), (uint)rng.Next(128));
 
-                                        c.InvokeUpdate();
-                                    }
-                                    finally
-                                    {
-                                        c.DecrementRef();
-                                    }
+                                    chunk.InvokeUpdate();
                                 }
                             }
 

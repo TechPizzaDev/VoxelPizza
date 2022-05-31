@@ -7,13 +7,14 @@ using System.Runtime.Intrinsics.X86;
 namespace VoxelPizza.Collections
 {
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-    public abstract class BlockStorage : IBlockStorage
+    public abstract class BlockStorage : IBlockStorage, IDisposable
     {
         public abstract BlockStorageType StorageType { get; }
         public ushort Width { get; }
         public ushort Height { get; }
         public ushort Depth { get; }
         public bool IsEmpty { get; protected set; }
+        public bool IsDisposed { get; private set; } 
 
         public BlockStorage(ushort width, ushort height, ushort depth)
         {
@@ -145,6 +146,20 @@ namespace VoxelPizza.Collections
         private string GetDebuggerDisplay()
         {
             return ToString();
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!IsDisposed)
+            {
+                IsDisposed = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

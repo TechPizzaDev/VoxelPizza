@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
@@ -47,7 +48,7 @@ namespace VoxelPizza.World
             ChunkUpdated?.Invoke(chunk);
         }
 
-        public Chunk? GetLocalChunk(int index)
+        public RefCounted<Chunk?> GetLocalChunk(int index)
         {
             _chunkLock.EnterReadLock();
             try
@@ -55,12 +56,12 @@ namespace VoxelPizza.World
                 Chunk?[]? chunks = _chunks;
                 if (chunks == null)
                 {
-                    return null;
+                    return default;
                 }
 
                 Chunk? chunk = chunks[index];
                 chunk?.IncrementRef();
-                return chunk;
+                return new(chunk);
             }
             finally
             {
@@ -68,28 +69,29 @@ namespace VoxelPizza.World
             }
         }
 
-        public Chunk? GetLocalChunk(ChunkPosition localPosition)
+        public RefCounted<Chunk?> GetLocalChunk(ChunkPosition localPosition)
         {
             int index = GetChunkIndex(localPosition);
             return GetLocalChunk(index);
         }
 
-        public Chunk? GetChunk(ChunkPosition position)
+        public RefCounted<Chunk?> GetChunk(ChunkPosition position)
         {
             ChunkPosition localPosition = GetLocalChunkPosition(position);
             return GetLocalChunk(localPosition);
         }
 
-        public ChunkAddStatus CreateChunk(ChunkPosition position, out Chunk? chunk)
+        public RefCounted<Chunk?> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
         {
             ChunkPosition localPosition = GetLocalChunkPosition(position);
             int index = GetChunkIndex(localPosition);
 
-            chunk = GetLocalChunk(index);
-            if (chunk != null)
+            RefCounted<Chunk?> countedChunk = GetLocalChunk(index);
+            if (countedChunk.HasValue)
             {
                 // GetLocalChunk increments refcount
-                return ChunkAddStatus.Success;
+                status = ChunkAddStatus.Success;
+                return countedChunk;
             }
 
             _chunkLock.EnterWriteLock();
@@ -98,12 +100,13 @@ namespace VoxelPizza.World
                 Chunk?[]? chunks = _chunks;
                 if (chunks == null)
                 {
-                    return ChunkAddStatus.MissingRegion;
+                    status = ChunkAddStatus.MissingRegion;
+                    return default;
                 }
 
                 // Check again after acquiring lock,
                 // as a chunk may have been created while we were waiting.
-                chunk = chunks[index];
+                Chunk? chunk = chunks[index];
                 if (chunk == null)
                 {
                     chunk = new Chunk(this, position);
@@ -118,7 +121,8 @@ namespace VoxelPizza.World
                 }
 
                 chunk.IncrementRef();
-                return ChunkAddStatus.Success;
+                status = ChunkAddStatus.Success;
+                return new(chunk);
             }
             finally
             {

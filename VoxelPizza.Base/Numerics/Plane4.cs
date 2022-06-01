@@ -61,7 +61,7 @@ namespace VoxelPizza.Numerics
         /// <param name="point3">The third point defining the plane.</param>
         /// <returns>The plane containing the three points.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Plane4 CreateFromVertices(Vector3 point1, Vector3 point2, Vector3 point3)
+        public static Plane4 CreateFromPoints(Vector3 point1, Vector3 point2, Vector3 point3)
         {
             if (Vector.IsHardwareAccelerated)
             {

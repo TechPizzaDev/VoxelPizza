@@ -14,7 +14,7 @@ namespace VoxelPizza.Numerics
         public Plane4 Near;
         public Plane4 Far;
 
-        public BoundingFrustum4(Matrix4x4 m)
+        public BoundingFrustum4(in Matrix4x4 m)
         {
             // Plane computations: http://gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
             Left = Plane4.Normalize(
@@ -118,7 +118,7 @@ namespace VoxelPizza.Numerics
             Vector128<float> boxMin = Vector128.AsVector128(box.Min);
             Vector128<float> boxMax = Vector128.AsVector128(box.Max);
 
-            for (nint i = 0; i < 6 * Unsafe.SizeOf<Plane4>(); i += Unsafe.SizeOf<Plane4>())
+            for (nuint i = 0; i < 6 * (nuint)Unsafe.SizeOf<Plane4>(); i += (nuint)Unsafe.SizeOf<Plane4>())
             {
                 ref Plane4 plane = ref Unsafe.AddByteOffset(ref Unsafe.AsRef(Left), i);
 

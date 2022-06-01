@@ -22,7 +22,7 @@ namespace VoxelPizza.Numerics
             Max = new Vector4(max, 0);
         }
 
-        public readonly ContainmentType Contains(in BoundingBox4 other)
+        public readonly ContainmentType Contains(BoundingBox4 other)
         {
             if (Max.X < other.Min.X || Min.X > other.Max.X
                 || Max.Y < other.Min.Y || Min.Y > other.Max.Y
@@ -84,29 +84,34 @@ namespace VoxelPizza.Numerics
         }
 
         public static BoundingBox4 CreateFromPoints(
-            ReadOnlySpan<byte> vertices,
-            int vertexStride,
+            ReadOnlySpan<byte> pointBytes,
+            int pointStride,
             Quaternion rotation,
             Vector3 offset,
             Vector3 scale)
         {
-            int vertexCount = vertices.Length / vertexStride;
+            nuint stride = (nuint)pointStride;
+            nuint vertexCount = (nuint)pointBytes.Length / stride;
             if (vertexCount < 1)
             {
                 return new BoundingBox4(new Vector4(offset, 0), new Vector4(offset, 0));
             }
 
-            ref byte vertexBytes = ref MemoryMarshal.GetReference(vertices);
+            ref byte ptr = ref MemoryMarshal.GetReference(pointBytes);
+            ref byte endPtr = ref Unsafe.Add(ref ptr, vertexCount * stride);
 
-            Vector3 firstVertex = Unsafe.ReadUnaligned<Vector3>(ref vertexBytes);
-            Vector3 min = Vector3.Transform(firstVertex, rotation);
-            Vector3 max = Vector3.Transform(firstVertex, rotation);
+            Vector3 first = Unsafe.ReadUnaligned<Vector3>(ref ptr);
+            ptr = ref Unsafe.Add(ref ptr, stride);
 
-            nint nStride = vertexStride;
-            for (nint i = 1; i < vertexCount; i++)
+            Vector3 min = Vector3.Transform(first, rotation);
+            Vector3 max = Vector3.Transform(first, rotation);
+
+            while (Unsafe.IsAddressLessThan(ref ptr, ref endPtr))
             {
-                Vector3 vertex = Unsafe.ReadUnaligned<Vector3>(ref Unsafe.Add(ref vertexBytes, i * nStride));
-                Vector3 pos = Vector3.Transform(vertex, rotation);
+                Vector3 point = Unsafe.ReadUnaligned<Vector3>(ref ptr);
+                ptr = ref Unsafe.Add(ref ptr, stride);
+
+                Vector3 pos = Vector3.Transform(point, rotation);
 
                 if (min.X > pos.X)
                     min.X = pos.X;
@@ -129,15 +134,20 @@ namespace VoxelPizza.Numerics
                 new Vector4((max * scale) + offset, 0));
         }
 
-        public static BoundingBox4 CreateFromVertices(
-            ReadOnlySpan<Vector3> vertices, Quaternion rotation, Vector3 offset, Vector3 scale)
+        public static BoundingBox4 CreateFromPoints(
+            ReadOnlySpan<Vector3> points, Quaternion rotation, Vector3 offset, Vector3 scale)
         {
-            Vector3 min = Vector3.Transform(vertices[0], rotation);
-            Vector3 max = Vector3.Transform(vertices[0], rotation);
-
-            for (int i = 1; i < vertices.Length; i++)
+            if (points.Length == 0)
             {
-                Vector3 pos = Vector3.Transform(vertices[i], rotation);
+                return new BoundingBox4(new Vector4(offset, 0), new Vector4(offset, 0));
+            }
+
+            Vector3 min = Vector3.Transform(points[0], rotation);
+            Vector3 max = Vector3.Transform(points[0], rotation);
+
+            for (int i = 1; i < points.Length; i++)
+            {
+                Vector3 pos = Vector3.Transform(points[i], rotation);
 
                 if (min.X > pos.X)
                     min.X = pos.X;
@@ -160,9 +170,9 @@ namespace VoxelPizza.Numerics
                 new Vector4((max * scale) + offset, 0));
         }
 
-        public static BoundingBox4 CreateFromVertices(ReadOnlySpan<Vector3> vertices)
+        public static BoundingBox4 CreateFromPoints(ReadOnlySpan<Vector3> vertices)
         {
-            return CreateFromVertices(vertices, Quaternion.Identity, Vector3.Zero, Vector3.One);
+            return CreateFromPoints(vertices, Quaternion.Identity, Vector3.Zero, Vector3.One);
         }
 
         public static BoundingBox4 Combine(BoundingBox4 box1, BoundingBox4 box2)

@@ -137,8 +137,7 @@ namespace VoxelPizza.World
             {
                 if (_regions.TryGetValue(position, out ChunkRegion? region))
                 {
-                    region.IncrementRef();
-                    return new(region);
+                    return region.TrackRef()!;
                 }
                 return default;
             }
@@ -176,8 +175,7 @@ namespace VoxelPizza.World
                     RegionAdded?.Invoke(region);
                 }
 
-                region.IncrementRef();
-                return new(region);
+                return region.TrackRef();
             }
             finally
             {
@@ -220,7 +218,7 @@ namespace VoxelPizza.World
             return default;
         }
 
-        public RefCounted<Chunk?> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
+        public RefCounted<Chunk> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
             using RefCounted<ChunkRegion> region = CreateRegion(regionPosition);

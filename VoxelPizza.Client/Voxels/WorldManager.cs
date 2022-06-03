@@ -57,16 +57,15 @@ namespace VoxelPizza.Client
                             //if (position.Y == 0)
                             //    loads[position.X - co.X, position.Z - co.Z] = true;
 
-                            using RefCounted<Chunk?> countedChunk = region.CreateChunk(position, out _);
-                            if (countedChunk.TryGetValue(out Chunk? chunk))
+                            using RefCounted<Chunk> countedChunk = region.CreateChunk(position, out _);
+                            Chunk chunk = countedChunk.Value;
+
+                            if (!chunk.Generate())
                             {
-                                if (!chunk.Generate())
-                                {
-                                    return;
-                                }
-                                //chunk.SetBlockLayer(0, 10);
-                                chunk.InvokeUpdate();
+                                return;
                             }
+                            //chunk.SetBlockLayer(0, 10);
+                            chunk.InvokeUpdate();
                         }
                     }
 
@@ -232,9 +231,8 @@ namespace VoxelPizza.Client
                     int count = 0;
                     foreach ((int x, int y, int z) in list)
                     {
-                        using RefCounted<Chunk?> countedChunk = dimension.CreateChunk(new(x, y, z), out _);
-                        if (!countedChunk.TryGetValue(out Chunk? chunk))
-                            continue;
+                        using RefCounted<Chunk> countedChunk = dimension.CreateChunk(new(x, y, z), out _);
+                        Chunk chunk = countedChunk.Value;
 
                         if (y < 0)
                             chunk.SetBlockLayer(15, 1);

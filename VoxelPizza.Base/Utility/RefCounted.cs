@@ -5,7 +5,7 @@ namespace VoxelPizza.Memory
 {
     public delegate void RefCountedAction(RefCounted instance);
 
-    public abstract class RefCounted
+    public abstract class RefCounted : IRefCounted
     {
         private int _refCount;
 
@@ -42,11 +42,5 @@ namespace VoxelPizza.Memory
         protected virtual void LeakAtFinalizer()
         {
         }
-    }
-
-    public enum RefCountType
-    {
-        Caller,
-        Container,
     }
 }

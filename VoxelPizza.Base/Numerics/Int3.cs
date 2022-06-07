@@ -1,7 +1,10 @@
 using System;
+using System.Diagnostics;
+using System.Numerics;
 
 namespace VoxelPizza.Numerics
 {
+    [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
     public struct Int3 : IEquatable<Int3>
     {
         public int X;
@@ -27,9 +30,59 @@ namespace VoxelPizza.Numerics
                 && Z == other.Z;
         }
 
+        public override bool Equals(object? obj)
+        {
+            return obj is Int3 other && Equals(other);
+        }
+
         public override readonly int GetHashCode()
         {
             return HashCode.Combine(X, Y, Z);
+        }
+
+        public static implicit operator Vector3(Int3 size)
+        {
+            return new Vector3(size.X, size.Y, size.Z);
+        }
+
+        public static implicit operator Vector4(Int3 size)
+        {
+            return new Vector4(size.X, size.Y, size.Z, 0);
+        }
+
+        public static Int3 operator *(Int3 left, Int3 right)
+        {
+            return new Int3(left.X * right.X, left.Y * right.Y, left.Z * right.Z);
+        }
+
+        public static Int3 operator +(Int3 left, Int3 right)
+        {
+            return new Int3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
+        }
+
+        public static Int3 operator -(Int3 left, Int3 right)
+        {
+            return new Int3(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
+        }
+
+        public static bool operator ==(Int3 left, Int3 right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(Int3 left, Int3 right)
+        {
+            return !(left == right);
+        }
+
+        private readonly string GetDebuggerDisplay()
+        {
+            return ToString();
+        }
+
+        public override readonly string ToString()
+        {
+            return $"<{X}, {Y}, {Z}>";
         }
     }
 }

@@ -70,18 +70,24 @@ namespace VoxelPizza.World
 
         public RefCounted<Chunk?> GetLocalChunk(ChunkPosition localPosition)
         {
+            CheckLocalChunkPosition(localPosition);
+
             int index = GetChunkIndex(localPosition);
             return GetLocalChunk(index);
         }
 
         public RefCounted<Chunk?> GetChunk(ChunkPosition position)
         {
+            CheckChunkPosition(Position, position);
+
             ChunkPosition localPosition = GetLocalChunkPosition(position);
             return GetLocalChunk(localPosition);
         }
 
         public RefCounted<Chunk> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
         {
+            CheckChunkPosition(Position, position);
+
             ChunkPosition localPosition = GetLocalChunkPosition(position);
             int index = GetChunkIndex(localPosition);
 
@@ -130,6 +136,8 @@ namespace VoxelPizza.World
 
         public ChunkRemoveStatus RemoveChunk(ChunkPosition position)
         {
+            CheckChunkPosition(Position, position);
+
             ChunkPosition localPosition = GetLocalChunkPosition(position);
             int index = GetChunkIndex(localPosition);
 
@@ -216,6 +224,37 @@ namespace VoxelPizza.World
         public static int ChunkToRegionZ(int chunkZ)
         {
             return IntMath.DivideRoundDown(chunkZ, Depth);
+        }
+
+        public static void CheckChunkIndex(int index)
+        {
+            if (index > Width * Height * Depth)
+            {
+                throw new IndexOutOfRangeException("The local chunk index is out of range.");
+            }
+        }
+
+        public static void CheckLocalChunkPosition(ChunkPosition chunk)
+        {
+            if (chunk.X < 0 || chunk.X >= Size.W ||
+                chunk.Y < 0 || chunk.Y >= Size.H ||
+                chunk.Z < 0 || chunk.Z >= Size.D)
+            {
+                throw new IndexOutOfRangeException("The local chunk position is out of range.");
+            }
+        }
+
+        public static void CheckChunkPosition(ChunkRegionPosition region, ChunkPosition chunk)
+        {
+            ChunkPosition start = region.ToChunk();
+            Int3 end = start.ToInt3() + Size.ToInt3();
+
+            if (chunk.X < start.X || chunk.X >= end.X ||
+                chunk.Y < start.Y || chunk.Y >= end.Y ||
+                chunk.Z < start.Z || chunk.Z >= end.Z)
+            {
+                throw new IndexOutOfRangeException("The chunk position is out of range.");
+            }
         }
 
         private string GetDebuggerDisplay()

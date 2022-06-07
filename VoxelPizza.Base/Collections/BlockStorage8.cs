@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -23,30 +24,37 @@ namespace VoxelPizza.Collections
             return true;
         }
 
-        public override void GetBlockRow(nuint index, ref uint destination, nuint length)
+        public override void GetBlockRow(int index, Span<uint> destination)
         {
+            if (index + destination.Length > _array.Length)
+                throw new IndexOutOfRangeException();
+
             ref byte array = ref MemoryMarshal.GetArrayDataReference(_array);
-            ref byte array8 = ref Unsafe.Add(ref array, index);
-            Expand8To32(ref array8, ref Unsafe.As<uint, byte>(ref destination), length);
+            ref byte src = ref Unsafe.Add(ref array, index);
+            ref byte dst = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(destination));
+            Expand8To32(ref src, ref dst, (nuint)destination.Length);
         }
 
-        public override void GetBlockRow(nuint x, nuint y, nuint z, ref uint destination, nuint length)
+        public override void GetBlockRow(int x, int y, int z, Span<uint> destination)
         {
-            GetBlockRow(GetIndex(x, y, z), ref destination, length);
+            GetBlockRow(GetIndex(x, y, z), destination);
         }
 
-        public override void SetBlockLayer(nuint y, uint value)
+        public override void SetBlockLayer(int y, uint value)
         {
-            _array.AsSpan((int)GetIndex(0, y, 0), Width * Depth).Fill((byte)value);
+            _array.AsSpan(GetIndex(0, y, 0), Width * Depth).Fill((byte)value);
         }
 
-        public override void SetBlock(nuint index, uint value)
+        public override void SetBlock(int index, uint value)
         {
+            if (index > _array.Length)
+                throw new IndexOutOfRangeException();
+
             ref byte inline = ref MemoryMarshal.GetArrayDataReference(_array);
             Unsafe.Add(ref inline, index) = (byte)value;
         }
 
-        public override void SetBlock(nuint x, nuint y, nuint z, uint value)
+        public override void SetBlock(int x, int y, int z, uint value)
         {
             SetBlock(GetIndex(x, y, z), value);
         }

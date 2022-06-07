@@ -23,33 +23,40 @@ namespace VoxelPizza.Collections
             return true;
         }
 
-        public override void GetBlockRow(nuint index, ref uint destination, nuint length)
+        public override void GetBlockRow(int index, Span<uint> destination)
         {
+            if ((index + destination.Length) * sizeof(ushort) > _array.Length)
+                throw new IndexOutOfRangeException();
+
             ref byte array = ref MemoryMarshal.GetArrayDataReference(_array);
-            ref byte array16 = ref Unsafe.Add(ref array, index * sizeof(ushort));
-            Expand16To32(ref array16, ref Unsafe.As<uint, byte>(ref destination), length);
+            ref byte src = ref Unsafe.Add(ref array, index * sizeof(ushort));
+            ref byte dst = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(destination));
+            Expand16To32(ref src, ref dst, (uint)destination.Length);
         }
 
-        public override void GetBlockRow(nuint x, nuint y, nuint z, ref uint destination, nuint length)
+        public override void GetBlockRow(int x, int y, int z, Span<uint> destination)
         {
-            GetBlockRow(GetIndex(x, y, z), ref destination, length);
+            GetBlockRow(GetIndex(x, y, z), destination);
         }
 
-        public override void SetBlockLayer(nuint y, uint value)
+        public override void SetBlockLayer(int y, uint value)
         {
             Span<byte> span = _array.AsSpan(
-                (int)GetIndex(0, y, 0) * sizeof(ushort),
+                GetIndex(0, y, 0) * sizeof(ushort),
                 Width * Depth * sizeof(ushort));
             MemoryMarshal.Cast<byte, ushort>(span).Fill((ushort)value);
         }
 
-        public override void SetBlock(nuint index, uint value)
+        public override void SetBlock(int index, uint value)
         {
+            if (index * sizeof(ushort) > _array.Length)
+                throw new IndexOutOfRangeException();
+
             ref byte array = ref MemoryMarshal.GetArrayDataReference(_array);
             Unsafe.WriteUnaligned(ref Unsafe.Add(ref array, index * sizeof(ushort)), (ushort)value);
         }
 
-        public override void SetBlock(nuint x, nuint y, nuint z, uint value)
+        public override void SetBlock(int x, int y, int z, uint value)
         {
             SetBlock(GetIndex(x, y, z), value);
         }

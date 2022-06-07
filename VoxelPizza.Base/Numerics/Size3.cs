@@ -61,6 +61,11 @@ namespace VoxelPizza.Numerics
             return ToString();
         }
 
+        public readonly Int3 ToInt3()
+        {
+            return new Int3((int)W, (int)H, (int)D);
+        }
+
         public static implicit operator Size3f(Size3 size)
         {
             return new Size3f(size.W, size.H, size.D);

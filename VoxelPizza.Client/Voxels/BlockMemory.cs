@@ -45,6 +45,11 @@ namespace VoxelPizza.Client
             return span;
         }
 
+        public static int GetIndexBase(int depth, int width, int y, int z)
+        {
+            return (y * depth + z) * width;
+        }
+
         public static nuint GetIndexBase(nuint depth, nuint width, nuint y, nuint z)
         {
             return (y * depth + z) * width;

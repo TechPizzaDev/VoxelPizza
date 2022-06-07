@@ -23,15 +23,15 @@ namespace VoxelPizza.Collections
             Depth = depth;
         }
 
-        public abstract void GetBlockRow(nuint index, ref uint destination, nuint length);
+        public abstract void GetBlockRow(int index, Span<uint> destination);
 
-        public abstract void GetBlockRow(nuint x, nuint y, nuint z, ref uint destination, nuint length);
+        public abstract void GetBlockRow(int x, int y, int z, Span<uint> destination);
 
-        public abstract void SetBlock(nuint index, uint value);
+        public abstract void SetBlock(int index, uint value);
 
-        public abstract void SetBlock(nuint x, nuint y, nuint z, uint value);
+        public abstract void SetBlock(int x, int y, int z, uint value);
 
-        public abstract void SetBlockLayer(nuint y, uint value);
+        public abstract void SetBlockLayer(int y, uint value);
 
         public abstract bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType);
 
@@ -105,7 +105,19 @@ namespace VoxelPizza.Collections
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int GetIndex(int x, int y, int z)
+        {
+            return GetIndexBase(Depth, Width, y, z) + x;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static nuint GetIndexBase(nuint depth, nuint width, nuint y, nuint z)
+        {
+            return (y * depth + z) * width;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int GetIndexBase(int depth, int width, int y, int z)
         {
             return (y * depth + z) * width;
         }

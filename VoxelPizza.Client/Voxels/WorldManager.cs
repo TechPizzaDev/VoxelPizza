@@ -235,7 +235,7 @@ namespace VoxelPizza.Client
                         Chunk chunk = countedChunk.Value;
 
                         if (y < 0)
-                            chunk.SetBlockLayer(15, 1);
+                            chunk.GetBlockStorage().SetBlockLayer(15, 1);
                         else
                             chunk.Generate();
 
@@ -332,7 +332,7 @@ namespace VoxelPizza.Client
                                 using RefCounted<Chunk?> countedChunk = dimension.GetChunk(new ChunkPosition(x, y, z));
                                 if (countedChunk.TryGetValue(out Chunk? chunk))
                                 {
-                                    chunk.SetBlock((nuint)rng.Next(16 * 16 * 16), (uint)rng.Next(128));
+                                    chunk.GetBlockStorage().SetBlock(rng.Next(16 * 16 * 16), (uint)rng.Next(128));
 
                                     chunk.InvokeUpdate();
                                 }

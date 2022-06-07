@@ -12,26 +12,34 @@ namespace VoxelPizza.Collections
             IsEmpty = true;
         }
 
-        public override void GetBlockRow(nuint index, ref uint destination, nuint length)
+        public override void GetBlockRow(int index, Span<uint> destination)
         {
-            Unsafe.InitBlockUnaligned(ref Unsafe.As<uint, byte>(ref destination), 0, (uint)length * sizeof(uint));
+            if (index + destination.Length > Width * Height * Depth)
+                throw new IndexOutOfRangeException();
+
+            destination.Clear();
         }
 
-        public override void GetBlockRow(nuint x, nuint y, nuint z, ref uint destination, nuint length)
+        public override void GetBlockRow(int x, int y, int z, Span<uint> destination)
         {
-            GetBlockRow(0, ref destination, length);
+            GetBlockRow(0, destination);
         }
 
-        public override void SetBlock(nuint index, uint value)
+        public override void SetBlock(int index, uint value)
         {
+            if (index > Width * Height * Depth)
+                throw new IndexOutOfRangeException();
         }
 
-        public override void SetBlock(nuint x, nuint y, nuint z, uint value)
+        public override void SetBlock(int x, int y, int z, uint value)
         {
+            SetBlock(GetIndex(x, y, z), value);
         }
 
-        public override void SetBlockLayer(nuint y, uint value)
+        public override void SetBlockLayer(int y, uint value)
         {
+            if (y > Height)
+                throw new IndexOutOfRangeException();
         }
 
         public override bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType)

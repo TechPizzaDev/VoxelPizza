@@ -9,7 +9,7 @@ using VoxelPizza.Numerics;
 namespace VoxelPizza.World
 {
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-    public class Chunk : RefCounted, IBlockStorage
+    public class Chunk : RefCounted
     {
         public static BlockStorage0 EmptyStorage { get; } = new(Width, Height, Depth);
         public static BlockStorage0 DestroyedStorage { get; } = new(Width, Height, Depth);
@@ -32,10 +32,6 @@ namespace VoxelPizza.World
 
         public ChunkRegion Region { get; }
 
-        public BlockStorageType StorageType => _storage.StorageType;
-        ushort IBlockStorage.Width => _storage.Width;
-        ushort IBlockStorage.Height => _storage.Height;
-        ushort IBlockStorage.Depth => _storage.Depth;
         public bool IsEmpty => _storage.IsEmpty;
 
         public Chunk(ChunkRegion region, ChunkPosition position)
@@ -53,54 +49,15 @@ namespace VoxelPizza.World
 
         public BlockStorage GetBlockStorage()
         {
+            if (_storage == DestroyedStorage)
+            {
+                throw new InvalidOperationException();
+            }
             if (_storage == EmptyStorage)
             {
                 _storage = new BlockStorage8(Width, Height, Depth);
             }
             return _storage;
-        }
-
-        public void GetBlockRow(nuint index, ref uint destination, nuint length)
-        {
-            _storage.GetBlockRow(index, ref destination, length);
-        }
-
-        public void GetBlockRow(nuint x, nuint y, nuint z, ref uint destination, nuint length)
-        {
-            _storage.GetBlockRow(x, y, z, ref destination, length);
-        }
-
-        public void SetBlockLayer(nuint y, uint value)
-        {
-            GetBlockStorage().SetBlockLayer(y, value);
-        }
-
-        public uint GetBlock(int x, int y, int z)
-        {
-            throw new NotImplementedException();
-            //return Blocks[GetIndex(x, y, z)];
-        }
-
-        public uint GetBlock(nint x, nint y, nint z)
-        {
-            throw new NotImplementedException();
-            //return Blocks[GetIndex(x, y, z)];
-        }
-
-        public uint GetBlock(nint index)
-        {
-            throw new NotImplementedException();
-            //return Blocks[index];
-        }
-
-        public void SetBlock(nuint x, nuint y, nuint z, uint value)
-        {
-            GetBlockStorage().SetBlock(x, y, z, value);
-        }
-
-        public void SetBlock(nuint index, uint value)
-        {
-            GetBlockStorage().SetBlock(index, value);
         }
 
         public bool Generate()
@@ -267,6 +224,15 @@ namespace VoxelPizza.World
         public static int BlockToChunkZ(int blockZ)
         {
             return IntMath.DivideRoundDown(blockZ, Depth);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static BlockPosition GetLocalBlockPosition(BlockPosition position)
+        {
+            return new BlockPosition(
+                (int)((uint)position.X % Width),
+                (int)((uint)position.Y % Height),
+                (int)((uint)position.Z % Depth));
         }
 
         public bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType)

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using VoxelPizza.Memory;
@@ -37,8 +38,8 @@ namespace VoxelPizza.World
             Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
             Position = position;
 
-            _chunks = new Chunk?[Width * Height * Depth];
-
+            _chunks = Array.Empty<Chunk>();
+            
             _cachedChunkUpdated = Chunk_ChunkUpdated;
             _cachedChunkRefZeroed = Chunk_RefCountZero;
         }
@@ -53,13 +54,36 @@ namespace VoxelPizza.World
             return new ChunkBox(Position.ToChunk(), Size);
         }
 
+        private Chunk?[] GetOrCreateChunkArray()
+        {
+            if (_chunks == null)
+            {
+                ThrowObjectDisposedException();
+            }
+
+            if (_chunks.Length == 0)
+            {
+                _chunks = new Chunk?[Width * Height * Depth];
+            }
+            return _chunks;
+        }
+
+        private Chunk?[] GetChunkArray()
+        {
+            if (_chunks == null)
+            {
+                ThrowObjectDisposedException();
+            }
+            return _chunks;
+        }
+
         public RefCounted<Chunk?> GetLocalChunk(int index)
         {
             _chunkLock.EnterReadLock();
             try
             {
-                Chunk?[]? chunks = _chunks;
-                if (chunks == null)
+                Chunk?[] chunks = GetChunkArray();
+                if (chunks.Length == 0)
                 {
                     return default;
                 }
@@ -108,12 +132,7 @@ namespace VoxelPizza.World
             _chunkLock.EnterWriteLock();
             try
             {
-                Chunk?[]? chunks = _chunks;
-                if (chunks == null)
-                {
-                    status = ChunkAddStatus.MissingRegion;
-                    return default;
-                }
+                Chunk?[] chunks = GetOrCreateChunkArray();
 
                 // Check again after acquiring lock,
                 // as a chunk may have been created while we were waiting.
@@ -150,10 +169,10 @@ namespace VoxelPizza.World
             _chunkLock.EnterWriteLock();
             try
             {
-                Chunk?[]? chunks = _chunks;
-                if (chunks == null)
+                Chunk?[] chunks = GetChunkArray();
+                if (chunks.Length == 0)
                 {
-                    return ChunkRemoveStatus.MissingRegion;
+                    return ChunkRemoveStatus.MissingChunk;
                 }
 
                 Chunk? chunk = chunks[index];
@@ -287,6 +306,12 @@ namespace VoxelPizza.World
         protected override void LeakAtFinalizer()
         {
             // TODO:
+        }
+
+        [DoesNotReturn]
+        private void ThrowObjectDisposedException()
+        {
+            throw new ObjectDisposedException(GetType().FullName);
         }
     }
 }

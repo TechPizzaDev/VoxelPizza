@@ -14,6 +14,7 @@ namespace VoxelPizza.World
         private ReaderWriterLockSlim _regionLock = new();
 
         private HashSet<ChunkRegionPosition> _regionsToRemove = new();
+        private Dictionary<ChunkRegionPosition, RegionStatistics> _regionStatistics = new();
 
         private ChunkAction _cachedChunkAdded;
         private ChunkAction _cachedChunkUpdated;
@@ -72,6 +73,20 @@ namespace VoxelPizza.World
             _cachedRegionRefZeroed = Region_RefZeroed;
         }
 
+        private void OnChunkRegionAdded(ChunkRegion chunkRegion)
+        {
+            RegionAdded?.Invoke(chunkRegion);
+
+            _regionStatistics.Add(chunkRegion.Position, new RegionStatistics());
+        }
+
+        private void OnChunkRegionRemoved(ChunkRegion chunkRegion)
+        {
+            RegionRemoved?.Invoke(chunkRegion);
+
+            _regionStatistics.Remove(chunkRegion.Position);
+        }
+
         public void Update(Profiler? profiler)
         {
             using ProfilerPopToken profilerToken = profiler.Push();
@@ -83,9 +98,17 @@ namespace VoxelPizza.World
             {
                 foreach (ChunkRegion region in _regions.Values)
                 {
-                    if (!region.HasChunks)
+                    if (_regionStatistics.TryGetValue(region.Position, out RegionStatistics? regionStats))
                     {
-                        _regionsToRemove.Add(region.Position);
+                        if (!region.HasChunks)
+                        {
+                            regionStats.UpdatesWithNoChunks++;
+
+                            if (regionStats.UpdatesWithNoChunks > 100)
+                            {
+                                _regionsToRemove.Add(region.Position);
+                            }
+                        }
                     }
                 }
             }
@@ -175,7 +198,7 @@ namespace VoxelPizza.World
                     region.IncrementRef(RefCountType.Container);
 
                     _regions.Add(region.Position, region);
-                    RegionAdded?.Invoke(region);
+                    OnChunkRegionAdded(region);
                 }
 
                 return region.TrackRef();
@@ -198,7 +221,7 @@ namespace VoxelPizza.World
 
                 // Invoke event before decrementing ref to let
                 // others delay the unload.
-                RegionRemoved?.Invoke(region);
+                OnChunkRegionRemoved(region);
 
                 region.DecrementRef(RefCountType.Container);
 
@@ -237,6 +260,11 @@ namespace VoxelPizza.World
                 return region.RemoveChunk(position);
             }
             return ChunkRemoveStatus.MissingRegion;
+        }
+
+        private class RegionStatistics
+        {
+            public int UpdatesWithNoChunks;
         }
     }
 }

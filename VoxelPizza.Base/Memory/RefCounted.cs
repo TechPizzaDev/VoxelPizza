@@ -5,6 +5,9 @@ namespace VoxelPizza.Memory
 {
     public delegate void RefCountedAction(RefCounted instance);
 
+    /// <summary>
+    /// Base class for classes that use reference counting.
+    /// </summary>
     public abstract class RefCounted : IRefCounted
     {
         private int _refCount;

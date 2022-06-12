@@ -48,6 +48,11 @@ namespace VoxelPizza.World
             ChunkUpdated?.Invoke(chunk);
         }
 
+        public ChunkBox GetChunkBox()
+        {
+            return new ChunkBox(Position.ToChunk(), Size);
+        }
+
         public RefCounted<Chunk?> GetLocalChunk(int index)
         {
             _chunkLock.EnterReadLock();
@@ -81,7 +86,8 @@ namespace VoxelPizza.World
             CheckChunkPosition(Position, position);
 
             ChunkPosition localPosition = GetLocalChunkPosition(position);
-            return GetLocalChunk(localPosition);
+            int index = GetChunkIndex(localPosition);
+            return GetLocalChunk(index);
         }
 
         public RefCounted<Chunk> CreateChunk(ChunkPosition position, out ChunkAddStatus status)

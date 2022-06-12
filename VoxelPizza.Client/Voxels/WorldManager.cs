@@ -19,6 +19,7 @@ namespace VoxelPizza.Client
         public Dimension CreateDimension()
         {
             Dimension dimension = new();
+            dimension.IncrementRef(RefCountType.Container);
             return dimension;
         }
 

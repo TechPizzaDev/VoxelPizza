@@ -3,6 +3,10 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace VoxelPizza.Memory
 {
+    /// <summary>
+    /// Represents a tracker used for safely accessing a class deriving from <see cref="RefCounted"/>.
+    /// </summary>
+    /// <typeparam name="T">The type deriving from <see cref="RefCounted"/> to track.</typeparam>
     public readonly struct RefCounted<T> : IRefCounted, IDisposable
         where T : RefCounted?
     {
@@ -18,14 +22,14 @@ namespace VoxelPizza.Memory
         {
             get
             {
-                if (_value == null)
+                if (_value == null || _value.RefCount <= 0)
                     throw new InvalidOperationException();
                 return _value;
             }
         }
 
         [MemberNotNullWhen(true, nameof(Value))]
-        public bool HasValue => _value != null;
+        public bool HasValue => _value != null && _value.RefCount > 0;
 
         public int RefCount => _value!.RefCount;
 
@@ -37,12 +41,7 @@ namespace VoxelPizza.Memory
         public bool TryGetValue([NotNullWhen(true)] out T value)
         {
             value = _value;
-            return value != null;
-        }
-
-        public T GetValueOrDefault()
-        {
-            return _value;
+            return value != null && value.RefCount > 0;
         }
 
         /// <summary>

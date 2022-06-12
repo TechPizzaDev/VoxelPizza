@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading;
+using VoxelPizza.Diagnostics;
 using VoxelPizza.Memory;
 
 namespace VoxelPizza.World
@@ -7,7 +8,7 @@ namespace VoxelPizza.World
     public delegate void ChunkAction(Chunk chunk);
     public delegate void ChunkRegionAction(ChunkRegion region);
 
-    public class Dimension
+    public partial class Dimension : RefCounted
     {
         private Dictionary<ChunkRegionPosition, ChunkRegion> _regions = new();
         private ReaderWriterLockSlim _regionLock = new();
@@ -71,8 +72,10 @@ namespace VoxelPizza.World
             _cachedRegionRefZeroed = Region_RefZeroed;
         }
 
-        public void Update()
+        public void Update(Profiler? profiler)
         {
+            using ProfilerPopToken profilerToken = profiler.Push();
+
             _regionsToRemove.Clear();
 
             _regionLock.EnterReadLock();

@@ -55,6 +55,7 @@ namespace VoxelPizza.Client
 
         private WorldManager _worldManager;
         private Dimension _currentDimension;
+        private RayTest _rayTest;
 
         private RenderRegionManager _renderRegionManager;
         private RenderRegionRenderer _renderRegionRenderer;
@@ -120,6 +121,8 @@ namespace VoxelPizza.Client
 
             _worldManager = new WorldManager();
             _currentDimension = _worldManager.CreateDimension();
+
+            _rayTest = new RayTest();
 
             MemoryHeap chunkMeshHeap = NativeMemoryHeap.Instance;
             chunkMeshHeap = new HeapPool(chunkMeshHeap, 1024 * 64 * 4);
@@ -276,6 +279,8 @@ namespace VoxelPizza.Client
             _currentDimension.Update(updateState.Profiler);
 
             ImGuiRenderable.Update(updateState);
+
+            _rayTest.Update(updateState, _currentDimension);
 
             UpdateScene(updateState);
 

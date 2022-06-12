@@ -9,7 +9,7 @@ using VoxelPizza.Numerics;
 namespace VoxelPizza.World
 {
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-    public class Chunk : RefCounted
+    public partial class Chunk : RefCounted
     {
         public static BlockStorage0 EmptyStorage { get; } = new(Width, Height, Depth);
         public static BlockStorage0 DestroyedStorage { get; } = new(Width, Height, Depth);

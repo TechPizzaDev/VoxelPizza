@@ -130,7 +130,7 @@ namespace VoxelPizza.Client.Objects
                 new Vector3(halfRange, -1, halfRange));
 
             Vector3 direction = Camera.ScreenToWorld(InputTracker.MousePosition);
-            Ray ray = new(Camera.Position, direction);
+            Veldrid.Utilities.Ray ray = new(Camera.Position, direction);
 
             bool intersect = ray.Intersects(box, out float distance);
             Vector3 raypoint = ray.GetPoint(distance);

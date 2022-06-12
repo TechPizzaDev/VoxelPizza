@@ -8,7 +8,7 @@ using VoxelPizza.Numerics;
 namespace VoxelPizza.World
 {
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-    public class ChunkRegion : RefCounted
+    public partial class ChunkRegion : RefCounted
     {
         public const int Width = 16;
         public const int Depth = 16;

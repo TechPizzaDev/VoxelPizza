@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Veldrid;
+using Veldrid.ImageSharp;
 using Veldrid.Utilities;
 
 namespace VoxelPizza.Client.Objects

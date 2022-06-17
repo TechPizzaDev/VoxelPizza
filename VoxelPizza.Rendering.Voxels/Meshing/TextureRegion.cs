@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     [StructLayout(LayoutKind.Sequential)]
     public readonly struct TextureRegion

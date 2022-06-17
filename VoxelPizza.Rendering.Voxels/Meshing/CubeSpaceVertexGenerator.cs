@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public readonly unsafe struct CubeSpaceVertexGenerator : ICubeVertexGenerator<ChunkSpaceVertex>
     {

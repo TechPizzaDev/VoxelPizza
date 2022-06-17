@@ -1,5 +1,5 @@
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public abstract class FaceDependentMeshProvider : MeshProvider
     {

@@ -1,12 +1,12 @@
 using System;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     [Flags]
     public enum BlockVisualFeatures : byte
     {
         None = 0,
-        
+
         /// <summary>
         /// The meshing requests nearest neighbors.
         /// </summary>
@@ -25,7 +25,7 @@ namespace VoxelPizza.Client
         /// The mesher acts based on the nearest neighboring faces.
         /// </summary>
         FaceDependent = 1 << 3 | NeighborNear,
-        
+
         /// <summary>
         /// Determines whether meshing should be skipped early when lacking any exposed faces.
         /// </summary>

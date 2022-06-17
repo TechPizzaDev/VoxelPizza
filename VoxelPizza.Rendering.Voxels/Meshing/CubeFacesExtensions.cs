@@ -1,5 +1,5 @@
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public static class CubeFacesExtensions
     {

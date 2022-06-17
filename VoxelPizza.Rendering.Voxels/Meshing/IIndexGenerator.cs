@@ -1,4 +1,5 @@
-namespace VoxelPizza.Client
+
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public interface IIndexGenerator<T>
         where T : unmanaged

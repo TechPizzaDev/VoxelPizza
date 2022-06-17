@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public readonly unsafe struct CubeIndexGenerator : ICubeIndexGenerator<uint>
     {

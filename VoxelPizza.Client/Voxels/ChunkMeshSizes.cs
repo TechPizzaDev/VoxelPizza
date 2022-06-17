@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using VoxelPizza.Rendering.Voxels.Meshing;
 
 namespace VoxelPizza.Client
 {

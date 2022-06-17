@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using Veldrid;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
+using VoxelPizza.Rendering.Voxels.Meshing;
 
 namespace VoxelPizza.Client.Rendering.Voxels
 {

@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public struct ChunkSpaceVertex
     {
@@ -25,7 +25,7 @@ namespace VoxelPizza.Client
 
         public static uint Pack(uint x, uint y, uint z)
         {
-            return x | (y << 10) | (z << 20);
+            return x | y << 10 | z << 20;
         }
 
         public static uint Pack(Vector3 vector)

@@ -1,4 +1,5 @@
-namespace VoxelPizza.Client
+
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public interface ICubeVertexGenerator<T> : IVertexGenerator<T>
         where T : unmanaged

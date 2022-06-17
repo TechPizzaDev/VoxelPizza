@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public unsafe struct ChunkMeshResult
     {
@@ -61,7 +61,7 @@ namespace VoxelPizza.Client
             nuint indexBlockSize = heap.GetBlockSize(indexByteCount);
             nuint spaceBlockSize = heap.GetBlockSize(spaceByteCount);
             nuint paintBlockSize = heap.GetBlockSize(paintByteCount);
-            
+
             nuint totalBlockSize = indexBlockSize + spaceBlockSize + paintBlockSize;
             nuint unifiedTotalBlockSize = heap.GetBlockSize(byteCount);
             float sizeReductionFactor = totalBlockSize / (float)unifiedTotalBlockSize;

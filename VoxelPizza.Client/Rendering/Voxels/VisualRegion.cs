@@ -7,6 +7,7 @@ using System.Threading;
 using Veldrid;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
+using VoxelPizza.Rendering.Voxels.Meshing;
 using VoxelPizza.World;
 using OldChunkRenderer = VoxelPizza.Client.ChunkRenderer;
 

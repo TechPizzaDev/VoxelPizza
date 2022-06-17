@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public class CubeMeshProvider : FaceDependentMeshProvider
     {
@@ -18,9 +18,9 @@ namespace VoxelPizza.Client
 
             uint blockId = mesherState.CoreId;
             var paiGen = new CubePaintVertexGenerator(
-                Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(anims), (nint)blockId), 
+                Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(anims), (nint)blockId),
                 blockId * 2);
-            
+
             CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GenerateFullFrom(ref meshOutput, faces, ref indGen, ref spaGen, ref paiGen);
         }
@@ -31,7 +31,7 @@ namespace VoxelPizza.Client
             CubeFaces faces)
         {
             var indGen = new CubeIndexGenerator();
-            
+
             CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GenerateIndicesFrom(ref meshOutput, faces, ref indGen);
         }

@@ -10,6 +10,13 @@ namespace VoxelPizza.Client
 {
     public unsafe abstract class Application : IDisposable
     {
+        public static readonly bool GraphicsDebugDefault =
+#if DEBUG
+            true;
+#else
+            false;
+#endif
+
         private Sdl2Window _window;
         private GraphicsDevice _graphicsDevice;
 
@@ -326,11 +333,7 @@ namespace VoxelPizza.Client
 
         protected virtual bool ShouldEnableGraphicsDeviceDebug()
         {
-#if DEBUG
-            return true;
-#else
-            return false;
-#endif
+            return GraphicsDebugDefault;
         }
 
         protected virtual void WindowResized()

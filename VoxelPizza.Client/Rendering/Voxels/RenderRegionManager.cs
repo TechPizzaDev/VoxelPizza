@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
+using VoxelPizza.Rendering.Voxels.Meshing;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client.Rendering.Voxels

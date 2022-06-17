@@ -1,4 +1,4 @@
-namespace VoxelPizza.Client
+namespace VoxelPizza.World
 {
     public enum BlockMemoryState
     {

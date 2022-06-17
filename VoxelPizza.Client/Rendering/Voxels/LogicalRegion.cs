@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using VoxelPizza.Numerics;
+using VoxelPizza.Rendering.Voxels.Meshing;
 using VoxelPizza.World;
 using OldChunkRenderer = VoxelPizza.Client.ChunkRenderer;
 

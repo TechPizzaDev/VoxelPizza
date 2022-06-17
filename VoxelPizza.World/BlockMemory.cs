@@ -1,8 +1,7 @@
 using System;
 using VoxelPizza.Numerics;
-using VoxelPizza.World;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.World
 {
     public class BlockMemory
     {
@@ -28,9 +27,7 @@ namespace VoxelPizza.Client
         public Span<ChunkBoxSlice> GetChunkBoxBuffer(int size)
         {
             if (_chunkBoxBuffer.Length < size)
-            {
                 _chunkBoxBuffer = GC.AllocateUninitializedArray<ChunkBoxSlice>(size);
-            }
             Span<ChunkBoxSlice> span = _chunkBoxBuffer.AsSpan(0, size);
             return span;
         }
@@ -38,9 +35,7 @@ namespace VoxelPizza.Client
         public Span<bool> GetEmptyChunkBuffer(int size)
         {
             if (_emptyChunkBuffer.Length < size)
-            {
                 _emptyChunkBuffer = GC.AllocateUninitializedArray<bool>(size);
-            }
             Span<bool> span = _emptyChunkBuffer.AsSpan(0, size);
             return span;
         }

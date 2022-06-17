@@ -23,6 +23,8 @@ namespace VoxelPizza.Client
 {
     public class VoxelPizza : Application
     {
+        public static readonly string GraphicsDebugSwitchName = $"{typeof(VoxelPizza).FullName}.GraphicsDebug";
+
         private static RenderDoc? _renderDoc;
 
         private List<Profiler.FrameSet> _frameSets = new();
@@ -233,6 +235,15 @@ namespace VoxelPizza.Client
             GraphicsDevice.SubmitCommands(cl);
 
             _scene.PrimaryCamera.UpdateGraphicsBackend(GraphicsDevice, Window);
+        }
+
+        protected override bool ShouldEnableGraphicsDeviceDebug()
+        {
+            if (AppContext.TryGetSwitch(GraphicsDebugSwitchName, out bool isEnabled))
+            {
+                return isEnabled;
+            }
+            return GraphicsDebugDefault;
         }
 
         protected override bool RunBody(bool forceDraw)
@@ -459,6 +470,7 @@ namespace VoxelPizza.Client
                         renderer.RebuildChunks();
                     }
                 }
+
                 ImGui.End();
             }
         }

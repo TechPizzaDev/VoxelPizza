@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public partial class ChunkMesher
     {
@@ -138,9 +138,7 @@ namespace VoxelPizza.Client
 
                 MeshProvider? meshProvider = Unsafe.Add(ref meshProviders, coreId);
                 if (meshProvider == null)
-                {
                     continue;
-                }
 
                 uint features = (uint)Unsafe.Add(ref visualFeatures, coreId);
 
@@ -157,9 +155,7 @@ namespace VoxelPizza.Client
                     if ((features & (uint)BlockVisualFeatures.SkipIfObstructed) == (uint)BlockVisualFeatures.SkipIfObstructed)
                     {
                         if (faces == (uint)CubeFaces.None)
-                        {
                             continue;
-                        }
                     }
 
                     mesherState.X = x;

@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using Veldrid;
 using VoxelPizza.Numerics;
+using VoxelPizza.Rendering.Voxels.Meshing;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client

@@ -13,6 +13,6 @@ namespace VoxelPizza.Client
         Front = 1 << 4,
         Back = 1 << 5,
 
-        All = Top | Bottom | Left | Right | Front | Back
+        All = Top | Bottom | Left | Right | Front | Back,
     }
 }

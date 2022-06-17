@@ -11,6 +11,7 @@ using VoxelPizza.Collections;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
+using VoxelPizza.Rendering.Voxels.Meshing;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client

@@ -38,15 +38,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Veldrid Items", "Veldrid It
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LoudPizza Items", "LoudPizza Items", "{568A945A-333E-49A1-BC7D-D54C7F3E1F32}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NLayer", "LoudPizza\NLayer\NLayer\NLayer.csproj", "{41FDA82A-6C32-4A90-B0F9-E49D697DF7C7}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VoxelPizza.Collections", "VoxelPizza.Collections\VoxelPizza.Collections.csproj", "{1790BBA4-256C-4987-9AF4-C3687013C4CC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.Collections", "VoxelPizza.Collections\VoxelPizza.Collections.csproj", "{1790BBA4-256C-4987-9AF4-C3687013C4CC}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.Rendering.Voxels", "VoxelPizza.Rendering.Voxels\VoxelPizza.Rendering.Voxels.csproj", "{721DCD1C-46AD-4B0A-8ACA-523609D462DE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VoxelPizza.World", "VoxelPizza.World\VoxelPizza.World.csproj", "{E4488696-CA3A-466A-916C-26BF9FCCE195}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.World", "VoxelPizza.World\VoxelPizza.World.csproj", "{E4488696-CA3A-466A-916C-26BF9FCCE195}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VoxelPizza.Numerics", "VoxelPizza.Numerics\VoxelPizza.Numerics.csproj", "{F49E7D75-A21B-48B9-9E80-974EE912E574}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.Numerics", "VoxelPizza.Numerics\VoxelPizza.Numerics.csproj", "{F49E7D75-A21B-48B9-9E80-974EE912E574}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LoudPizza.Vorbis", "LoudPizza\LoudPizza.Vorbis\LoudPizza.Vorbis.csproj", "{F7B4DBF8-2D9A-417E-B4B0-87038569BCA5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -106,10 +106,6 @@ Global
 		{249E020A-1E86-4A08-84C9-31309CC795B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{249E020A-1E86-4A08-84C9-31309CC795B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{249E020A-1E86-4A08-84C9-31309CC795B2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{41FDA82A-6C32-4A90-B0F9-E49D697DF7C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{41FDA82A-6C32-4A90-B0F9-E49D697DF7C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{41FDA82A-6C32-4A90-B0F9-E49D697DF7C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{41FDA82A-6C32-4A90-B0F9-E49D697DF7C7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1790BBA4-256C-4987-9AF4-C3687013C4CC}.Debug|Any CPU.ActiveCfg = Release|Any CPU
 		{1790BBA4-256C-4987-9AF4-C3687013C4CC}.Debug|Any CPU.Build.0 = Release|Any CPU
 		{1790BBA4-256C-4987-9AF4-C3687013C4CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -126,6 +122,10 @@ Global
 		{F49E7D75-A21B-48B9-9E80-974EE912E574}.Debug|Any CPU.Build.0 = Release|Any CPU
 		{F49E7D75-A21B-48B9-9E80-974EE912E574}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F49E7D75-A21B-48B9-9E80-974EE912E574}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F7B4DBF8-2D9A-417E-B4B0-87038569BCA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F7B4DBF8-2D9A-417E-B4B0-87038569BCA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F7B4DBF8-2D9A-417E-B4B0-87038569BCA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F7B4DBF8-2D9A-417E-B4B0-87038569BCA5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -142,7 +142,7 @@ Global
 		{CF35BF21-61FE-4A59-A8BB-C23CC3626E0A} = {1069F88C-49D1-42FB-889E-B97829E8B997}
 		{5FA1917C-5E16-4E1C-9913-C140995CF62B} = {1069F88C-49D1-42FB-889E-B97829E8B997}
 		{249E020A-1E86-4A08-84C9-31309CC795B2} = {568A945A-333E-49A1-BC7D-D54C7F3E1F32}
-		{41FDA82A-6C32-4A90-B0F9-E49D697DF7C7} = {568A945A-333E-49A1-BC7D-D54C7F3E1F32}
+		{F7B4DBF8-2D9A-417E-B4B0-87038569BCA5} = {568A945A-333E-49A1-BC7D-D54C7F3E1F32}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {1B0DC0DC-14D7-4206-8728-62E24FA288B0}

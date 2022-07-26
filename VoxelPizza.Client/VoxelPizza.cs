@@ -52,7 +52,6 @@ namespace VoxelPizza.Client
         private event Action<int, int> _resizeHandled;
         private bool _windowResized = true;
 
-        public AudioTest audioTest;
         private ParticlePlane? particlePlane;
 
         private WorldManager _worldManager;
@@ -69,11 +68,9 @@ namespace VoxelPizza.Client
         public VoxelPizza() : base(preferredBackend: GraphicsBackend.Vulkan)
         {
             Sdl2Native.SDL_Init(SDLInitFlags.GameController | SDLInitFlags.Audio);
+            
             SDLAudioBindings.LoadFunctions();
             Sdl2ControllerTracker.CreateDefault(out _controllerTracker);
-
-            audioTest = new AudioTest();
-            audioTest.Run();
 
             GraphicsDevice.SyncToVerticalBlank = true;
 
@@ -298,23 +295,6 @@ namespace VoxelPizza.Client
             particlePlane?.Update(time);
 
             Camera? camera = _sc.CurrentCamera;
-            if (camera != null)
-            {
-                Vector3 camPos = camera.Position;
-                Vector3 camLook = camera.LookDirection;
-
-                audioTest.soloud.set3dListenerPosition(camPos.X, camPos.Y, camPos.Z);
-                audioTest.soloud.set3dListenerAt(camLook.X, camLook.Y, camLook.Z);
-                audioTest.soloud.set3dListenerUp(0, 1, 0);
-            }
-
-            float x = MathF.Sin(time.TotalSeconds) * 20;
-            x = 0;
-            audioTest.soloud.set3dSourcePosition(audioTest.voicehandle, x, 0, 0);
-            audioTest.soloud.update3dAudio();
-
-            //var t = audioTest.soloud.getStreamPosition(audioTest.voicehandle);
-            //audioTest.soloud.seek(audioTest.voicehandle, t + LoudPizza.Time.FromSeconds(0.01));
 
             //_sc.DirectionalLight.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Sin(time.TotalSeconds));
 
@@ -358,6 +338,7 @@ namespace VoxelPizza.Client
 
                 int width = Window.Width;
                 int height = Window.Height;
+
                 GraphicsDevice.ResizeMainWindow((uint)width, (uint)height);
                 _scene.PrimaryCamera.WindowResized(width, height);
                 _resizeHandled?.Invoke(width, height);
@@ -456,7 +437,7 @@ namespace VoxelPizza.Client
             DrawProfiler(_frameSets);
 
             if (ImGui.Begin("ChunkRenderer control"))
-            {
+                {
                 ChunkRenderer? renderer = ChunkRenderer;
                 if (renderer != null)
                 {
@@ -837,11 +818,6 @@ namespace VoxelPizza.Client
             {
                 if (ImGui.Begin("Profiler"))
                 {
-                    if (_renderRegionManager.ChunkMeshHeap is HeapPool heapPool)
-                    {
-                        ImGui.Text((heapPool.AvailableBytes / 1024) + "kB");
-                    }
-
                     void SameLineFor(string text)
                     {
                         ImGui.SameLine(ImGui.GetWindowContentRegionWidth() - ImGui.CalcTextSize(text).X + 8);

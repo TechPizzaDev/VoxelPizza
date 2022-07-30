@@ -33,6 +33,10 @@ namespace VoxelPizza.Memory
 
         public int RefCount => _value!.RefCount;
 
+        /// <summary>
+        /// Constructs the wrapper. Does not increment ref count.
+        /// </summary>
+        /// <param name="value">The <see cref="RefCounted"/> object to wrap.</param>
         public RefCounted(T value)
         {
             _value = value;

@@ -5,7 +5,7 @@
         <ArtifactDirectory>$(MSBuildThisFileDirectory)Artifacts\</ArtifactDirectory>
         
         <OutputPath>$(ArtifactDirectory)\bin\$(Configuration)\$(MSBuildProjectName)</OutputPath>
-        <DocumentationFile>$(ArtifactDirectory)\doc\$(Configuration)\$(MSBuildProjectName).xml</DocumentationFile>
+        <!--DocumentationFile>$(ArtifactDirectory)\doc\$(Configuration)\$(MSBuildProjectName).xml</DocumentationFile-->
         <PackageOutputPath>$(ArtifactDirectory)\packages\$(Configuration)\$(MSBuildProjectName)</PackageOutputPath>
         <BaseIntermediateOutputPath>$(ArtifactDirectory)\obj\$(MSBuildProjectName)</BaseIntermediateOutputPath>        
     </PropertyGroup>

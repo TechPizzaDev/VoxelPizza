@@ -1,13 +1,17 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
+    <PropertyGroup>
+        <RootNamespace>VoxelPizza</RootNamespace>
+    </PropertyGroup>
+    
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\VoxelPizza.World\VoxelPizza.World.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\VoxelPizza.World\VoxelPizza.World.csproj" />
+    </ItemGroup>
 
 </Project>

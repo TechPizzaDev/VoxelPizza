@@ -1,41 +1,45 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Nullable>enable</Nullable>
-    <TieredCompilation>false</TieredCompilation>
-    <AssetsDir>$(MSBuildThisFileDirectory)Assets</AssetsDir>
-  </PropertyGroup>
+    <PropertyGroup>
+        <RootNamespace>VoxelPizza.Client</RootNamespace>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <Content Include="$(AssetsDir)\Textures\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net6.0</TargetFramework>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Nullable>enable</Nullable>
+        <TieredCompilation>false</TieredCompilation>
+        <AssetsDir>$(MSBuildThisFileDirectory)Assets</AssetsDir>
+    </PropertyGroup>
 
-    <Content Include="$(AssetsDir)\Models\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    
-    <Content Include="$(AssetsDir)\Shaders\*.spv">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Visible>false</Visible>
-    </Content>
-  </ItemGroup>
+    <ItemGroup>
+        <Content Include="$(AssetsDir)\Textures\**">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
 
-  <ItemGroup>
-    <ProjectReference Include="..\LoudPizza\LoudPizza\LoudPizza.csproj" />
-    <ProjectReference Include="..\veldrid\modules\veldrid-spirv\src\Veldrid.SPIRV\Veldrid.SPIRV.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.ImageSharp\Veldrid.ImageSharp.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.ImGui\Veldrid.ImGui.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.RenderDoc\Veldrid.RenderDoc.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.StartupUtilities\Veldrid.StartupUtilities.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.Utilities\Veldrid.Utilities.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid\Veldrid.csproj" />
-    <ProjectReference Include="..\VoxelPizza.Base\VoxelPizza.Base.csproj" />
-    <ProjectReference Include="..\VoxelPizza.Rendering.Voxels\VoxelPizza.Rendering.Voxels.csproj" />
-    <ProjectReference Include="..\VoxelPizza.World\VoxelPizza.World.csproj" />
-  </ItemGroup>
+        <Content Include="$(AssetsDir)\Models\**">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+
+        <Content Include="$(AssetsDir)\Shaders\*.spv">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Visible>false</Visible>
+        </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LoudPizza\LoudPizza\LoudPizza.csproj" />
+        <ProjectReference Include="..\veldrid\modules\veldrid-spirv\src\Veldrid.SPIRV\Veldrid.SPIRV.csproj" />
+        <ProjectReference Include="..\veldrid\src\Veldrid.ImageSharp\Veldrid.ImageSharp.csproj" />
+        <ProjectReference Include="..\veldrid\src\Veldrid.ImGui\Veldrid.ImGui.csproj" />
+        <ProjectReference Include="..\veldrid\src\Veldrid.RenderDoc\Veldrid.RenderDoc.csproj" />
+        <ProjectReference Include="..\veldrid\src\Veldrid.StartupUtilities\Veldrid.StartupUtilities.csproj" />
+        <ProjectReference Include="..\veldrid\src\Veldrid.Utilities\Veldrid.Utilities.csproj" />
+        <ProjectReference Include="..\veldrid\src\Veldrid\Veldrid.csproj" />
+        <ProjectReference Include="..\VoxelPizza.Base\VoxelPizza.Base.csproj" />
+        <ProjectReference Include="..\VoxelPizza.Rendering.Voxels\VoxelPizza.Rendering.Voxels.csproj" />
+        <ProjectReference Include="..\VoxelPizza.World\VoxelPizza.World.csproj" />
+    </ItemGroup>
 
 </Project>

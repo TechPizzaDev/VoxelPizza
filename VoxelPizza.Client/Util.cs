@@ -2,20 +2,19 @@ using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
-using Veldrid.Utilities;
 
 namespace VoxelPizza.Client
 {
-    internal static class Util
+    public static class Util
     {
-        internal static uint SizeInBytes<T>(this T[] array)
+        public static uint SizeInBytes<T>(this T[] array)
             where T : unmanaged
         {
             return (uint)(array.Length * Unsafe.SizeOf<T>());
         }
 
         // Code adapted from https://bitbucket.org/sinbad/ogre/src/9db75e3ba05c/OgreMain/include/OgreVector3.h
-        internal static Quaternion FromToRotation(Vector3 from, Vector3 to, Vector3 fallbackAxis = default)
+        public static Quaternion FromToRotation(Vector3 from, Vector3 to, Vector3 fallbackAxis = default)
         {
             // Based on Stan Melax's article in Game Programming Gems
             Quaternion q;
@@ -156,7 +155,7 @@ namespace VoxelPizza.Client
             return result;
         }
 
-        internal static Matrix4x4 CreateOrtho(
+        public static Matrix4x4 CreateOrtho(
             GraphicsDevice gd,
             bool useReverseDepth,
             float left, float right,

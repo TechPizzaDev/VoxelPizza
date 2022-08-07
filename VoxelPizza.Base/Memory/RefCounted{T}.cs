@@ -34,9 +34,9 @@ namespace VoxelPizza.Memory
         public int RefCount => _value!.RefCount;
 
         /// <summary>
-        /// Constructs the wrapper. Does not increment ref count.
+        /// Constructs the tracker. Does not increment ref count.
         /// </summary>
-        /// <param name="value">The <see cref="RefCounted"/> object to wrap.</param>
+        /// <param name="value">The <see cref="RefCounted"/> object to track.</param>
         public RefCounted(T value)
         {
             _value = value;
@@ -56,12 +56,14 @@ namespace VoxelPizza.Memory
             _value?.DecrementRef();
         }
 
+        /// <inheritdoc/>
         public int IncrementRef(RefCountType type = RefCountType.Caller)
         {
             int count = _value!.IncrementRef(type);
             return count;
         }
 
+        /// <inheritdoc/>
         public int DecrementRef(RefCountType type = RefCountType.Caller)
         {
             int count = _value!.DecrementRef(type);

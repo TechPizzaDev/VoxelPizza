@@ -27,22 +27,21 @@ namespace VoxelPizza.World
                 _chunkBlockRay = default;
             }
 
-            public bool MoveNext(ref VoxelRayCast state, out BlockRayCastStatus status)
+            public BlockRayCastStatus MoveNext(ref VoxelRayCast state)
             {
                 if (_status == BlockRayCastStatus.Block)
                 {
                     if (_chunkBlockRay.MoveNext(ref state))
                     {
-                        status = BlockRayCastStatus.Block;
-                        return true;
+                        return BlockRayCastStatus.Block;
                     }
 
                     _status = BlockRayCastStatus.Chunk;
                 }
-                return TryMoveNext(ref state, out status);
+                return TryMoveNext(ref state);
             }
 
-            private bool TryMoveNext(ref VoxelRayCast state, out BlockRayCastStatus status)
+            private BlockRayCastStatus TryMoveNext(ref VoxelRayCast state)
             {
                 if (_status == BlockRayCastStatus.Chunk)
                 {
@@ -62,15 +61,13 @@ namespace VoxelPizza.World
                             _chunkBlockRay = chunk.CastBlockRay(local: false);
 
                             _status = BlockRayCastStatus.Block;
-                            status = BlockRayCastStatus.Chunk;
-                            return true;
+                            return BlockRayCastStatus.Chunk;
                         }
                     }
                 }
 
                 _status = BlockRayCastStatus.End;
-                status = BlockRayCastStatus.End;
-                return false;
+                return BlockRayCastStatus.End;
             }
 
             public void Dispose()

@@ -16,6 +16,7 @@ namespace VoxelPizza.World
             private RefCounted<Dimension> _region;
             private BlockRayCastStatus _status;
             private ChunkRegion.BlockRayCast _regionBlockRay;
+            private bool _encounteredBlocks;
 
             public Dimension Dimension => _region.Value;
             public ChunkRegion CurrentChunkRegion => _regionBlockRay.ChunkRegion;
@@ -26,24 +27,27 @@ namespace VoxelPizza.World
                 _region = chunkRegion.HasValue ? chunkRegion : throw new ArgumentNullException(nameof(chunkRegion));
                 _status = BlockRayCastStatus.Region;
                 _regionBlockRay = default;
+                _encounteredBlocks = false;
             }
 
-            public bool MoveNext(ref VoxelRayCast state, out BlockRayCastStatus status)
+            public BlockRayCastStatus MoveNext(ref VoxelRayCast state)
             {
+                BlockRayCastStatus status = BlockRayCastStatus.Region;
                 if (_status == BlockRayCastStatus.Block)
                 {
-                    if (_regionBlockRay.MoveNext(ref state, out status) &&
-                        status != BlockRayCastStatus.End)
+                    status = _regionBlockRay.MoveNext(ref state);
+                    if (status != BlockRayCastStatus.End)
                     {
-                        return true;
+                        _encounteredBlocks = true;
+                        return status;
                     }
 
                     _status = BlockRayCastStatus.Region;
                 }
-                return TryMoveNext(ref state, out status);
+                return TryMoveNext(ref state, status);
             }
 
-            private bool TryMoveNext(ref VoxelRayCast state, out BlockRayCastStatus status)
+            private BlockRayCastStatus TryMoveNext(ref VoxelRayCast state, BlockRayCastStatus status)
             {
                 if (_status == BlockRayCastStatus.Region)
                 {
@@ -60,19 +64,23 @@ namespace VoxelPizza.World
                         _regionBlockRay.Dispose();
                         _regionBlockRay = region.CastBlockRay();
 
-                        _status = BlockRayCastStatus.Block;
-                        status = BlockRayCastStatus.Region;
-                        return true;
+                        if (status != BlockRayCastStatus.End || _encounteredBlocks)
+                        {
+                            _encounteredBlocks = false;
+                            _status = BlockRayCastStatus.Block;
+                            return BlockRayCastStatus.Region;
+                        }
                     }
                 }
 
                 _status = BlockRayCastStatus.End;
-                status = BlockRayCastStatus.End;
-                return false;
+                return BlockRayCastStatus.End;
             }
 
             public void Dispose()
             {
+                _region.Invalidate();
+                _regionBlockRay.Dispose();
             }
         }
     }

@@ -47,7 +47,8 @@ namespace VoxelPizza.Client
 
                                 using Dimension.BlockRayCast blockRay = dimension.CastBlockRay();
                                 Chunk? chunk = null;
-                                while (blockRay.MoveNext(ref rayCast, out BlockRayCastStatus status))
+                                BlockRayCastStatus status;
+                                while ((status = blockRay.MoveNext(ref rayCast)) != BlockRayCastStatus.End)
                                 {
                                     if (blocksLeft-- <= 0)
                                         break;

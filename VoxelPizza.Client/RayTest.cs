@@ -23,7 +23,7 @@ namespace VoxelPizza.Client
 
                 Vector3 dir = new(
                     MathF.Cos(t),
-                    0,
+                    (MathF.Cos(t * 30) + 1) * 0.25f,
                     MathF.Sin(t));
 
                 dir = Vector3.Normalize(dir);
@@ -43,7 +43,8 @@ namespace VoxelPizza.Client
 
                                 VoxelRayCast rayCast = new(origin, dir);
 
-                                int blocksLeft = 300;
+                                const int distance = 300;
+                                int blocksLeft = 4096;
 
                                 using Dimension.BlockRayCast blockRay = dimension.CastBlockRay();
                                 Chunk? chunk = null;
@@ -51,6 +52,9 @@ namespace VoxelPizza.Client
                                 while ((status = blockRay.MoveNext(ref rayCast)) != BlockRayCastStatus.End)
                                 {
                                     if (blocksLeft-- <= 0)
+                                        break;
+
+                                    if ((rayCast.Current - origin).LengthSquared() > distance * distance)
                                         break;
 
                                     if (status == BlockRayCastStatus.Chunk)

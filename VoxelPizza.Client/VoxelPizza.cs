@@ -208,6 +208,8 @@ namespace VoxelPizza.Client
 
         protected override void DisposeGraphicsDeviceObjects()
         {
+            GraphicsDevice.WaitForIdle();
+
             FinishSubmittedCommandLists(force: true);
             foreach (FencedCommandList frameCL in _commandLists)
                 frameCL.Dispose();
@@ -820,7 +822,7 @@ namespace VoxelPizza.Client
                 {
                     void SameLineFor(string text)
                     {
-                        ImGui.SameLine(ImGui.GetWindowContentRegionWidth() - ImGui.CalcTextSize(text).X + 8);
+                        ImGui.SameLine(ImGui.GetWindowContentRegionMax().X - ImGui.CalcTextSize(text).X);
                     }
 
                     void DrawFrameSet(int setIndex, int parentIndex)

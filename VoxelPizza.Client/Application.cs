@@ -265,8 +265,8 @@ namespace VoxelPizza.Client
                 TimeAverager.EndDraw();
             }
             catch (SharpGen.Runtime.SharpGenException ex) when
-                (ex.Descriptor == Vortice.DXGI.ResultCode.DeviceRemoved ||
-                ex.Descriptor == Vortice.DXGI.ResultCode.DeviceReset)
+                (ex.ResultCode == Vortice.DXGI.ResultCode.DeviceRemoved ||
+                ex.ResultCode == Vortice.DXGI.ResultCode.DeviceReset)
             {
                 Console.WriteLine(ex); // TODO: log proper error
 

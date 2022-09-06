@@ -113,7 +113,7 @@ namespace VoxelPizza.Numerics
         {
             while (true)
             {
-                ulong result = NextFullUInt64() >> 32;
+                ulong result = NextFullUInt64();
                 if (result != ulong.MaxValue)
                 {
                     return result;

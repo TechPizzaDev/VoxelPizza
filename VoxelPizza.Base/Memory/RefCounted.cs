@@ -29,9 +29,14 @@ namespace VoxelPizza.Memory
 
             if (count == 0)
             {
-                RefZeroed?.Invoke(this);
+                OnRefZeroed();
             }
             return count;
+        }
+
+        protected virtual void OnRefZeroed()
+        {
+            RefZeroed?.Invoke(this);
         }
 
         ~RefCounted()

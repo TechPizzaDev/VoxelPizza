@@ -1,7 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using VoxelPizza.Memory;
@@ -25,6 +22,10 @@ namespace VoxelPizza.Client
 
         public Task CreateTestWorld(Dimension dimension, bool async)
         {
+            //TerrainGenerator generator = new PlaneTerrainGenerator();
+            //TerrainGenerator generator = new SphereTerrainGenerator();
+            TerrainGenerator generator = new WavesTerrainGenerator();
+
             void action()
             {
                 try
@@ -32,9 +33,9 @@ namespace VoxelPizza.Client
                     if (async)
                         Thread.Sleep(1000);
 
-                    int width = 40;
+                    int width = 64;
                     int depth = width;
-                    int height = 40;
+                    int height = width;
 
                     Size3 size = new((uint)width, (uint)height, (uint)depth);
 
@@ -43,29 +44,18 @@ namespace VoxelPizza.Client
 
                     ChunkPosition centerOffset = new(width / 2, height / 2, depth / 2);
 
-                    HashSet<ChunkPosition> currentChunks = new();
-
-                    bool[,] loads = new bool[width, depth];
-
                     void AddChunk(ChunkRegion region, ChunkPosition position)
                     {
-                        //bool a = currentChunks.Add(position);
-                        //Debug.Assert(a);
-
-                        if (position.Y == 0)
+                        if (!generator.CanGenerate(position))
                         {
-                            //ChunkPosition co = currentPosition - centerOffset;
-                            //if (position.Y == 0)
-                            //    loads[position.X - co.X, position.Z - co.Z] = true;
+                            return;
+                        }
 
-                            using RefCounted<Chunk> countedChunk = region.CreateChunk(position, out _);
-                            Chunk chunk = countedChunk.Value;
+                        using RefCounted<Chunk> countedChunk = region.CreateChunk(position, out _);
+                        Chunk chunk = countedChunk.Value;
 
-                            if (!chunk.Generate())
-                            {
-                                return;
-                            }
-                            //chunk.SetBlockLayer(0, 10);
+                        if (generator.Generate(chunk))
+                        {
                             chunk.InvokeUpdate();
                         }
                     }
@@ -93,8 +83,6 @@ namespace VoxelPizza.Client
                             }
                         }
                     }
-
-                    //using var fs = new FileStream("what.txt", FileMode.Create);
 
                     while (true)
                     {
@@ -135,9 +123,6 @@ namespace VoxelPizza.Client
                                     {
                                         if (!currentBox.Contains(position))
                                         {
-                                            //if (position.Y == 0)
-                                            //    loads[position.X - previousOrigin.X, position.Z - previousOrigin.Z] = false;
-
                                             region.Value.RemoveChunk(position);
                                         }
                                     }
@@ -170,177 +155,6 @@ namespace VoxelPizza.Client
                         }
 
                         previousPosition = currentPosition;
-
-                        //int ww = currentMax.X - currentOrigin.X;
-                        //int hh = currentMax.Y - currentOrigin.Y;
-                        //int dd = currentMax.Z - currentOrigin.Z;
-                        //using var sw = new StreamWriter(fs, System.Text.Encoding.UTF8, -1, true);
-                        //sw.WriteLine(ww + " x " + hh + " x " + dd);
-                        //
-                        //ChunkPosition brorigin = currentOrigin;
-                        //brorigin.Y = 0;
-                        //for (int z = 0; z < depth; z++)
-                        //{
-                        //    for (int x = 0; x < width; x++)
-                        //    {
-                        //        bool load = loads[x, z];
-                        //        Chunk? chunk = dimension.GetChunk(new ChunkPosition(x, 0, z) + brorigin);
-                        //        bool hasChunk = chunk != null;
-                        //        chunk?.DecrementRef();
-                        //        sw.Write(load ? (hasChunk ? 2 : 1) : (hasChunk ? 4 : 0));
-                        //    }
-                        //    sw.WriteLine();
-                        //}
-                        //sw.WriteLine();
-                    }
-
-                    return;
-
-                    List<(int x, int y, int z)>? list = new();
-
-                    int off = 0;
-                    for (int x = 0; x < width; x++)
-                    {
-                        for (int y = -1; y < height; y++)
-                        {
-                            for (int z = 0; z < depth; z++)
-                            {
-                                list.Add((x, y, z));
-                            }
-                        }
-                    }
-
-                    list.Sort((a, b) =>
-                    {
-                        int cx = width / 2;
-                        int cy = height / 2;
-                        int cz = depth / 2;
-
-                        int ax = (cx - a.x);
-                        int ay = (cy - a.y);
-                        int az = (cz - a.z);
-                        int av = ax * ax + ay * ay + az * az;
-
-                        int bx = (cx - b.x);
-                        int by = (cy - b.y);
-                        int bz = (cz - b.z);
-                        int bv = bx * bx + by * by + bz * bz;
-
-                        return av.CompareTo(bv);
-                    });
-
-                    int count = 0;
-                    foreach ((int x, int y, int z) in list)
-                    {
-                        using RefCounted<Chunk> countedChunk = dimension.CreateChunk(new(x, y, z), out _);
-                        Chunk chunk = countedChunk.Value;
-
-                        if (y < 0)
-                            chunk.GetBlockStorage().SetBlockLayer(15, 1);
-                        else
-                            chunk.Generate();
-
-                        //if (y >= 0 && x >= off && z >= off &&
-                        //    x < width - off &&
-                        //    z < depth - off)
-                        //{
-                        //    chunk.InvokeUpdate();
-                        //}
-
-                        if (y >= 0 && x >= off && z >= off &&
-                            x < width - off &&
-                            z < depth - off)
-                        {
-                            chunk?.InvokeUpdate();
-                        }
-
-                        count++;
-                        if (count == width * height)
-                        {
-                            Thread.Sleep(1000);
-                            count = 0;
-                        }
-                    }
-
-                    if (false)
-                    {
-                        foreach ((int x, int y, int z) in list)
-                        {
-                            using RefCounted<Chunk?> countedChunk = dimension.GetChunk(new(x, y, z));
-                            if (countedChunk.TryGetValue(out Chunk? chunk))
-                            {
-                                if (y >= 0 && x >= off && z >= off &&
-                                    x < width - off &&
-                                    z < depth - off)
-                                {
-                                    chunk.InvokeUpdate();
-                                }
-                            }
-                        }
-                    }
-
-                    if (false)
-                    {
-                        Random rng = new(1234);
-                        for (int i = 0; i < (64 * 1024) / (width * height * depth); i++)
-                        {
-                            for (int y = 0; y < height; y++)
-                            {
-                                for (int z = 0; z < depth; z++)
-                                {
-                                    for (int x = 0; x < width; x++)
-                                    {
-                                        int xd = rng.Next(2);
-                                        int max = xd == 0 ? 512 : 128;
-                                        using RefCounted<Chunk?> countedChunk = dimension.GetChunk(new ChunkPosition(x, y, z));
-                                        if (countedChunk.TryGetValue(out Chunk? c))
-                                        {
-                                            //uint[] blocks = c.Blocks;
-                                            //for (int b = 0; b < blocks.Length; b++)
-                                            //{
-                                            //    blocks[b] = (uint)rng.Next(max);
-                                            //}
-                                            //blocks.AsSpan().Clear();
-
-
-                                            //ChunkRegionPosition regionPosition = GetRegionPosition(c.Position);
-                                            //_regions[regionPosition].UpdateChunk(c);
-                                        }
-                                    }
-                                }
-                            }
-                            //frameEvent.WaitOne();
-                            //frameEvent.WaitOne();
-                            //frameEvent.WaitOne();
-                            //frameEvent.WaitOne();
-                        }
-
-                        //frameEvent.WaitOne();
-                        Thread.Sleep(1000);
-                        Environment.Exit(0);
-                    }
-
-                    if (false)
-                    {
-                        Random rng = new(1234);
-                        while (true)
-                        {
-                            for (int i = 0; i < 2; i++)
-                            {
-                                int x = rng.Next(width - off * 2) + off;
-                                int z = rng.Next(depth - off * 2) + off;
-                                int y = rng.Next(height);
-                                using RefCounted<Chunk?> countedChunk = dimension.GetChunk(new ChunkPosition(x, y, z));
-                                if (countedChunk.TryGetValue(out Chunk? chunk))
-                                {
-                                    chunk.GetBlockStorage().SetBlock(rng.Next(16 * 16 * 16), (uint)rng.Next(128));
-
-                                    chunk.InvokeUpdate();
-                                }
-                            }
-
-                            Thread.Sleep(1);
-                        }
                     }
                 }
                 catch (Exception ex)

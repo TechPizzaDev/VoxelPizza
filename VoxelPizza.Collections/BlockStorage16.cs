@@ -23,42 +23,79 @@ namespace VoxelPizza.Collections
             return true;
         }
 
-        public override void GetBlockRow(int index, Span<uint> destination)
+        public override uint GetBlock(int x, int y, int z)
         {
-            if ((index + destination.Length) * sizeof(ushort) > _array.Length)
-                throw new IndexOutOfRangeException();
-
-            ref byte array = ref MemoryMarshal.GetArrayDataReference(_array);
-            ref byte src = ref Unsafe.Add(ref array, index * sizeof(ushort));
-            ref byte dst = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(destination));
-            Expand16To32(ref src, ref dst, (uint)destination.Length);
+            int index = GetIndex(x, y, z);
+            ushort value = Unsafe.ReadUnaligned<ushort>(ref _array[index * sizeof(ushort)]);
+            return value;
         }
 
         public override void GetBlockRow(int x, int y, int z, Span<uint> destination)
         {
-            GetBlockRow(GetIndex(x, y, z), destination);
+            int index = GetIndex(x, y, z);
+            int length = Math.Min(destination.Length, Width - x);
+            ReadOnlySpan<ushort> u16Src = MemoryMarshal.Cast<byte, ushort>(_array);
+            ReadOnlySpan<ushort> src = u16Src.Slice(index, length);
+            Span<uint> dst = destination.Slice(0, length);
+
+            Expand16To32(src, dst, length);
         }
 
-        public override void SetBlockLayer(int y, uint value)
+        public override void GetBlockLayer(int y, Span<uint> destination)
         {
-            Span<byte> span = _array.AsSpan(
-                GetIndex(0, y, 0) * sizeof(ushort),
-                Width * Depth * sizeof(ushort));
-            MemoryMarshal.Cast<byte, ushort>(span).Fill((ushort)value);
-        }
+            int index = GetIndex(0, y, 0);
+            int length = Math.Min(destination.Length, Width * Depth);
+            ReadOnlySpan<ushort> u16Src = MemoryMarshal.Cast<byte, ushort>(_array);
+            ReadOnlySpan<ushort> src = u16Src.Slice(index, length);
+            Span<uint> dst = destination.Slice(0, length);
 
-        public override void SetBlock(int index, uint value)
-        {
-            if (index * sizeof(ushort) > _array.Length)
-                throw new IndexOutOfRangeException();
-
-            ref byte array = ref MemoryMarshal.GetArrayDataReference(_array);
-            Unsafe.WriteUnaligned(ref Unsafe.Add(ref array, index * sizeof(ushort)), (ushort)value);
+            Expand16To32(src, dst, length);
         }
 
         public override void SetBlock(int x, int y, int z, uint value)
         {
-            SetBlock(GetIndex(x, y, z), value);
+            int index = GetIndex(x, y, z);
+            Unsafe.WriteUnaligned(ref _array[index * sizeof(ushort)], (ushort)value);
+        }
+
+        public override void SetBlockRow(int x, int y, int z, ReadOnlySpan<uint> source)
+        {
+            int index = GetIndex(x, y, z);
+            int length = Math.Min(source.Length, Width - x);
+            ReadOnlySpan<uint> src = source.Slice(0, length);
+            Span<ushort> u16Dst = MemoryMarshal.Cast<byte, ushort>(_array);
+            Span<ushort> dst = u16Dst.Slice(index, length);
+
+            for (int i = 0; i < length; i++)
+            {
+                uint value = src[i];
+                dst[i] = (ushort)value;
+            }
+        }
+
+        public override void SetBlockLayer(int y, ReadOnlySpan<uint> source)
+        {
+            base.SetBlockLayer(y, source);
+        }
+
+        public override void SetBlockRow(int x, int y, int z, uint value)
+        {
+            int index = GetIndex(x, y, z);
+            int length = Width - x;
+            Span<ushort> u16Dst = MemoryMarshal.Cast<byte, ushort>(_array);
+            Span<ushort> dst = u16Dst.Slice(index, length);
+
+            dst.Fill((ushort)value);
+        }
+
+        public override void SetBlockLayer(int y, uint value)
+        {
+            int index = GetIndex(0, y, 0);
+            int length = Width * Depth;
+            Span<ushort> u16Dst = MemoryMarshal.Cast<byte, ushort>(_array);
+            Span<ushort> dst = u16Dst.Slice(index, length);
+
+            dst.Fill((ushort)value);
         }
     }
 }

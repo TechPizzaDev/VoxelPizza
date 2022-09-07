@@ -17,11 +17,5 @@ namespace VoxelPizza.Collections
         /// <param name="storageType">The actual type of data backing the span.</param>
         /// <returns>Whether the <paramref name="inlineSpan"/> and <paramref name="storageType"/> is valid.</returns>
         bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType);
-
-        void GetBlockRow(int index, Span<uint> destination);
-
-        void SetBlockLayer(int y, uint value);
-
-        void SetBlock(int index, uint value);
     }
 }

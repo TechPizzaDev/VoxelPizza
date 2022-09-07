@@ -1,7 +1,4 @@
 using System;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Collections
 {
@@ -24,39 +21,72 @@ namespace VoxelPizza.Collections
             return true;
         }
 
-        public override void GetBlockRow(int index, Span<uint> destination)
+        public override uint GetBlock(int x, int y, int z)
         {
-            if (index + destination.Length > _array.Length)
-                throw new IndexOutOfRangeException();
-
-            ref byte array = ref MemoryMarshal.GetArrayDataReference(_array);
-            ref byte src = ref Unsafe.Add(ref array, index);
-            ref byte dst = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(destination));
-            Expand8To32(ref src, ref dst, (nuint)destination.Length);
+            int index = GetIndex(x, y, z);
+            byte value = _array[index];
+            return value;
         }
 
         public override void GetBlockRow(int x, int y, int z, Span<uint> destination)
         {
-            GetBlockRow(GetIndex(x, y, z), destination);
+            int index = GetIndex(x, y, z);
+            int length = Math.Min(destination.Length, Width - x);
+            ReadOnlySpan<byte> src = _array.AsSpan(index, length);
+            Span<uint> dst = destination.Slice(0, length);
+
+            Expand8To32(src, dst, length);
         }
 
-        public override void SetBlockLayer(int y, uint value)
+        public override void GetBlockLayer(int y, Span<uint> destination)
         {
-            _array.AsSpan(GetIndex(0, y, 0), Width * Depth).Fill((byte)value);
-        }
+            int index = GetIndex(0, y, 0);
+            int length = Math.Min(destination.Length, Width * Depth);
+            ReadOnlySpan<byte> src = _array.AsSpan(index, length);
+            Span<uint> dst = destination.Slice(0, length);
 
-        public override void SetBlock(int index, uint value)
-        {
-            if (index > _array.Length)
-                throw new IndexOutOfRangeException();
-
-            ref byte inline = ref MemoryMarshal.GetArrayDataReference(_array);
-            Unsafe.Add(ref inline, index) = (byte)value;
+            Expand8To32(src, dst, length);
         }
 
         public override void SetBlock(int x, int y, int z, uint value)
         {
-            SetBlock(GetIndex(x, y, z), value);
+            int index = GetIndex(x, y, z);
+            _array[index] = (byte)value;
+        }
+
+        public override void SetBlockRow(int x, int y, int z, ReadOnlySpan<uint> source)
+        {
+            int index = GetIndex(x, y, z);
+            int length = Math.Min(source.Length, Width - x);
+            ReadOnlySpan<uint> src = source.Slice(0, length);
+            Span<byte> dst = _array.AsSpan(index, length);
+
+            for (int i = 0; i < length; i++)
+            {
+                uint value = src[i];
+                dst[i] = (byte)value;
+            }
+        }
+
+        public override void SetBlockLayer(int y, ReadOnlySpan<uint> source)
+        {
+            base.SetBlockLayer(y, source);
+        }
+
+        public override void SetBlockRow(int x, int y, int z, uint value)
+        {
+            int index = GetIndex(x, y, z);
+            int length = Width - x;
+            Span<byte> dst = _array.AsSpan(index, length);
+            dst.Fill((byte)value);
+        }
+
+        public override void SetBlockLayer(int y, uint value)
+        {
+            int index = GetIndex(0, y, 0);
+            int length = Width * Depth;
+            Span<byte> dst = _array.AsSpan(index, length);
+            dst.Fill((byte)value);
         }
     }
 }

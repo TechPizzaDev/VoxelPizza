@@ -1,20 +1,21 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
 namespace VoxelPizza.Collections
 {
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-    public abstract class BlockStorage : IBlockStorage, IDisposable
+    public abstract class BlockStorage : IReadableBlockStorage, IWritableBlockStorage, IDisposable
     {
         public abstract BlockStorageType StorageType { get; }
         public ushort Width { get; }
         public ushort Height { get; }
         public ushort Depth { get; }
         public bool IsEmpty { get; protected set; }
-        public bool IsDisposed { get; private set; } 
+        public bool IsDisposed { get; private set; }
 
         public BlockStorage(ushort width, ushort height, ushort depth)
         {
@@ -23,17 +24,75 @@ namespace VoxelPizza.Collections
             Depth = depth;
         }
 
-        public abstract void GetBlockRow(int index, Span<uint> destination);
+        public abstract bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType);
 
-        public abstract void GetBlockRow(int x, int y, int z, Span<uint> destination);
+        public abstract uint GetBlock(int x, int y, int z);
 
-        public abstract void SetBlock(int index, uint value);
+        public virtual void GetBlockRow(int x, int y, int z, Span<uint> destination)
+        {
+            int length = Math.Min(destination.Length, Width - x);
+            Span<uint> dst = destination.Slice(0, length);
+
+            for (int i = 0; i < length; i++)
+            {
+                uint value = GetBlock(x + i, y, z);
+                dst[i] = value;
+            }
+        }
+
+        public virtual void GetBlockLayer(int y, Span<uint> destination)
+        {
+            for (int z = 0; z < Depth; z++)
+            {
+                int index = GetIndexBase(Depth, Width, 0, z);
+                Span<uint> dst = destination.Slice(index, Width);
+
+                GetBlockRow(0, y, z, dst);
+            }
+        }
 
         public abstract void SetBlock(int x, int y, int z, uint value);
 
-        public abstract void SetBlockLayer(int y, uint value);
+        public virtual void SetBlockRow(int x, int y, int z, ReadOnlySpan<uint> source)
+        {
+            int length = Math.Min(source.Length, Width - x);
+            ReadOnlySpan<uint> src = source.Slice(0, length);
 
-        public abstract bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType);
+            for (int i = 0; i < length; i++)
+            {
+                uint value = src[i];
+                SetBlock(x + i, y, z, value);
+            }
+        }
+
+        public virtual void SetBlockLayer(int y, ReadOnlySpan<uint> source)
+        {
+            for (int z = 0; z < Depth; z++)
+            {
+                int index = GetIndexBase(Depth, Width, 0, z);
+                ReadOnlySpan<uint> src = source.Slice(index, Width);
+
+                SetBlockRow(0, y, z, src);
+            }
+        }
+
+        public virtual void SetBlockRow(int x, int y, int z, uint value)
+        {
+            int length = Width - x;
+
+            for (int i = 0; i < length; i++)
+            {
+                SetBlock(x + i, y, z, value);
+            }
+        }
+
+        public virtual void SetBlockLayer(int y, uint value)
+        {
+            for (int z = 0; z < Depth; z++)
+            {
+                SetBlockRow(0, y, z, value);
+            }
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static void Expand8To32(ref byte src, ref byte dst, nuint len)
@@ -79,6 +138,13 @@ namespace VoxelPizza.Collections
             }
         }
 
+        public static void Expand8To32(ReadOnlySpan<byte> src, Span<uint> dst, int length)
+        {
+            ref byte byteSrc = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(src));
+            ref byte byteDst = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(dst));
+            Expand8To32(ref byteSrc, ref byteDst, (nuint)length);
+        }
+
         public static void Expand16To32(ref byte src, ref byte dst, nuint len)
         {
             nuint loops = len / 2;
@@ -96,6 +162,13 @@ namespace VoxelPizza.Collections
                     ref Unsafe.Add(ref dst, i * sizeof(uint)),
                     (uint)Unsafe.Add(ref src, i * sizeof(ushort)));
             }
+        }
+
+        public static void Expand16To32(ReadOnlySpan<ushort> src, ReadOnlySpan<uint> dst, int length)
+        {
+            ref byte byteSrc = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(src));
+            ref byte byteDst = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(dst));
+            Expand16To32(ref byteSrc, ref byteDst, (nuint)length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -62,7 +62,7 @@ namespace VoxelPizza.Client
         private RenderRegionRenderer _renderRegionRenderer;
 
         public ImGuiRenderable ImGuiRenderable { get; }
-        public ChunkRenderer? ChunkRenderer { get; }
+
         public ChunkBorderRenderer ChunkBorderRenderer { get; }
 
         public VoxelPizza() : base(preferredBackend: GraphicsBackend.Vulkan)
@@ -177,12 +177,6 @@ namespace VoxelPizza.Client
 
         private void Scene_CameraChanged(Camera? camera)
         {
-            ChunkRenderer? renderer = ChunkRenderer;
-            if (renderer != null)
-            {
-                renderer.RenderCamera = camera;
-            }
-
             RenderRegionRenderer? renderRegionRenderer = _renderRegionRenderer;
             if (renderRegionRenderer != null)
             {
@@ -438,19 +432,29 @@ namespace VoxelPizza.Client
 
             DrawProfiler(_frameSets);
 
-            if (ImGui.Begin("ChunkRenderer control"))
+            if (ImGui.Begin("Chunk rendering"))
+            {
+                if (_renderRegionManager.ChunkMeshHeap is HeapPool heapPool)
                 {
-                ChunkRenderer? renderer = ChunkRenderer;
+                    ImGui.Text($"Bytes in pool: {heapPool.AvailableBytes / 1024}kB");
+                }
+
+                {
+                    (uint bytesSum, uint bytesAvg) = _renderRegionManager.GetBytesForMeshes();
+                    ImGui.Text($"Bytes for logical meshes: {bytesSum / 1024}kB ({bytesAvg / 1024}kB avg/chunk)");
+                }
+
+                RenderRegionRenderer? renderer = _renderRegionRenderer;
                 if (renderer != null)
                 {
                     if (ImGui.Button("Reupload regions"))
                     {
-                        renderer.ReuploadRegions();
+                        //renderer.ReuploadRegions();
                     }
 
                     if (ImGui.Button("Rebuild chunks"))
                     {
-                        renderer.RebuildChunks();
+                        //renderer.RebuildChunks();
                     }
                 }
 
@@ -1033,7 +1037,6 @@ namespace VoxelPizza.Client
 
         protected override void Dispose(bool disposing)
         {
-            ChunkRenderer?.Dispose();
             ChunkBorderRenderer.Dispose();
 
             base.Dispose(disposing);

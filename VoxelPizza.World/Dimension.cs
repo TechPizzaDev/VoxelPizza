@@ -109,6 +109,10 @@ namespace VoxelPizza.World
                                 _regionsToRemove.Add(region.Position);
                             }
                         }
+                        else
+                        {
+                            regionStats.UpdatesWithNoChunks = 0;
+                        }
                     }
                 }
             }

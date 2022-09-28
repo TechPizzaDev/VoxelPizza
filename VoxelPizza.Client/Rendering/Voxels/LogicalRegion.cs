@@ -4,7 +4,6 @@ using System.Threading;
 using VoxelPizza.Numerics;
 using VoxelPizza.Rendering.Voxels.Meshing;
 using VoxelPizza.World;
-using OldChunkRenderer = VoxelPizza.Client.ChunkRenderer;
 
 namespace VoxelPizza.Client.Rendering.Voxels
 {
@@ -18,6 +17,8 @@ namespace VoxelPizza.Client.Rendering.Voxels
         private int _chunkCount;
 
         public int ChunkCount => _chunkCount;
+
+        public uint BytesForMesh;
 
         public LogicalRegion(Size3 size)
         {
@@ -37,6 +38,11 @@ namespace VoxelPizza.Client.Rendering.Voxels
             }
         }
 
+        public static uint GetBytesForMesh(in ChunkMeshResult mesh)
+        {
+            return mesh.IndexByteCount + mesh.SpaceVertexByteCount + mesh.PaintVertexByteCount;
+        }
+
         public bool Update(Dimension dimension, BlockMemory blockBuffer, ChunkMesher mesher)
         {
             int updateRequired = Interlocked.Exchange(ref _updateRequired, 0);
@@ -50,36 +56,49 @@ namespace VoxelPizza.Client.Rendering.Voxels
             int meshCount = 0;
             int fetchCount = 0;
 
+            BytesForMesh = 0;
+
             LogicalRegionChunk[] chunks = _storedChunks;
             for (int i = 0; i < chunks.Length; i++)
             {
                 ref LogicalRegionChunk chunk = ref chunks[i];
                 if (!chunk.UpdateRequired)
                 {
+                    BytesForMesh += GetBytesForMesh(chunk.Mesh);
                     continue;
                 }
 
-                chunk.Mesh.Dispose();
+                chunk.Version++;
 
                 if (!chunk.RemoveRequired)
                 {
                     fetchWatch.Start();
 
-                    BlockMemoryState memoryState = OldChunkRenderer.FetchBlockMemory(
-                        dimension, blockBuffer, chunk.Position.ToBlock());
+                    BlockMemoryState memoryState = dimension.FetchBlockMemory(
+                        blockBuffer, chunk.Position.ToBlock());
 
                     fetchWatch.Stop();
                     fetchCount++;
 
+                    meshWatch.Start();
                     if (memoryState == BlockMemoryState.Filled)
                     {
-                        meshWatch.Start();
-
+                        chunk.Mesh.Dispose();
                         chunk.Mesh = mesher.Mesh(blockBuffer);
 
-                        meshWatch.Stop();
+                        BytesForMesh += chunk.Mesh.IndexByteCount + chunk.Mesh.SpaceVertexByteCount + chunk.Mesh.PaintVertexByteCount;
+
                         meshCount++;
                     }
+                    else
+                    {
+                        chunk.Mesh.Dispose();
+                    }
+                    meshWatch.Stop();
+                }
+                else
+                {
+                    chunk.Mesh.Dispose();
                 }
 
                 chunk.RemoveRequired = false;
@@ -204,6 +223,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
         public bool HasValue;
         public bool UpdateRequired;
         public bool RemoveRequired;
+        public ushort Version;
 
         public ChunkPosition LocalPosition;
         public ChunkPosition Position;

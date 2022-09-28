@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Veldrid;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
@@ -422,17 +423,17 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
             if (graphicsDevice.IsDebug)
             {
-                mesh._indirectBuffer.Name = $"{nameof(ChunkMeshRegion)}@{position}.{nameof(mesh._indirectBuffer)}";
-                mesh._renderInfoBuffer.Name = $"{nameof(ChunkMeshRegion)}@{position}.{nameof(mesh._renderInfoBuffer)}";
-                mesh._indexBuffer.Name = $"{nameof(ChunkMeshRegion)}@{position}.{nameof(mesh._indexBuffer)}";
-                mesh._spaceVertexBuffer.Name = $"{nameof(ChunkMeshRegion)}@{position}.{nameof(mesh._spaceVertexBuffer)}";
-                mesh._paintVertexBuffer.Name = $"{nameof(ChunkMeshRegion)}@{position}.{nameof(mesh._paintVertexBuffer)}";
+                mesh._indirectBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._indirectBuffer)}";
+                mesh._renderInfoBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._renderInfoBuffer)}";
+                mesh._indexBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._indexBuffer)}";
+                mesh._spaceVertexBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._spaceVertexBuffer)}";
+                mesh._paintVertexBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._paintVertexBuffer)}";
             }
 
             bool debugMarkers = graphicsDevice.Features.CommandListDebugMarkers;
             if (debugMarkers)
             {
-                uploadList.PushDebugGroup($"Upload of {nameof(ChunkMeshRegion)}@{position}");
+                uploadList.PushDebugGroup($"Upload of {nameof(World.ChunkRegion)}@{position}");
             }
 
             uploadList.CopyBuffer(sourceBuffer, sourceOffset, mesh._indirectBuffer, 0, sizes.IndirectBytesRequired);
@@ -460,6 +461,16 @@ namespace VoxelPizza.Client.Rendering.Voxels
             mesh.VertexCount = sizes.VertexCount;
 
             return mesh;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WorldInfo
+            {
+            public float GlobalTime;
+
+            private float _padding0;
+            private float _padding1;
+            private float _padding2;
         }
     }
 }

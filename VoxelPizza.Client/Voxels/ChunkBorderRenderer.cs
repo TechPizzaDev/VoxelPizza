@@ -130,17 +130,17 @@ namespace VoxelPizza.Client
                 _chunkRegionEvents.Enqueue(new(EventType.Remove, chunkRegion.Position));
         }
 
-        private void ChunkRenderer_RenderRegionAdded(ChunkMeshRegion chunkRegion)
-        {
-            if (DrawRenderRegions)
-                _renderRegionEvents.Enqueue(new(EventType.Add, chunkRegion.Position));
-        }
-
-        private void ChunkRenderer_RenderRegionRemoved(ChunkMeshRegion chunkRegion)
-        {
-            if (DrawRenderRegions)
-                _renderRegionEvents.Enqueue(new(EventType.Remove, chunkRegion.Position));
-        }
+        //private void ChunkRenderer_RenderRegionAdded(ChunkMeshRegion chunkRegion)
+        //{
+        //    if (DrawRenderRegions)
+        //        _renderRegionEvents.Enqueue(new(EventType.Add, chunkRegion.Position));
+        //}
+        //
+        //private void ChunkRenderer_RenderRegionRemoved(ChunkMeshRegion chunkRegion)
+        //{
+        //    if (DrawRenderRegions)
+        //        _renderRegionEvents.Enqueue(new(EventType.Remove, chunkRegion.Position));
+        //}
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {

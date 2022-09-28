@@ -9,7 +9,6 @@ using VoxelPizza.Diagnostics;
 using VoxelPizza.Numerics;
 using VoxelPizza.Rendering.Voxels.Meshing;
 using VoxelPizza.World;
-using OldChunkRenderer = VoxelPizza.Client.ChunkRenderer;
 
 namespace VoxelPizza.Client.Rendering.Voxels
 {

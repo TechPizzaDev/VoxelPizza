@@ -12,6 +12,9 @@ namespace VoxelPizza.Client.Rendering.Voxels
 {
     public class RenderRegionManager : IUpdateable
     {
+        /// <summary>
+        /// The amount of blocks that are fetched around a chunk for meshing.
+        /// </summary>
         private const uint FetchMargin = 2;
 
         private ConcurrentQueue<ChunkChange> _chunkChanges = new();
@@ -52,6 +55,28 @@ namespace VoxelPizza.Client.Rendering.Voxels
             _blockBuffer = new BlockMemory(
                 GetBlockMemoryInnerSize(),
                 GetBlockMemoryOuterSize(FetchMargin));
+        }
+
+        public (uint Sum, uint Avg) GetBytesForMeshes()
+        {
+            uint sum = 0;
+            uint count = 0;
+
+            lock (_regions)
+            {
+                if (_regions.Count == 0)
+                {
+                    return default;
+                }
+
+                foreach (LogicalRegion item in _regions.Values)
+                {
+                    sum += item.BytesForMesh;
+                    count++;
+                }
+            }
+
+            return (sum, sum / count);
         }
 
         public void Update(in UpdateState state)

@@ -1,13 +1,20 @@
 <Project>
 
     <PropertyGroup>
-        <RepositoryRootDirectory>$(MSBuildThisFileDirectory)</RepositoryRootDirectory>
-        <ArtifactDirectory>$(MSBuildThisFileDirectory)Artifacts\</ArtifactDirectory>
-        
-        <BaseOutputPath>$(ArtifactDirectory)\bin\$(MSBuildProjectName)</BaseOutputPath>
-        <!--DocumentationFile>$(ArtifactDirectory)\doc\$(Configuration)\$(MSBuildProjectName).xml</DocumentationFile-->
-        <PackageOutputPath>$(ArtifactDirectory)\packages\$(Configuration)\$(MSBuildProjectName)</PackageOutputPath>
-        <BaseIntermediateOutputPath>$(ArtifactDirectory)\obj\$(MSBuildProjectName)</BaseIntermediateOutputPath>        
+        <TargetFramework>net8.0</TargetFramework>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
+    
+  <PropertyGroup>
+    <RepositoryRootDirectory>$(MSBuildThisFileDirectory)</RepositoryRootDirectory>
+    <ArtifactDirectory>$([MSBuild]::NormalizeDirectory($(RepositoryRootDirectory), 'artifacts'))</ArtifactDirectory>
+    <ProjectRelativeDirectory>$([MSBuild]::MakeRelative($(RepositoryRootDirectory), $(MSBuildProjectDirectory)))</ProjectRelativeDirectory>
+
+    <BaseOutputPath>$([MSBuild]::NormalizeDirectory($(ArtifactDirectory), 'bin', $(ProjectRelativeDirectory)))</BaseOutputPath>
+    <!--DocumentationFile>$(ArtifactDirectory)doc\$(Configuration)\$(MSBuildProjectName).xml</DocumentationFile-->
+    <PackageOutputPath>$([MSBuild]::NormalizeDirectory($(ArtifactDirectory), 'packages', $(ProjectRelativeDirectory), $(Configuration)))</PackageOutputPath>
+    <BaseIntermediateOutputPath>$([MSBuild]::NormalizeDirectory($(ArtifactDirectory), 'obj', $(ProjectRelativeDirectory)))</BaseIntermediateOutputPath>
+  </PropertyGroup>
     
 </Project>

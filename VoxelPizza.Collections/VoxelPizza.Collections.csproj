@@ -4,10 +4,4 @@
         <RootNamespace>VoxelPizza.Collections</RootNamespace>
     </PropertyGroup>
     
-    <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    </PropertyGroup>
-
 </Project>

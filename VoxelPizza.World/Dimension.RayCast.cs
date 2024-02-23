@@ -6,25 +6,22 @@ namespace VoxelPizza.World
 {
     public partial class Dimension
     {
-        public BlockRayCast CastBlockRay()
-        {
-            return new BlockRayCast(this.TrackRef());
-        }
-
         public struct BlockRayCast : IDisposable
         {
-            private RefCounted<Dimension> _region;
+            private ValueArc<Dimension> _dimension;
             private BlockRayCastStatus _status;
             private ChunkRegion.BlockRayCast _regionBlockRay;
             private bool _encounteredBlocks;
 
-            public Dimension Dimension => _region.Value;
-            public ChunkRegion CurrentChunkRegion => _regionBlockRay.ChunkRegion;
-            public Chunk CurrentChunk => _regionBlockRay.CurrentChunk;
+            public readonly ValueArc<Dimension> Dimension => _dimension.Wrap();
 
-            public BlockRayCast(RefCounted<Dimension> chunkRegion)
+            public readonly ValueArc<ChunkRegion> CurrentRegion => _regionBlockRay.Region.Wrap();
+
+            public readonly ValueArc<Chunk> CurrentChunk => _regionBlockRay.CurrentChunk.Wrap();
+
+            public BlockRayCast(ValueArc<Dimension> dimension)
             {
-                _region = chunkRegion.HasValue ? chunkRegion : throw new ArgumentNullException(nameof(chunkRegion));
+                _dimension = dimension.Wrap();
                 _status = BlockRayCastStatus.Region;
                 _regionBlockRay = default;
                 _encounteredBlocks = false;
@@ -58,11 +55,11 @@ namespace VoxelPizza.World
                     ChunkPosition chunkPos = blockPos.ToChunk();
                     ChunkRegionPosition regionPos = chunkPos.ToRegion();
 
-                    RefCounted<ChunkRegion?> countedRegion = Dimension.GetRegion(regionPos);
-                    if (countedRegion.TryGetValue(out ChunkRegion? region))
+                    ValueArc<ChunkRegion> region = Dimension.Get().GetRegion(regionPos);
+                    if (region.HasTarget)
                     {
                         _regionBlockRay.Dispose();
-                        _regionBlockRay = region.CastBlockRay();
+                        _regionBlockRay = new ChunkRegion.BlockRayCast(region);
 
                         if (status != BlockRayCastStatus.End || _encounteredBlocks)
                         {
@@ -79,7 +76,7 @@ namespace VoxelPizza.World
 
             public void Dispose()
             {
-                _region.Invalidate();
+                _dimension.Dispose();
                 _regionBlockRay.Dispose();
             }
         }

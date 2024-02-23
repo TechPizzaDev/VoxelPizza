@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
 using VoxelPizza.Diagnostics;
+using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
@@ -65,14 +66,17 @@ namespace VoxelPizza.Client
             _renderRegionBatch = new GeometryBatch<VertexPosition<RgbaByte>>(6 * renderRegionQuadCap, 4 * renderRegionQuadCap);
         }
 
-        public void RegisterDimension(Dimension dimension)
+        public void RegisterDimension(ValueArc<Dimension> dimension)
         {
-            dimension.ChunkAdded += ChunkRenderer_ChunkAdded;
-            dimension.ChunkUpdated += ChunkRenderer_ChunkUpdated;
-            dimension.ChunkRemoved += ChunkRenderer_ChunkRemoved;
+            // TODO: remember dims in list
+            Dimension dim = dimension.Get();
 
-            dimension.RegionAdded += ChunkRenderer_RegionAdded;
-            dimension.RegionRemoved += ChunkRenderer_RegionRemoved;
+            dim.ChunkAdded += ChunkRenderer_ChunkAdded;
+            dim.ChunkUpdated += ChunkRenderer_ChunkUpdated;
+            dim.ChunkRemoved += ChunkRenderer_ChunkRemoved;
+
+            dim.RegionAdded += ChunkRenderer_RegionAdded;
+            dim.RegionRemoved += ChunkRenderer_RegionRemoved;
         }
 
         public void RegisterChunkRenderer(

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using VoxelPizza.Memory;
@@ -16,15 +18,16 @@ namespace VoxelPizza.Client
         public Dimension CreateDimension()
         {
             Dimension dimension = new();
-            dimension.IncrementRef(RefCountType.Container);
             return dimension;
         }
 
-        public Task CreateTestWorld(Dimension dimension, bool async)
+        public Task CreateTestWorld(ValueArc<Dimension> dimension, bool async)
         {
             //TerrainGenerator generator = new PlaneTerrainGenerator();
             //TerrainGenerator generator = new SphereTerrainGenerator();
             TerrainGenerator generator = new WavesTerrainGenerator();
+
+            Dimension dim = dimension.Get();
 
             void action()
             {
@@ -39,7 +42,7 @@ namespace VoxelPizza.Client
 
                     Size3 size = new((uint)width, (uint)height, (uint)depth);
 
-                    ChunkPosition currentPosition = dimension.PlayerChunkPosition;
+                    ChunkPosition currentPosition = dim.PlayerChunkPosition;
                     ChunkPosition previousPosition = currentPosition;
 
                     ChunkPosition centerOffset = new(width / 2, height / 2, depth / 2);
@@ -51,8 +54,7 @@ namespace VoxelPizza.Client
                             return;
                         }
 
-                        using RefCounted<Chunk> countedChunk = region.CreateChunk(position, out _);
-                        Chunk chunk = countedChunk.Value;
+                        ValueArc<Chunk> chunkArc = region.CreateChunk(position, out _);
 
                         if (generator.Generate(chunk))
                         {
@@ -65,7 +67,11 @@ namespace VoxelPizza.Client
 
                     foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(currentOrigin, currentMax))
                     {
-                        using RefCounted<ChunkRegion> region = dimension.CreateRegion(regionSlice.Region);
+                        using ValueArc<ChunkRegion> regionArc = dim.CreateRegion(regionSlice.Region);
+                        if (!regionArc.TryGet(out ChunkRegion? region))
+                        {
+                            continue;
+                        }
 
                         ChunkBox chunkBox = regionSlice.GetChunkBox();
                         ChunkPosition origin = chunkBox.Origin;
@@ -104,8 +110,8 @@ namespace VoxelPizza.Client
 
                         foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(previousOrigin, previousMax))
                         {
-                            using RefCounted<ChunkRegion?> region = dimension.GetRegion(regionSlice.Region);
-                            if (!region.HasValue)
+                            using ValueArc<ChunkRegion> regionArc = dim.GetRegion(regionSlice.Region);
+                            if (!regionArc.TryGet(out ChunkRegion? region))
                             {
                                 continue;
                             }
@@ -132,7 +138,11 @@ namespace VoxelPizza.Client
 
                         foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(currentOrigin, currentMax))
                         {
-                            using RefCounted<ChunkRegion> region = dimension.CreateRegion(regionSlice.Region);
+                            using ValueArc<ChunkRegion> regionArc = dim.CreateRegion(regionSlice.Region);
+                            if (!regionArc.TryGet(out ChunkRegion? region))
+                            {
+                                continue;
+                            }
 
                             ChunkBox chunkBox = regionSlice.GetChunkBox();
                             ChunkPosition origin = chunkBox.Origin;

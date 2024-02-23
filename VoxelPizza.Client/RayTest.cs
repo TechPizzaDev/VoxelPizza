@@ -12,7 +12,7 @@ namespace VoxelPizza.Client
         public float time;
         public int index;
 
-        public void Update(in UpdateState state, Dimension dimension)
+        public void Update(in UpdateState state, ValueArc<Dimension> dimension)
         {
             using ProfilerPopToken profilerToken = state.Profiler.Push();
 
@@ -46,8 +46,8 @@ namespace VoxelPizza.Client
                                 const int distance = 300;
                                 int blocksLeft = 4096;
 
-                                using Dimension.BlockRayCast blockRay = dimension.CastBlockRay();
-                                Chunk? chunk = null;
+                                using Dimension.BlockRayCast blockRay = new(dimension.Track());
+                                var chunk = ValueArc<Chunk>.Empty;
                                 BlockRayCastStatus status;
                                 while ((status = blockRay.MoveNext(ref rayCast)) != BlockRayCastStatus.End)
                                 {
@@ -59,16 +59,20 @@ namespace VoxelPizza.Client
 
                                     if (status == BlockRayCastStatus.Chunk)
                                     {
-                                        chunk?.InvokeUpdate();
-                                        chunk = blockRay.CurrentChunk;
+                                        chunk.TryGet()?.InvokeUpdate();
+                                        chunk.Dispose();
+
+                                        chunk = blockRay.CurrentChunk.Track();
                                     }
                                     else if (status == BlockRayCastStatus.Block)
                                     {
-                                        Int3 p = rayCast.Current - chunk!.Position.ToBlock().ToInt3();
-                                        chunk.GetBlockStorage().SetBlock(p.X, p.Y, p.Z, id);
+                                        Chunk c = chunk.Get();
+                                        Int3 p = rayCast.Current - c.Position.ToBlock().ToInt3();
+                                        c.GetBlockStorage().SetBlock(p.X, p.Y, p.Z, id);
                                     }
                                 }
-                                chunk?.InvokeUpdate();
+                                chunk.TryGet()?.InvokeUpdate();
+                                chunk.Dispose();
                             }
                         }
                     }

@@ -21,8 +21,9 @@ namespace VoxelPizza.Client.Rendering.Voxels
         private Dictionary<RenderRegionPosition, LogicalRegion> _regions = new();
         private LogicalRegion[] _regionArray = Array.Empty<LogicalRegion>();
         private int[] _regionDistanceArray = Array.Empty<int>();
+        private ValueArc<Dimension> _dimension;
 
-        public Dimension Dimension { get; }
+        public ValueArc<Dimension> Dimension => _dimension;
         public MemoryHeap ChunkMeshHeap { get; }
         public Size3 RegionSize { get; }
 
@@ -40,17 +41,18 @@ namespace VoxelPizza.Client.Rendering.Voxels
         public event Action<LogicalRegion>? RegionUpdated;
         public event Action<LogicalRegion>? RegionRemoved;
 
-        public RenderRegionManager(Dimension dimension, MemoryHeap chunkMeshHeap, Size3 regionSize)
+        public RenderRegionManager(ValueArc<Dimension> dimension, MemoryHeap chunkMeshHeap, Size3 regionSize)
         {
-            Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
+            _dimension = dimension.Track();
             ChunkMeshHeap = chunkMeshHeap ?? throw new ArgumentNullException(nameof(chunkMeshHeap));
             RegionSize = regionSize;
 
             ChunkMesher = new ChunkMesher(ChunkMeshHeap);
 
-            dimension.ChunkAdded += Dimension_ChunkAdded;
-            dimension.ChunkUpdated += Dimension_ChunkUpdated;
-            dimension.ChunkRemoved += Dimension_ChunkRemoved;
+            Dimension dim = dimension.Get();
+            dim.ChunkAdded += Dimension_ChunkAdded;
+            dim.ChunkUpdated += Dimension_ChunkUpdated;
+            dim.ChunkRemoved += Dimension_ChunkRemoved;
 
             _blockBuffer = new BlockMemory(
                 GetBlockMemoryInnerSize(),
@@ -174,7 +176,8 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
                 _updateWatch.Restart();
 
-                ChunkPosition origin = Dimension.PlayerChunkPosition;
+                Dimension dim = Dimension.Get();
+                ChunkPosition origin = dim.PlayerChunkPosition;
 
                 Span<LogicalRegion> sortedRegions = GetSortedRegions(origin);
 

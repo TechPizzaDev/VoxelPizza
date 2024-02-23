@@ -6,21 +6,16 @@ namespace VoxelPizza.World
 {
     public partial class Chunk
     {
-        public BlockRayCast CastBlockRay(bool local)
-        {
-            return new BlockRayCast(this.TrackRef(), local);
-        }
-
         public struct BlockRayCast : IDisposable
         {
-            private RefCounted<Chunk> _chunk;
+            private ValueArc<Chunk> _chunk;
             private StartEndVoxelRayCallback _rayCallback;
 
-            public Chunk Chunk => _chunk.Value;
+            public readonly ValueArc<Chunk> Chunk => _chunk.Wrap();
 
-            public BlockRayCast(RefCounted<Chunk> chunk, bool local)
+            public BlockRayCast(ValueArc<Chunk> chunk, bool local)
             {
-                _chunk = chunk.HasValue ? chunk : throw new ArgumentNullException(nameof(chunk));
+                _chunk = chunk.Wrap();
 
                 if (local)
                 {
@@ -28,7 +23,7 @@ namespace VoxelPizza.World
                 }
                 else
                 {
-                    Int3 position = _chunk.Value.Position.ToBlock().ToInt3();
+                    Int3 position = _chunk.Get().Position.ToBlock().ToInt3();
                     _rayCallback = new StartEndVoxelRayCallback(position, position + Size.ToInt3());
                 }
             }
@@ -44,7 +39,7 @@ namespace VoxelPizza.World
 
             public void Dispose()
             {
-                _chunk.Invalidate();
+                _chunk.Dispose();
             }
         }
     }

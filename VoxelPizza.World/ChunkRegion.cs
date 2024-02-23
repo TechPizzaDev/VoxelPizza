@@ -9,7 +9,7 @@ using VoxelPizza.Numerics;
 namespace VoxelPizza.World
 {
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-    public partial class ChunkRegion : RefCounted
+    public partial class ChunkRegion : IDestroyable
     {
         public const int Width = 16;
         public const int Depth = 16;
@@ -17,11 +17,11 @@ namespace VoxelPizza.World
 
         public static Size3 Size => new(Width, Height, Depth);
 
-        private Chunk?[]? _chunks;
+        private Arc<Chunk>?[]? _chunks;
         private int _chunkCount;
         private ReaderWriterLockSlim _chunkLock = new();
         private ChunkAction _cachedChunkUpdated;
-        private RefCountedAction _cachedChunkRefZeroed;
+        private ChunkAction _cachedChunkDestroyed;
 
         public Dimension Dimension { get; }
         public ChunkRegionPosition Position { get; }
@@ -29,7 +29,9 @@ namespace VoxelPizza.World
         public event ChunkAction? ChunkAdded;
         public event ChunkAction? ChunkUpdated;
         public event ChunkAction? ChunkRemoved;
+
         public event ChunkRegionAction? Empty;
+        public event ChunkRegionAction? Destroyed;
 
         public bool HasChunks => _chunkCount > 0;
 
@@ -38,10 +40,10 @@ namespace VoxelPizza.World
             Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
             Position = position;
 
-            _chunks = Array.Empty<Chunk>();
-            
+            _chunks = Array.Empty<Arc<Chunk>>();
+
             _cachedChunkUpdated = Chunk_ChunkUpdated;
-            _cachedChunkRefZeroed = Chunk_RefCountZero;
+            _cachedChunkDestroyed = Chunk_Destroyed;
         }
 
         private void Chunk_ChunkUpdated(Chunk chunk)
@@ -54,7 +56,7 @@ namespace VoxelPizza.World
             return new ChunkBox(Position.ToChunk(), Size);
         }
 
-        private Chunk?[] GetOrCreateChunkArray()
+        private Arc<Chunk>?[] GetOrCreateChunkArray()
         {
             if (_chunks == null)
             {
@@ -63,12 +65,12 @@ namespace VoxelPizza.World
 
             if (_chunks.Length == 0)
             {
-                _chunks = new Chunk?[Width * Height * Depth];
+                _chunks = new Arc<Chunk>?[Width * Height * Depth];
             }
             return _chunks;
         }
 
-        private Chunk?[] GetChunkArray()
+        private Arc<Chunk>?[] GetChunkArray()
         {
             if (_chunks == null)
             {
@@ -77,19 +79,23 @@ namespace VoxelPizza.World
             return _chunks;
         }
 
-        public RefCounted<Chunk?> GetLocalChunk(int index)
+        public ValueArc<Chunk> GetLocalChunk(int index)
         {
             _chunkLock.EnterReadLock();
             try
             {
-                Chunk?[] chunks = GetChunkArray();
+                Arc<Chunk>?[] chunks = GetChunkArray();
                 if (chunks.Length == 0)
                 {
-                    return default;
+                    return ValueArc<Chunk>.Empty;
                 }
 
-                Chunk? chunk = chunks[index];
-                return chunk.TrackRef();
+                Arc<Chunk>? chunk = chunks[index];
+                if (chunk != null)
+                {
+                    return chunk.Track();
+                }
+                return ValueArc<Chunk>.Empty;
             }
             finally
             {
@@ -97,7 +103,7 @@ namespace VoxelPizza.World
             }
         }
 
-        public RefCounted<Chunk?> GetLocalChunk(ChunkPosition localPosition)
+        public ValueArc<Chunk> GetLocalChunk(ChunkPosition localPosition)
         {
             CheckLocalChunkPosition(localPosition);
 
@@ -105,7 +111,7 @@ namespace VoxelPizza.World
             return GetLocalChunk(index);
         }
 
-        public RefCounted<Chunk?> GetChunk(ChunkPosition position)
+        public ValueArc<Chunk> GetChunk(ChunkPosition position)
         {
             CheckChunkPosition(Position, position);
 
@@ -114,44 +120,44 @@ namespace VoxelPizza.World
             return GetLocalChunk(index);
         }
 
-        public RefCounted<Chunk> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
+        public ValueArc<Chunk> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
         {
             CheckChunkPosition(Position, position);
 
             ChunkPosition localPosition = GetLocalChunkPosition(position);
             int index = GetChunkIndex(localPosition);
 
-            RefCounted<Chunk?> countedChunk = GetLocalChunk(index);
-            if (countedChunk.HasValue)
+            ValueArc<Chunk> vChunk = GetLocalChunk(index);
+            if (vChunk.HasTarget)
             {
                 // GetLocalChunk increments refcount
                 status = ChunkAddStatus.Success;
-                return countedChunk!;
+                return vChunk;
             }
 
             _chunkLock.EnterWriteLock();
             try
             {
-                Chunk?[] chunks = GetOrCreateChunkArray();
+                Arc<Chunk>?[] chunks = GetOrCreateChunkArray();
 
                 // Check again after acquiring lock,
                 // as a chunk may have been created while we were waiting.
-                Chunk? chunk = chunks[index];
-                if (chunk == null)
+                Arc<Chunk>? chunkArc = chunks[index];
+                if (chunkArc == null)
                 {
-                    chunk = new Chunk(this, position);
+                    Chunk chunk = new(this, position);
                     chunk.Updated += _cachedChunkUpdated;
-                    chunk.RefZeroed += _cachedChunkRefZeroed;
-                    chunk.IncrementRef(RefCountType.Container);
+                    chunk.Destroyed += _cachedChunkDestroyed;
 
-                    chunks[index] = chunk;
+                    chunkArc = new Arc<Chunk>(chunk);
+                    chunks[index] = chunkArc;
                     _chunkCount++;
 
                     ChunkAdded?.Invoke(chunk);
                 }
 
                 status = ChunkAddStatus.Success;
-                return chunk.TrackRef();
+                return chunkArc.Track();
             }
             finally
             {
@@ -169,13 +175,13 @@ namespace VoxelPizza.World
             _chunkLock.EnterWriteLock();
             try
             {
-                Chunk?[] chunks = GetChunkArray();
+                Arc<Chunk>?[] chunks = GetChunkArray();
                 if (chunks.Length == 0)
                 {
                     return ChunkRemoveStatus.MissingChunk;
                 }
 
-                Chunk? chunk = chunks[index];
+                Arc<Chunk>? chunk = chunks[index];
                 if (chunk == null)
                 {
                     return ChunkRemoveStatus.MissingChunk;
@@ -199,21 +205,19 @@ namespace VoxelPizza.World
             }
         }
 
-        private void DecrementChunkRef(Chunk chunk)
+        private void DecrementChunkRef(Arc<Chunk> chunk)
         {
             // Invoke event before decrementing ref to let
             // others delay the unload.
-            ChunkRemoved?.Invoke(chunk);
+            ChunkRemoved?.Invoke(chunk.Get());
 
-            chunk.DecrementRef(RefCountType.Container);
+            chunk.Decrement();
         }
 
-        private void Chunk_RefCountZero(RefCounted instance)
+        private void Chunk_Destroyed(Chunk chunk)
         {
-            Chunk chunk = (Chunk)instance;
-
             chunk.Updated -= _cachedChunkUpdated;
-            chunk.RefZeroed -= _cachedChunkRefZeroed;
+            chunk.Destroyed -= _cachedChunkDestroyed;
 
             chunk.Destroy();
         }
@@ -291,7 +295,7 @@ namespace VoxelPizza.World
         {
             if (_chunks != null)
             {
-                foreach (Chunk? chunk in _chunks)
+                foreach (Arc<Chunk>? chunk in _chunks)
                 {
                     if (chunk != null)
                     {
@@ -301,11 +305,6 @@ namespace VoxelPizza.World
 
                 _chunks = null;
             }
-        }
-
-        protected override void LeakAtFinalizer()
-        {
-            // TODO:
         }
 
         [DoesNotReturn]

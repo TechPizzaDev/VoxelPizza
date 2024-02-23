@@ -8,9 +8,9 @@ namespace VoxelPizza.World
     public delegate void ChunkAction(Chunk chunk);
     public delegate void ChunkRegionAction(ChunkRegion region);
 
-    public partial class Dimension : RefCounted
+    public partial class Dimension : IDestroyable
     {
-        private Dictionary<ChunkRegionPosition, ChunkRegion> _regions = new();
+        private Dictionary<ChunkRegionPosition, Arc<ChunkRegion>> _regions = new();
         private ReaderWriterLockSlim _regionLock = new();
 
         private HashSet<ChunkRegionPosition> _regionsToRemove = new();
@@ -19,8 +19,9 @@ namespace VoxelPizza.World
         private ChunkAction _cachedChunkAdded;
         private ChunkAction _cachedChunkUpdated;
         private ChunkAction _cachedChunkRemoved;
+
         private ChunkRegionAction _cachedRegionEmpty;
-        private RefCountedAction _cachedRegionRefZeroed;
+        private ChunkRegionAction _cachedRegionDestroyed;
 
         public ChunkPosition PlayerChunkPosition;
 
@@ -70,7 +71,7 @@ namespace VoxelPizza.World
             _cachedChunkUpdated = Region_ChunkUpdated;
             _cachedChunkRemoved = Region_ChunkRemoved;
             _cachedRegionEmpty = Region_Empty;
-            _cachedRegionRefZeroed = Region_RefZeroed;
+            _cachedRegionDestroyed = Region_Destroyed;
         }
 
         private void OnChunkRegionAdded(ChunkRegion chunkRegion)
@@ -96,8 +97,9 @@ namespace VoxelPizza.World
             _regionLock.EnterReadLock();
             try
             {
-                foreach (ChunkRegion region in _regions.Values)
+                foreach (Arc<ChunkRegion> regionArc in _regions.Values)
                 {
+                    ChunkRegion region = regionArc.Get();
                     if (_regionStatistics.TryGetValue(region.Position, out RegionStatistics? regionStats))
                     {
                         if (!region.HasChunks)
@@ -147,29 +149,27 @@ namespace VoxelPizza.World
             RemoveRegion(region.Position);
         }
 
-        private void Region_RefZeroed(RefCounted instance)
+        private void Region_Destroyed(ChunkRegion region)
         {
-            ChunkRegion region = (ChunkRegion)instance;
-
             region.ChunkAdded -= _cachedChunkAdded;
             region.ChunkUpdated -= _cachedChunkUpdated;
             region.ChunkRemoved -= _cachedChunkRemoved;
             region.Empty -= _cachedRegionEmpty;
-            region.RefZeroed -= _cachedRegionRefZeroed;
+            region.Destroyed -= _cachedRegionDestroyed;
 
             region.Destroy();
         }
 
-        public RefCounted<ChunkRegion?> GetRegion(ChunkRegionPosition position)
+        public ValueArc<ChunkRegion> GetRegion(ChunkRegionPosition position)
         {
             _regionLock.EnterReadLock();
             try
             {
-                if (_regions.TryGetValue(position, out ChunkRegion? region))
+                if (_regions.TryGetValue(position, out Arc<ChunkRegion>? region))
                 {
-                    return region.TrackRef()!;
+                    return region.Track();
                 }
-                return default;
+                return ValueArc<ChunkRegion>.Empty;
             }
             finally
             {
@@ -177,13 +177,13 @@ namespace VoxelPizza.World
             }
         }
 
-        public RefCounted<ChunkRegion> CreateRegion(ChunkRegionPosition position)
+        public ValueArc<ChunkRegion> CreateRegion(ChunkRegionPosition position)
         {
-            RefCounted<ChunkRegion?> countedRegion = GetRegion(position);
-            if (countedRegion.HasValue)
+            ValueArc<ChunkRegion> vRegion = GetRegion(position);
+            if (vRegion.HasTarget)
             {
                 // GetRegion increments refcount
-                return countedRegion!;
+                return vRegion;
             }
 
             _regionLock.EnterWriteLock();
@@ -191,21 +191,22 @@ namespace VoxelPizza.World
             {
                 // Check again after acquiring lock,
                 // as a region may have been created while we were waiting.
-                if (!_regions.TryGetValue(position, out ChunkRegion? region))
+                if (!_regions.TryGetValue(position, out Arc<ChunkRegion>? regionArc))
                 {
-                    region = new ChunkRegion(this, position);
+                    ChunkRegion region = new(this, position);
                     region.ChunkAdded += _cachedChunkAdded;
                     region.ChunkUpdated += _cachedChunkUpdated;
                     region.ChunkRemoved += _cachedChunkRemoved;
                     region.Empty += _cachedRegionEmpty;
-                    region.RefZeroed += _cachedRegionRefZeroed;
-                    region.IncrementRef(RefCountType.Container);
+                    region.Destroyed += _cachedRegionDestroyed;
 
-                    _regions.Add(region.Position, region);
+                    regionArc = new Arc<ChunkRegion>(region);
+
+                    _regions.Add(region.Position, regionArc);
                     OnChunkRegionAdded(region);
                 }
 
-                return region.TrackRef();
+                return regionArc.Track();
             }
             finally
             {
@@ -218,16 +219,12 @@ namespace VoxelPizza.World
             _regionLock.EnterWriteLock();
             try
             {
-                if (!_regions.Remove(position, out ChunkRegion? region))
+                if (!_regions.Remove(position, out Arc<ChunkRegion>? region))
                 {
                     return ChunkRemoveStatus.MissingRegion;
                 }
 
-                // Invoke event before decrementing ref to let
-                // others delay the unload.
-                OnChunkRegionRemoved(region);
-
-                region.DecrementRef(RefCountType.Container);
+                DecrementRegionRef(region);
 
                 return ChunkRemoveStatus.Success;
             }
@@ -237,33 +234,46 @@ namespace VoxelPizza.World
             }
         }
 
-        public RefCounted<Chunk?> GetChunk(ChunkPosition position)
+        private void DecrementRegionRef(Arc<ChunkRegion> region)
+        {
+            // Invoke event before decrementing ref to let
+            // others delay the unload.
+            OnChunkRegionRemoved(region.Get());
+
+            region.Decrement();
+        }
+
+        public ValueArc<Chunk> GetChunk(ChunkPosition position)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
-            using RefCounted<ChunkRegion?> countedRegion = GetRegion(regionPosition);
-            if (countedRegion.TryGetValue(out ChunkRegion? region))
+            using ValueArc<ChunkRegion> regionArc = GetRegion(regionPosition);
+            if (regionArc.TryGet(out ChunkRegion? region))
             {
                 return region.GetChunk(position);
             }
-            return default;
+            return ValueArc<Chunk>.Empty;
         }
 
-        public RefCounted<Chunk> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
+        public ValueArc<Chunk> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
-            using RefCounted<ChunkRegion> region = CreateRegion(regionPosition);
-            return region.Value.CreateChunk(position, out status);
+            using ValueArc<ChunkRegion> region = CreateRegion(regionPosition);
+            return region.Get().CreateChunk(position, out status);
         }
 
         public ChunkRemoveStatus RemoveChunk(ChunkPosition position)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
-            using RefCounted<ChunkRegion?> countedRegion = GetRegion(regionPosition);
-            if (countedRegion.TryGetValue(out ChunkRegion? region))
+            using ValueArc<ChunkRegion> regionArc = GetRegion(regionPosition);
+            if (regionArc.TryGet(out ChunkRegion? region))
             {
                 return region.RemoveChunk(position);
             }
             return ChunkRemoveStatus.MissingRegion;
+        }
+
+        public void Destroy()
+        {
         }
 
         private class RegionStatistics

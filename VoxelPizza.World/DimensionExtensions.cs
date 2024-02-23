@@ -8,7 +8,7 @@ namespace VoxelPizza.World
     public static class DimensionExtensions
     {
         public static BlockMemoryState FetchBlockMemory(
-            this Dimension dimension, BlockMemory blockBuffer, BlockPosition origin)
+            this ValueArc<Dimension> dimension, BlockMemory blockBuffer, BlockPosition origin)
         {
             Span<uint> data = blockBuffer.Data.AsSpan();
             Size3 outerSize = blockBuffer.OuterSize;
@@ -43,9 +43,9 @@ namespace VoxelPizza.World
             for (int i = 0; i < chunkCount; i++)
             {
                 ref ChunkBoxSlice chunkBox = ref chunkBoxes[i];
-                using RefCounted<Chunk?> countedChunk = dimension.GetChunk(chunkBox.Chunk);
+                using ValueArc<Chunk> chunkArc = dimension.Get().GetChunk(chunkBox.Chunk);
 
-                if (!countedChunk.TryGetValue(out Chunk? chunk) || chunk.IsEmpty)
+                if (!chunkArc.TryGet(out Chunk? chunk) || chunk.IsEmpty)
                 {
                     emptyCount++;
                     emptyChunks[i] = true;

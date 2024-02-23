@@ -6,23 +6,19 @@ namespace VoxelPizza.World
 {
     public partial class ChunkRegion
     {
-        public BlockRayCast CastBlockRay()
-        {
-            return new BlockRayCast(this.TrackRef());
-        }
-
         public struct BlockRayCast : IDisposable
         {
-            private RefCounted<ChunkRegion> _region;
+            private ValueArc<ChunkRegion> _region;
             private BlockRayCastStatus _status;
             private Chunk.BlockRayCast _chunkBlockRay;
 
-            public ChunkRegion ChunkRegion => _region.Value;
-            public Chunk CurrentChunk => _chunkBlockRay.Chunk;
+            public readonly ValueArc<ChunkRegion> Region => _region.Wrap();
 
-            public BlockRayCast(RefCounted<ChunkRegion> chunkRegion)
+            public readonly ValueArc<Chunk> CurrentChunk => _chunkBlockRay.Chunk.Wrap();
+
+            public BlockRayCast(ValueArc<ChunkRegion> region)
             {
-                _region = chunkRegion.HasValue ? chunkRegion : throw new ArgumentNullException(nameof(chunkRegion));
+                _region = region.Wrap();
                 _status = BlockRayCastStatus.Chunk;
                 _chunkBlockRay = default;
             }
@@ -51,14 +47,14 @@ namespace VoxelPizza.World
                         state.Current.Z);
                     ChunkPosition chunkPos = blockPos.ToChunk();
 
-                    ChunkRegion region = ChunkRegion;
+                    ChunkRegion region = Region.Get();
                     if (region.GetChunkBox().Contains(chunkPos))
                     {
-                        using RefCounted<Chunk?> countedChunk = region.GetChunk(chunkPos);
-                        if (countedChunk.TryGetValue(out Chunk? chunk))
+                        ValueArc<Chunk> chunk = region.GetChunk(chunkPos);
+                        if (chunk.HasTarget)
                         {
                             _chunkBlockRay.Dispose();
-                            _chunkBlockRay = chunk.CastBlockRay(local: false);
+                            _chunkBlockRay = new Chunk.BlockRayCast(chunk, local: false);
 
                             _status = BlockRayCastStatus.Block;
                             return BlockRayCastStatus.Chunk;
@@ -72,7 +68,7 @@ namespace VoxelPizza.World
 
             public void Dispose()
             {
-                _region.Invalidate();
+                _region.Dispose();
                 _chunkBlockRay.Dispose();
             }
         }

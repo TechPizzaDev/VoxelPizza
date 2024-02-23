@@ -8,7 +8,7 @@ using VoxelPizza.Numerics;
 namespace VoxelPizza.World
 {
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-    public partial class Chunk : RefCounted
+    public partial class Chunk : IDestroyable
     {
         public static BlockStorage0 EmptyStorage { get; } = new(Width, Height, Depth);
         public static BlockStorage0 DestroyedStorage { get; } = new(Width, Height, Depth);
@@ -22,6 +22,7 @@ namespace VoxelPizza.World
         private BlockStorage _storage;
 
         public event ChunkAction? Updated;
+        public event ChunkAction? Destroyed;
 
         public ChunkPosition Position { get; }
 
@@ -133,11 +134,6 @@ namespace VoxelPizza.World
         public void Destroy()
         {
             SwapStorage(DestroyedStorage);
-        }
-
-        protected override void LeakAtFinalizer()
-        {
-            // TODO:
         }
     }
 }

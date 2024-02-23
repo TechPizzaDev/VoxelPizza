@@ -55,7 +55,7 @@ namespace VoxelPizza.Client
         private ParticlePlane? particlePlane;
 
         private WorldManager _worldManager;
-        private Dimension _currentDimension;
+        private Arc<Dimension> _currentDimension;
         private RayTest _rayTest;
 
         private RenderRegionManager _renderRegionManager;
@@ -119,7 +119,7 @@ namespace VoxelPizza.Client
             //_scene.AddRenderable(particlePlane);
 
             _worldManager = new WorldManager();
-            _currentDimension = _worldManager.CreateDimension();
+            _currentDimension = new(_worldManager.CreateDimension());
 
             _rayTest = new RayTest();
 
@@ -142,11 +142,11 @@ namespace VoxelPizza.Client
             _renderRegionManager.RegionRemoved += (region) => _renderRegionRenderer.RemoveRegion(region.Position);
 
             ChunkBorderRenderer = new ChunkBorderRenderer();
-            ChunkBorderRenderer.RegisterDimension(_currentDimension);
+            ChunkBorderRenderer.RegisterDimension(_currentDimension.Wrap());
             _scene.AddUpdateable(ChunkBorderRenderer);
             _scene.AddRenderable(ChunkBorderRenderer);
 
-            _worldManager.CreateTestWorld(_currentDimension, true);
+            _worldManager.CreateTestWorld(_currentDimension.Wrap(), true);
 
             _loadTasks.Add(Task.Run(() =>
             {
@@ -280,11 +280,13 @@ namespace VoxelPizza.Client
 
             UpdateState updateState = new(time, _sc.Profiler);
 
-            _currentDimension.Update(updateState.Profiler);
+            Dimension dim = _currentDimension.Get();
+
+            dim.Update(updateState.Profiler);
 
             ImGuiRenderable.Update(updateState);
 
-            _rayTest.Update(updateState, _currentDimension);
+            _rayTest.Update(updateState, _currentDimension.Wrap());
 
             UpdateScene(updateState);
 
@@ -299,7 +301,7 @@ namespace VoxelPizza.Client
                 // TODO: remove this
 
                 Vector3 cullCameraPos = _scene.PrimaryCamera.Position;
-                _currentDimension.PlayerChunkPosition = new BlockPosition(
+                dim.PlayerChunkPosition = new BlockPosition(
                     (int)MathF.Round(cullCameraPos.X),
                     (int)MathF.Round(cullCameraPos.Y),
                     (int)MathF.Round(cullCameraPos.Z)).ToChunk();

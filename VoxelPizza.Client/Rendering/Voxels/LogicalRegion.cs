@@ -43,7 +43,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
             return mesh.IndexByteCount + mesh.SpaceVertexByteCount + mesh.PaintVertexByteCount;
         }
 
-        public bool Update(Dimension dimension, BlockMemory blockBuffer, ChunkMesher mesher)
+        public bool Update(ValueArc<Dimension> dimension, BlockMemory blockBuffer, ChunkMesher mesher)
         {
             int updateRequired = Interlocked.Exchange(ref _updateRequired, 0);
             if (updateRequired == 0)

@@ -5,8 +5,8 @@ namespace VoxelPizza.Numerics
 {
     public struct HalfVector4 : IEquatable<HalfVector4>
     {
-        public static HalfVector4 Zero => default;
-        public static HalfVector4 One { get; } = new HalfVector4(1, 1, 1, 1);
+        public static HalfVector4 Zero => new(Half.Zero);
+        public static HalfVector4 One => new(Half.One);
 
         public Half X;
         public Half Y;
@@ -21,7 +21,15 @@ namespace VoxelPizza.Numerics
             W = w;
         }
 
+        public HalfVector4(Half value) : this(value, value, value, value)
+        {
+        }
+
         public HalfVector4(float x, float y, float z, float w) : this((Half)x, (Half)y, (Half)z, (Half)w)
+        {
+        }
+
+        public HalfVector4(float value) : this((Half)value)
         {
         }
 
@@ -62,7 +70,9 @@ namespace VoxelPizza.Numerics
 
         public override readonly int GetHashCode()
         {
-            return HashCode.Combine(X, Y, Z, W);
+            return HashCode.Combine(
+                X.GetHashCode() | (Y.GetHashCode() << 16),
+                Z.GetHashCode() | (W.GetHashCode() << 16));
         }
 
         public static bool operator ==(HalfVector4 left, HalfVector4 right)

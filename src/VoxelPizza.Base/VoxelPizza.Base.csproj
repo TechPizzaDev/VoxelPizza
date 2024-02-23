@@ -5,13 +5,13 @@
   </PropertyGroup>
   
   <ItemGroup>
-    <ProjectReference Include="..\veldrid\modules\veldrid-spirv\src\Veldrid.SPIRV\Veldrid.SPIRV.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.ImageSharp\Veldrid.ImageSharp.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.ImGui\Veldrid.ImGui.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.RenderDoc\Veldrid.RenderDoc.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.StartupUtilities\Veldrid.StartupUtilities.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid.Utilities\Veldrid.Utilities.csproj" />
-    <ProjectReference Include="..\veldrid\src\Veldrid\Veldrid.csproj" />
+    <ProjectReference Include="..\..\veldrid\modules\veldrid-spirv\src\Veldrid.SPIRV\Veldrid.SPIRV.csproj" />
+    <ProjectReference Include="..\..\veldrid\src\Veldrid.ImageSharp\Veldrid.ImageSharp.csproj" />
+    <ProjectReference Include="..\..\veldrid\src\Veldrid.ImGui\Veldrid.ImGui.csproj" />
+    <ProjectReference Include="..\..\veldrid\src\Veldrid.RenderDoc\Veldrid.RenderDoc.csproj" />
+    <ProjectReference Include="..\..\veldrid\src\Veldrid.StartupUtilities\Veldrid.StartupUtilities.csproj" />
+    <ProjectReference Include="..\..\veldrid\src\Veldrid.Utilities\Veldrid.Utilities.csproj" />
+    <ProjectReference Include="..\..\veldrid\src\Veldrid\Veldrid.csproj" />
     <ProjectReference Include="..\VoxelPizza.Collections\VoxelPizza.Collections.csproj" />
     <ProjectReference Include="..\VoxelPizza.Numerics\VoxelPizza.Numerics.csproj" />
   </ItemGroup>

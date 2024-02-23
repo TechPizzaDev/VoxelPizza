@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
+using VoxelPizza.Client.Rendering.Voxels;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
@@ -71,28 +71,29 @@ namespace VoxelPizza.Client
             // TODO: remember dims in list
             Dimension dim = dimension.Get();
 
-            dim.ChunkAdded += ChunkRenderer_ChunkAdded;
-            dim.ChunkUpdated += ChunkRenderer_ChunkUpdated;
-            dim.ChunkRemoved += ChunkRenderer_ChunkRemoved;
+            dim.ChunkAdded += Dimension_ChunkAdded;
+            dim.ChunkUpdated += Dimension_ChunkUpdated;
+            dim.ChunkRemoved += Dimension_ChunkRemoved;
 
-            dim.RegionAdded += ChunkRenderer_RegionAdded;
-            dim.RegionRemoved += ChunkRenderer_RegionRemoved;
+            dim.RegionAdded += Dimension_RegionAdded;
+            dim.RegionRemoved += Dimension_RegionRemoved;
         }
 
-        public void RegisterChunkRenderer(
-            Size3 regionSize,
-            Camera? cullCamera,
-            Camera? renderCamera)
+        public void RegisterRenderManager(RenderRegionManager manager)
         {
-            _regionSize = regionSize;
+            _regionSize = manager.RegionSize;
+
+            manager.RegionAdded += RegionManager_RegionAdded;
+            manager.RegionRemoved += RegionManager_RegionRemoved;
+        }
+
+        public void SetCameras(Camera? cullCamera, Camera? renderCamera)
+        {
             _cullCamera = cullCamera;
             _renderCamera = renderCamera;
-
-            //ChunkRenderer.RenderRegionAdded += ChunkRenderer_RenderRegionAdded;
-            //ChunkRenderer.RenderRegionRemoved += ChunkRenderer_RenderRegionRemoved;
         }
 
-        private void ChunkRenderer_ChunkAdded(Chunk chunk)
+        private void Dimension_ChunkAdded(Chunk chunk)
         {
             if (!DrawChunks)
                 return;
@@ -101,7 +102,7 @@ namespace VoxelPizza.Client
                 _chunkEvents.Enqueue(new(EventType.Add, chunk.Position));
         }
 
-        private void ChunkRenderer_ChunkUpdated(Chunk chunk)
+        private void Dimension_ChunkUpdated(Chunk chunk)
         {
             if (!DrawChunks)
                 return;
@@ -116,35 +117,35 @@ namespace VoxelPizza.Client
             }
         }
 
-        private void ChunkRenderer_ChunkRemoved(Chunk chunk)
+        private void Dimension_ChunkRemoved(Chunk chunk)
         {
             if (DrawChunks)
                 _chunkEvents.Enqueue(new(EventType.Remove, chunk.Position));
         }
 
-        private void ChunkRenderer_RegionAdded(ChunkRegion chunkRegion)
+        private void Dimension_RegionAdded(ChunkRegion chunkRegion)
         {
             if (DrawChunkRegions)
                 _chunkRegionEvents.Enqueue(new(EventType.Add, chunkRegion.Position));
         }
 
-        private void ChunkRenderer_RegionRemoved(ChunkRegion chunkRegion)
+        private void Dimension_RegionRemoved(ChunkRegion chunkRegion)
         {
             if (DrawChunkRegions)
                 _chunkRegionEvents.Enqueue(new(EventType.Remove, chunkRegion.Position));
         }
 
-        //private void ChunkRenderer_RenderRegionAdded(ChunkMeshRegion chunkRegion)
-        //{
-        //    if (DrawRenderRegions)
-        //        _renderRegionEvents.Enqueue(new(EventType.Add, chunkRegion.Position));
-        //}
-        //
-        //private void ChunkRenderer_RenderRegionRemoved(ChunkMeshRegion chunkRegion)
-        //{
-        //    if (DrawRenderRegions)
-        //        _renderRegionEvents.Enqueue(new(EventType.Remove, chunkRegion.Position));
-        //}
+        private void RegionManager_RegionAdded(LogicalRegion renderRegion)
+        {
+            if (DrawRenderRegions)
+                _renderRegionEvents.Enqueue(new(EventType.Add, renderRegion.Position));
+        }
+        
+        private void RegionManager_RegionRemoved(LogicalRegion renderRegion)
+        {
+            if (DrawRenderRegions)
+                _renderRegionEvents.Enqueue(new(EventType.Remove, renderRegion.Position));
+        }
 
         public override void CreateDeviceObjects(GraphicsDevice gd, CommandList cl, SceneContext sc)
         {

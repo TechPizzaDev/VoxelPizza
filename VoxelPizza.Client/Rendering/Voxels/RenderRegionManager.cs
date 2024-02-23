@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using VoxelPizza.Diagnostics;
+using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 using VoxelPizza.Rendering.Voxels.Meshing;
 using VoxelPizza.World;
@@ -23,7 +24,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
         private int[] _regionDistanceArray = Array.Empty<int>();
         private ValueArc<Dimension> _dimension;
 
-        public ValueArc<Dimension> Dimension => _dimension;
+        public ValueArc<Dimension> Dimension => _dimension.Wrap();
         public MemoryHeap ChunkMeshHeap { get; }
         public Size3 RegionSize { get; }
 
@@ -36,6 +37,8 @@ namespace VoxelPizza.Client.Rendering.Voxels
         private HashSet<ChunkPosition> _chunksToRemove = new();
         private bool _pendingRegionUpdate;
         private Stopwatch _updateWatch = new();
+
+        private ChunkGraph _graph;
 
         public event Action<LogicalRegion>? RegionAdded;
         public event Action<LogicalRegion>? RegionUpdated;
@@ -57,6 +60,28 @@ namespace VoxelPizza.Client.Rendering.Voxels
             _blockBuffer = new BlockMemory(
                 GetBlockMemoryInnerSize(),
                 GetBlockMemoryOuterSize(FetchMargin));
+
+            _graph = new ChunkGraph(RegionSize);
+            _graph.SidesFulfilled += Graph_SidesFulfilled;
+        }
+
+        public void IterateMeshes(Action<LogicalRegion> transform)
+        {
+            lock (_regions)
+            {
+                foreach (LogicalRegion item in _regions.Values)
+                {
+                    transform.Invoke(item);
+                }
+            }
+        }
+
+        private void Graph_SidesFulfilled(RenderRegionGraph graph, ChunkPosition localPosition, ChunkGraphFaces newFaces)
+        {
+            if (_regions.TryGetValue(graph.RegionPosition, out LogicalRegion? region))
+            {
+
+            }
         }
 
         public (uint Sum, uint Avg) GetBytesForMeshes()
@@ -120,6 +145,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
                     if (_regions.TryGetValue(regionPosition, out LogicalRegion? region))
                     {
                         region.RemoveChunk(chunkPosition);
+                        _graph.RemoveChunk(chunkPosition);
 
                         if (region.ChunkCount == 0)
                         {
@@ -148,7 +174,9 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
                         RegionAdded?.Invoke(region);
                     }
+
                     region.AddChunk(chunkPosition);
+                    _graph.AddChunk(chunkPosition, false);
                 }
 
                 _pendingRegionUpdate = true;

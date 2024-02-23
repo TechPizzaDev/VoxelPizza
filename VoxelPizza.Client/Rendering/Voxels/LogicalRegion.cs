@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
+using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 using VoxelPizza.Rendering.Voxels.Meshing;
 using VoxelPizza.World;
@@ -25,14 +26,14 @@ namespace VoxelPizza.Client.Rendering.Voxels
             Size = size;
 
             _storedChunks = new LogicalRegionChunk[size.Volume];
-            for (int y = 0; y < size.H; y++)
+            for (uint y = 0; y < size.H; y++)
             {
-                for (int z = 0; z < size.D; z++)
+                for (uint z = 0; z < size.D; z++)
                 {
-                    for (int x = 0; x < size.W; x++)
+                    for (uint x = 0; x < size.W; x++)
                     {
-                        ChunkPosition localPos = new(x, y, z);
-                        _storedChunks[GetStoredChunkIndex(localPos)].LocalPosition = localPos;
+                        ChunkPosition localPos = new((int)x, (int)y, (int)z);
+                        _storedChunks[RenderRegionPosition.GetChunkIndex(localPos, size)].LocalPosition = localPos;
                     }
                 }
             }
@@ -132,7 +133,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
         public void AddChunk(ChunkPosition chunkPosition)
         {
-            ChunkPosition localPosition = GetLocalChunkPosition(chunkPosition);
+            ChunkPosition localPosition = RenderRegionPosition.GetLocalChunkPosition(chunkPosition, Size);
             ref LogicalRegionChunk chunk = ref GetStoredChunk(localPosition);
             if (!chunk.HasValue)
             {
@@ -144,7 +145,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
         public void UpdateChunk(ChunkPosition chunkPosition)
         {
-            ChunkPosition localPosition = GetLocalChunkPosition(chunkPosition);
+            ChunkPosition localPosition = RenderRegionPosition.GetLocalChunkPosition(chunkPosition, Size);
             ref LogicalRegionChunk chunk = ref GetStoredChunk(localPosition);
             if (chunk.HasValue)
             {
@@ -155,7 +156,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
         public void RemoveChunk(ChunkPosition chunkPosition)
         {
-            ChunkPosition localPosition = GetLocalChunkPosition(chunkPosition);
+            ChunkPosition localPosition = RenderRegionPosition.GetLocalChunkPosition(chunkPosition, Size);
             ref LogicalRegionChunk chunk = ref GetStoredChunk(localPosition);
             if (chunk.HasValue)
             {
@@ -175,36 +176,24 @@ namespace VoxelPizza.Client.Rendering.Voxels
             ChunkPosition offsetPos = position.ToChunk(size);
 
             LogicalRegionChunk[] chunks = _storedChunks;
-            for (int y = 0; y < size.H; y++)
+            for (uint y = 0; y < size.H; y++)
             {
-                for (int z = 0; z < size.D; z++)
+                for (uint z = 0; z < size.D; z++)
                 {
-                    for (int x = 0; x < size.W; x++)
+                    for (uint x = 0; x < size.W; x++)
                     {
-                        ChunkPosition localPos = new(x, y, z);
+                        ChunkPosition localPos = new((int)x, (int)y, (int)z);
                         ChunkPosition pos = offsetPos + localPos;
-                        chunks[GetStoredChunkIndex(GetLocalChunkPosition(pos))].Position = pos;
+                        Debug.Assert(localPos == RenderRegionPosition.GetLocalChunkPosition(pos, size));
+                        chunks[RenderRegionPosition.GetChunkIndex(localPos, size)].Position = pos;
                     }
                 }
             }
         }
 
-        public ChunkPosition GetLocalChunkPosition(ChunkPosition chunkPosition)
-        {
-            return new ChunkPosition(
-                (int)((uint)chunkPosition.X % Size.W),
-                (int)((uint)chunkPosition.Y % Size.H),
-                (int)((uint)chunkPosition.Z % Size.D));
-        }
-
-        private int GetStoredChunkIndex(ChunkPosition localPosition)
-        {
-            return (localPosition.Y * (int)Size.D + localPosition.Z) * (int)Size.W + localPosition.X;
-        }
-
         private ref LogicalRegionChunk GetStoredChunk(ChunkPosition localPosition)
         {
-            int index = GetStoredChunkIndex(localPosition);
+            int index = RenderRegionPosition.GetChunkIndex(localPosition, Size);
             return ref _storedChunks[index];
         }
 

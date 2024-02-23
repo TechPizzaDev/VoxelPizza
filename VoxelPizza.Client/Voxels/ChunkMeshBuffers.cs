@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Veldrid;
+using VoxelPizza.Memory;
 
 namespace VoxelPizza.Client
 {
@@ -7,34 +9,37 @@ namespace VoxelPizza.Client
         public DeviceBuffer _indirectBuffer;
         public DeviceBuffer _renderInfoBuffer;
         public DeviceBuffer _indexBuffer;
-        public DeviceBuffer _spaceVertexBuffer;
-        public DeviceBuffer _paintVertexBuffer;
+        public DeviceBuffer _vertexBuffer;
 
-        public uint DrawCount;
+        public ArenaSegment IndirectSegment;
+        public ArenaSegment RenderInfoSegment;
+
+        public uint IndirectCount;
         public uint IndexCount;
         public uint VertexCount;
         public long SyncPoint;
 
+        public List<DeviceBuffer> OldBuffers { get; } = new();
+
+        public List<(ArenaSegment, ArenaAllocator)> OldIndexSegments { get; } = new();
+        public List<(ArenaSegment, ArenaAllocator)> OldVertexSegments { get; } = new();
+
         public void Dispose()
         {
-            DrawCount = 0;
+            IndirectCount = 0;
             IndexCount = 0;
             VertexCount = 0;
 
-            _indirectBuffer?.Dispose();
             _indirectBuffer = null!;
-
-            _renderInfoBuffer?.Dispose();
             _renderInfoBuffer = null!;
-
-            _indexBuffer?.Dispose();
             _indexBuffer = null!;
+            _vertexBuffer = null!;
 
-            _spaceVertexBuffer?.Dispose();
-            _spaceVertexBuffer = null!;
-
-            _paintVertexBuffer?.Dispose();
-            _paintVertexBuffer = null!;
+            foreach (DeviceBuffer buffer in OldBuffers)
+            {
+                buffer.Dispose();
+            }
+            OldBuffers.Clear();
         }
     }
 }

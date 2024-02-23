@@ -64,8 +64,6 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
         public override void DestroyDeviceObjects()
         {
-            _gd.WaitForIdle();
-
             DestroyRendererResources();
 
             _stagingFCL.Dispose();
@@ -80,7 +78,55 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
             foreach (VisualRegion region in _regions.Values)
             {
-                region.SetMeshBuffers(null);
+                region.Dispose();
+            }
+            _regions.Clear();
+        }
+
+        public (uint SumDense, uint SumSparse, uint DenseAvg, uint SparseAvg) GetBytesForMeshes()
+        {
+            uint sumDense = 0;
+            uint sumSparse = 0;
+            uint count = 0;
+
+            lock (_regions)
+            {
+                if (_regions.Count == 0)
+                {
+                    return default;
+                }
+
+                foreach (VisualRegion item in _regions.Values)
+                {
+                    if (item._indexArena.Buffer != null)
+                    {
+                        sumDense +=
+                            item._indexArena.BytesUsed +
+                            item._vertexArena.BytesUsed +
+                            item._indirectArena.BytesUsed +
+                            item._renderInfoArena.BytesUsed;
+
+                        sumSparse +=
+                            item._indexArena.ByteCapacity +
+                            item._vertexArena.ByteCapacity +
+                            item._indirectArena.ByteCapacity +
+                            item._renderInfoArena.ByteCapacity;
+                    }
+                    count++;
+                }
+            }
+
+            return (sumDense, sumSparse, sumDense / count, sumSparse / count);
+        }
+
+        public void IterateMeshes(Action<VisualRegion> transform)
+        {
+            lock (_regions)
+            {
+                foreach (VisualRegion item in _regions.Values)
+                {
+                    transform.Invoke(item);
+                }
             }
         }
 
@@ -165,10 +211,12 @@ namespace VoxelPizza.Client.Rendering.Voxels
             _gd.ResetFence(_stagingFCL.Fence);
             _stagingFCL.CommandList.Begin();
 
-            MappedResource mappedStagingBuffer = _gd.Map(_stagingBuffer, MapMode.Write);
+            _stagingFCL.CommandList.PushDebugGroup("Uploading region data");
+
+            MappedResource mappedStagingBuffer = default;
             try
             {
-                Span<byte> stagingBufferSpan = mappedStagingBuffer.AsBytes();
+                Span<byte> stagingBufferSpan = Span<byte>.Empty;
                 uint stagingBufferOffset = 0;
 
                 foreach (RenderRegionPosition regionPosition in _regionsToUpdate)
@@ -176,45 +224,66 @@ namespace VoxelPizza.Client.Rendering.Voxels
                     if (_regions.TryGetValue(regionPosition, out VisualRegion? visualRegion) &&
                         _manager.TryGetLogicalRegion(regionPosition, out LogicalRegion? logicalRegion))
                     {
+                        TryUpload:
                         Span<byte> stagingBufferSlice = stagingBufferSpan.Slice((int)stagingBufferOffset);
-                        if (!visualRegion.Encode(logicalRegion, stagingBufferSlice, out ChannelSizes channelSizes))
+
+                        VisualRegion.EncodeStatus encodeStatus = visualRegion.EncodeV2(
+                            logicalRegion,
+                            _stagingBuffer,
+                            stagingBufferSlice,
+                            stagingBufferOffset,
+                            _gd.ResourceFactory,
+                            _stagingFCL.CommandList,
+                            out ChannelSizes channelSizes,
+                            out ChunkMeshBuffers? meshBuffers);
+
+                        if (encodeStatus == VisualRegion.EncodeStatus.NoChange)
                         {
-                            break;
+                            _regionsToUpdate.Remove(regionPosition);
+                            continue;
                         }
 
-                        ChunkMeshBuffers? meshBuffers = null;
-
-                        if (channelSizes.TotalSize != 0)
+                        if (encodeStatus == VisualRegion.EncodeStatus.NotEnoughSpace)
                         {
-                            ChunkMeshSizes meshSizes = new(
-                                channelSizes.IndexSize / sizeof(uint),
-                                channelSizes.IndirectSize,
-                                channelSizes.RenderInfoSize,
-                                channelSizes.IndexSize,
-                                channelSizes.SpaceVertexSize,
-                                channelSizes.PaintVertexSize);
+                            if (mappedStagingBuffer.Resource != null)
+                            {
+                                break;
+                            }
 
-                            meshBuffers = Copy(
-                                _gd,
-                                _stagingFCL.CommandList,
-                                visualRegion.Position,
-                                meshSizes,
-                                _stagingBuffer,
-                                stagingBufferOffset);
-
-                            uint totalSize = channelSizes.TotalSize;
-                            stagingBufferOffset += totalSize;
+                            mappedStagingBuffer = _gd.Map(_stagingBuffer, MapMode.Write);
+                            stagingBufferSpan = mappedStagingBuffer.AsBytes();
+                            goto TryUpload;
                         }
+
+                        stagingBufferOffset += channelSizes.TotalSize;
+                        stagingBufferSpan.Slice((int)stagingBufferOffset);
 
                         _stagingRegions.Add(new RegionMeshBuffer(visualRegion, meshBuffers));
+
+                        if (encodeStatus == VisualRegion.EncodeStatus.Incomplete)
+                        {
+                            continue;
+                        }
+
+                        Debug.Assert(encodeStatus == VisualRegion.EncodeStatus.Success);
+                        _regionsToUpdate.Remove(regionPosition);
                     }
-                    _regionsToUpdate.Remove(regionPosition);
+                }
+
+                if (stagingBufferOffset > 0)
+                {
+                    //Console.WriteLine($"Used {stagingBufferOffset / 1024}kB for upload");
                 }
             }
             finally
             {
-                _gd.Unmap(_stagingBuffer);
+                if (mappedStagingBuffer.Resource != null)
+                {
+                    _gd.Unmap(mappedStagingBuffer.Resource);
+                }
             }
+
+            _stagingFCL.CommandList.PopDebugGroup();
 
             _stagingFCL.CommandList.End();
             _gd.SubmitCommands(_stagingFCL.CommandList, _stagingFCL.Fence);
@@ -266,9 +335,9 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 new VertexElementDescription("Position", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float3),
                 new VertexElementDescription("Normal", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1));
 
-            VertexLayoutDescription paintLayout = new(
-                new VertexElementDescription("TexAnimation0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1),
-                new VertexElementDescription("TexRegion0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1));
+            //VertexLayoutDescription paintLayout = new(
+            //    new VertexElementDescription("TexAnimation0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1),
+            //    new VertexElementDescription("TexRegion0", VertexElementSemantic.TextureCoordinate, VertexElementFormat.UInt1));
 
             VertexLayoutDescription worldLayout = new(
                 new VertexElementDescription("Translation", VertexElementSemantic.TextureCoordinate, VertexElementFormat.Float4))
@@ -293,7 +362,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 rasterizerState,
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(
-                    new[] { spaceLayout, paintLayout },
+                    new[] { spaceLayout/*, paintLayout*/ },
                     new[] { mainVs, mainFs, },
                     mainSpecs),
                 new[] { sc.CameraInfoLayout, ChunkSharedLayout, ChunkInfoLayout },
@@ -308,14 +377,14 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 rasterizerState,
                 PrimitiveTopology.TriangleList,
                 new ShaderSetDescription(
-                    new[] { spaceLayout, paintLayout, worldLayout },
+                    new[] { spaceLayout, /*paintLayout,*/ worldLayout },
                     new[] { mainIndirectVs, mainIndirectFs, },
                     mainIndirectSpecs),
                 new[] { sc.CameraInfoLayout, ChunkSharedLayout },
                 sc.MainSceneFramebuffer.OutputDescription));
 
             _worldInfoBuffer = factory.CreateBuffer(new BufferDescription(
-                (uint)Unsafe.SizeOf<WorldInfo>(), BufferUsage.UniformBuffer));
+                (uint)Unsafe.SizeOf<WorldInfo>(), BufferUsage.UniformBuffer | BufferUsage.DynamicWrite));
 
             Random rng = new(1234);
             Span<byte> rngTmp = stackalloc byte[3];
@@ -373,99 +442,9 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
         private record struct RegionMeshBuffer(VisualRegion Region, ChunkMeshBuffers? Buffers);
 
-        public static ChunkMeshBuffers Copy(
-            GraphicsDevice graphicsDevice,
-            CommandList uploadList,
-            RenderRegionPosition position,
-            ChunkMeshSizes sizes,
-            DeviceBuffer sourceBuffer,
-            uint sourceOffset)
-        {
-            ResourceFactory factory = graphicsDevice.ResourceFactory;
-
-            ChunkMeshBuffers mesh = new();
-            mesh.SyncPoint = Stopwatch.GetTimestamp();
-
-            uint indirectSizeInBytes = (uint)(Unsafe.SizeOf<IndirectDrawIndexedArguments>() * sizes.DrawCount);
-            mesh._indirectBuffer = factory.CreateBuffer(new BufferDescription()
-            {
-                SizeInBytes = indirectSizeInBytes,
-                Usage = BufferUsage.IndirectBuffer,
-            });
-
-            uint renderInfoSizeInBytes = (uint)(Unsafe.SizeOf<ChunkRenderInfo>() * sizes.DrawCount);
-            mesh._renderInfoBuffer = factory.CreateBuffer(new BufferDescription()
-            {
-                SizeInBytes = renderInfoSizeInBytes,
-                Usage = BufferUsage.VertexBuffer,
-            });
-
-            uint indexSizeInBytes = sizes.IndexBytesRequired;
-            mesh._indexBuffer = factory.CreateBuffer(new BufferDescription()
-            {
-                SizeInBytes = indexSizeInBytes,
-                Usage = BufferUsage.IndexBuffer,
-            });
-
-            uint spaceVertexSizeInBytes = (uint)(sizes.VertexCount * Unsafe.SizeOf<ChunkSpaceVertex>());
-            mesh._spaceVertexBuffer = factory.CreateBuffer(new BufferDescription()
-            {
-                SizeInBytes = spaceVertexSizeInBytes,
-                Usage = BufferUsage.VertexBuffer,
-            });
-
-            uint paintVertexSizeInBytes = (uint)(sizes.VertexCount * Unsafe.SizeOf<ChunkPaintVertex>());
-            mesh._paintVertexBuffer = factory.CreateBuffer(new BufferDescription()
-            {
-                SizeInBytes = paintVertexSizeInBytes,
-                Usage = BufferUsage.VertexBuffer,
-            });
-
-            if (graphicsDevice.IsDebug)
-            {
-                mesh._indirectBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._indirectBuffer)}";
-                mesh._renderInfoBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._renderInfoBuffer)}";
-                mesh._indexBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._indexBuffer)}";
-                mesh._spaceVertexBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._spaceVertexBuffer)}";
-                mesh._paintVertexBuffer.Name = $"{nameof(World.ChunkRegion)}@{position}.{nameof(mesh._paintVertexBuffer)}";
-            }
-
-            bool debugMarkers = graphicsDevice.Features.CommandListDebugMarkers;
-            if (debugMarkers)
-            {
-                uploadList.PushDebugGroup($"Upload of {nameof(World.ChunkRegion)}@{position}");
-            }
-
-            uploadList.CopyBuffer(sourceBuffer, sourceOffset, mesh._indirectBuffer, 0, sizes.IndirectBytesRequired);
-            sourceOffset += sizes.IndirectBytesRequired;
-
-            uploadList.CopyBuffer(sourceBuffer, sourceOffset, mesh._renderInfoBuffer, 0, sizes.RenderInfoBytesRequired);
-            sourceOffset += sizes.RenderInfoBytesRequired;
-
-            uploadList.CopyBuffer(sourceBuffer, sourceOffset, mesh._indexBuffer, 0, sizes.IndexBytesRequired);
-            sourceOffset += sizes.IndexBytesRequired;
-
-            uploadList.CopyBuffer(sourceBuffer, sourceOffset, mesh._spaceVertexBuffer, 0, sizes.SpaceVertexBytesRequired);
-            sourceOffset += sizes.SpaceVertexBytesRequired;
-
-            uploadList.CopyBuffer(sourceBuffer, sourceOffset, mesh._paintVertexBuffer, 0, sizes.PaintVertexBytesRequired);
-            sourceOffset += sizes.PaintVertexBytesRequired;
-
-            if (debugMarkers)
-            {
-                uploadList.PopDebugGroup();
-            }
-
-            mesh.DrawCount = sizes.DrawCount;
-            mesh.IndexCount = sizes.IndexCount;
-            mesh.VertexCount = sizes.VertexCount;
-
-            return mesh;
-        }
-
         [StructLayout(LayoutKind.Sequential)]
         private struct WorldInfo
-            {
+        {
             public float GlobalTime;
 
             private float _padding0;

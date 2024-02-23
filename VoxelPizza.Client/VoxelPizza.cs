@@ -16,6 +16,7 @@ using Veldrid.Utilities;
 using VoxelPizza.Client.Objects;
 using VoxelPizza.Client.Rendering.Voxels;
 using VoxelPizza.Diagnostics;
+using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 using VoxelPizza.World;
 
@@ -60,6 +61,9 @@ namespace VoxelPizza.Client
 
         private RenderRegionManager _renderRegionManager;
         private RenderRegionRenderer _renderRegionRenderer;
+        private HashSet<RenderRegionPosition> _chunksForDebug = new();
+        private Dictionary<RenderRegionPosition, LogicalRegion> _logicalRegionsForDebug = new();
+        private Dictionary<RenderRegionPosition, VisualRegion> _visualRegionsForDebug = new();
 
         public ImGuiRenderable ImGuiRenderable { get; }
 
@@ -68,7 +72,7 @@ namespace VoxelPizza.Client
         public VoxelPizza() : base(preferredBackend: GraphicsBackend.Vulkan)
         {
             Sdl2Native.SDL_Init(SDLInitFlags.GameController | SDLInitFlags.Audio);
-            
+
             SDLAudioBindings.LoadFunctions();
             Sdl2ControllerTracker.CreateDefault(out _controllerTracker);
 
@@ -130,7 +134,7 @@ namespace VoxelPizza.Client
             //_scene.AddUpdateable(ChunkRenderer);
             //_scene.AddRenderable(ChunkRenderer);
 
-            _renderRegionManager = new RenderRegionManager(_currentDimension, chunkMeshHeap, new Size3(4, 3, 4));
+            _renderRegionManager = new RenderRegionManager(_currentDimension.Wrap(), chunkMeshHeap, new Size3(12, 8, 12));
             _scene.AddUpdateable(_renderRegionManager);
 
             _renderRegionRenderer = new RenderRegionRenderer(_renderRegionManager);
@@ -142,6 +146,7 @@ namespace VoxelPizza.Client
             _renderRegionManager.RegionRemoved += (region) => _renderRegionRenderer.RemoveRegion(region.Position);
 
             ChunkBorderRenderer = new ChunkBorderRenderer();
+            ChunkBorderRenderer.RegisterRenderManager(_renderRegionManager);
             ChunkBorderRenderer.RegisterDimension(_currentDimension.Wrap());
             _scene.AddUpdateable(ChunkBorderRenderer);
             _scene.AddRenderable(ChunkBorderRenderer);
@@ -182,8 +187,7 @@ namespace VoxelPizza.Client
             {
                 renderRegionRenderer.RenderCamera = camera;
 
-                ChunkBorderRenderer.RegisterChunkRenderer(
-                    _renderRegionRenderer.RegionSize,
+                ChunkBorderRenderer.SetCameras(
                     renderRegionRenderer.CullCamera,
                     renderRegionRenderer.RenderCamera);
             }
@@ -444,6 +448,10 @@ namespace VoxelPizza.Client
                 {
                     (uint bytesSum, uint bytesAvg) = _renderRegionManager.GetBytesForMeshes();
                     ImGui.Text($"Bytes for logical meshes: {bytesSum / 1024}kB ({bytesAvg / 1024}kB avg/chunk)");
+
+                    (uint sumDense, uint sumSparse, uint denseAvg, uint sparseAvg) = _renderRegionRenderer.GetBytesForMeshes();
+                    ImGui.Text($"Dense bytes for visual meshes: {sumDense / 1024}kB ({denseAvg / 1024}kB avg/chunk)");
+                    ImGui.Text($"Sparse bytes for visual meshes: {sumSparse / 1024}kB ({sparseAvg / 1024}kB avg/chunk)");
                 }
 
                 RenderRegionRenderer? renderer = _renderRegionRenderer;
@@ -457,6 +465,55 @@ namespace VoxelPizza.Client
                     if (ImGui.Button("Rebuild chunks"))
                     {
                         //renderer.RebuildChunks();
+                    }
+                }
+
+                ImGui.End();
+            }
+
+            _logicalRegionsForDebug.Clear();
+            _visualRegionsForDebug.Clear();
+            _chunksForDebug.Clear();
+
+            if (ImGui.Begin("Mesh view"))
+            {
+                _renderRegionManager.IterateMeshes((region) =>
+                {
+                    _logicalRegionsForDebug.Add(region.Position, region);
+                    _chunksForDebug.Add(region.Position);
+                });
+
+                _renderRegionRenderer.IterateMeshes((region) =>
+                {
+                    _visualRegionsForDebug.Add(region.Position, region);
+                    _chunksForDebug.Add(region.Position);
+                });
+
+                foreach (RenderRegionPosition regionPosition in _chunksForDebug)
+                {
+                    bool hasLogical = _logicalRegionsForDebug.TryGetValue(regionPosition, out LogicalRegion? logicalRegion);
+                    bool hasVisual = _visualRegionsForDebug.TryGetValue(regionPosition, out VisualRegion? visualRegion);
+                    if (hasLogical || hasVisual)
+                    {
+                        ImGui.TreePush("#" + regionPosition);
+                        if (ImGui.CollapsingHeader(regionPosition.ToString()))
+                        {
+                            if (logicalRegion != null)
+                            {
+                                ImGui.Text($"Chunk count: {logicalRegion.ChunkCount}");
+                                ImGui.Text($"Mesh bytes: {logicalRegion.BytesForMesh}");
+                            }
+
+                            if (visualRegion != null && visualRegion._vertexArena.Buffer != null)
+                            {
+                                ImGui.Text($"Capacity: {visualRegion._vertexArena.ByteCapacity / 1024}kB");
+                                ImGui.Text($"Used: {visualRegion._vertexArena.BytesUsed / 1024}kB");
+                                ImGui.Text($"Free: {visualRegion._vertexArena.BytesFree / 1024}kB");
+                                ImGui.Text($"Segments used: {visualRegion._vertexArena.SegmentsUsed}");
+                                ImGui.Text($"Segments free: {visualRegion._vertexArena.SegmentsFree}");
+                            }
+                        }
+                        ImGui.TreePop();
                     }
                 }
 
@@ -885,7 +942,7 @@ namespace VoxelPizza.Client
                                         SameLineFor(durationText);
                                         ImGui.Text(durationText);
 
-                                        ImGui.TreePush();
+                                        ImGui.TreePush("#" + item.GetHashCode());
                                         DrawFrameSet(setIndex + 1, itemIndex);
                                         ImGui.TreePop();
                                     }
@@ -921,7 +978,6 @@ namespace VoxelPizza.Client
             Stopwatch sw = Stopwatch.StartNew();
             for (int i = 0; i < numTimes; i++)
             {
-                GraphicsDevice.WaitForIdle();
                 DisposeGraphicsDeviceObjects();
                 CreateGraphicsDeviceObjects();
             }

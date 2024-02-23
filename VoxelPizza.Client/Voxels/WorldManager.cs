@@ -45,7 +45,8 @@ namespace VoxelPizza.Client
                     ChunkPosition currentPosition = dim.PlayerChunkPosition;
                     ChunkPosition previousPosition = currentPosition;
 
-                    ChunkPosition centerOffset = new(width / 2, height / 2, depth / 2);
+                    ChunkPosition centerOffsetMin = new(width / 2, height / 2, depth / 2);
+                    ChunkPosition centerOffsetMax = new((width + 1) / 2, (height + 1) / 2, (depth + 1) / 2);
 
                     void AddChunk(ChunkRegion region, ChunkPosition position)
                     {
@@ -62,8 +63,8 @@ namespace VoxelPizza.Client
                         }
                     }
 
-                    ChunkPosition currentOrigin = currentPosition - centerOffset;
-                    ChunkPosition currentMax = currentPosition + centerOffset;
+                    ChunkPosition currentOrigin = currentPosition - centerOffsetMin;
+                    ChunkPosition currentMax = currentPosition + centerOffsetMax;
 
                     foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(currentOrigin, currentMax))
                     {
@@ -77,14 +78,15 @@ namespace VoxelPizza.Client
                         ChunkPosition origin = chunkBox.Origin;
                         ChunkPosition max = chunkBox.Max;
 
-                        ChunkPosition position;
-                        for (position.Y = origin.Y; position.Y < max.Y; position.Y++)
+                        for (int y = origin.Y; y < max.Y; y++)
                         {
-                            for (position.Z = origin.Z; position.Z < max.Z; position.Z++)
+                            for (int z = origin.Z; z < max.Z; z++)
+                        {
+                                for (int x = origin.X; x < max.X; x++)
                             {
-                                for (position.X = origin.X; position.X < max.X; position.X++)
-                                {
-                                    AddChunk(region.Value, position);
+                                    ChunkPosition position = new(x, y, z);
+                                    
+                                    AddChunk(region, position);
                                 }
                             }
                         }
@@ -92,7 +94,7 @@ namespace VoxelPizza.Client
 
                     while (true)
                     {
-                        currentPosition = dimension.PlayerChunkPosition;
+                        currentPosition = dim.PlayerChunkPosition;
 
                         if (previousPosition == currentPosition)
                         {
@@ -100,8 +102,8 @@ namespace VoxelPizza.Client
                             continue;
                         }
 
-                        currentOrigin = currentPosition - centerOffset;
-                        currentMax = currentPosition + centerOffset;
+                        currentOrigin = currentPosition - centerOffsetMin;
+                        currentMax = currentPosition + centerOffsetMax;
                         ChunkBox currentBox = new(currentOrigin, currentMax);
 
                         ChunkPosition previousOrigin = previousPosition - centerOffset;
@@ -120,16 +122,16 @@ namespace VoxelPizza.Client
                             ChunkPosition origin = chunkBox.Origin;
                             ChunkPosition max = chunkBox.Max;
 
-                            ChunkPosition position;
-                            for (position.Y = origin.Y; position.Y < max.Y; position.Y++)
+                            for (int y = origin.Y; y < max.Y; y++)
                             {
-                                for (position.Z = origin.Z; position.Z < max.Z; position.Z++)
+                                for (int z = origin.Z; z < max.Z; z++)
+                            {
+                                    for (int x = origin.X; x < max.X; x++)
                                 {
-                                    for (position.X = origin.X; position.X < max.X; position.X++)
-                                    {
-                                        if (!currentBox.Contains(position))
+                                        ChunkPosition position = new(x, y, z);
+                                        if (currentBox.Contains(position))
                                         {
-                                            region.Value.RemoveChunk(position);
+                                            region.RemoveChunk(position);
                                         }
                                     }
                                 }
@@ -148,16 +150,20 @@ namespace VoxelPizza.Client
                             ChunkPosition origin = chunkBox.Origin;
                             ChunkPosition max = chunkBox.Max;
 
-                            ChunkPosition position;
-                            for (position.Y = origin.Y; position.Y < max.Y; position.Y++)
+                            for (int y = origin.Y; y < max.Y; y++)
                             {
-                                for (position.Z = origin.Z; position.Z < max.Z; position.Z++)
+                                for (int z = origin.Z; z < max.Z; z++)
                                 {
-                                    for (position.X = origin.X; position.X < max.X; position.X++)
+                                    for (int x = origin.X; x < max.X; x++)
                                     {
-                                        if (!previousBox.Contains(position))
+                                        ChunkPosition position = new(x, y, z);
+                                        if (previousBox.Contains(position))
                                         {
-                                            AddChunk(region.Value, position);
+                                            continue;
+                                        }
+                                        
+                                        AddChunk(region, position);
+                                    }
                                         }
                                     }
                                 }

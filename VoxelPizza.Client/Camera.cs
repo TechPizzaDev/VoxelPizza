@@ -127,6 +127,11 @@ namespace VoxelPizza.Client
                 motionDir += Vector3.UnitY;
             }
 
+            if (InputTracker.GetKeyDown(Key.F))
+            {
+                _position += new Vector3(1024, 0, 0);
+            }
+
             if (Controller != null)
             {
                 float controllerLeftX = Controller.GetAxis(SDL_GameControllerAxis.LeftX);

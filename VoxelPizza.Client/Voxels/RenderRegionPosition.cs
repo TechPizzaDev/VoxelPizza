@@ -35,6 +35,28 @@ namespace VoxelPizza.Client
             return new ChunkPosition((int)regionSize.W * X, (int)regionSize.H * Y, (int)regionSize.D * Z);
         }
 
+        public static int GetChunkIndex(ChunkPosition chunkPosition, Size3 regionSize)
+        {
+            return (chunkPosition.Y * (int)regionSize.D + chunkPosition.Z) * (int)regionSize.W + chunkPosition.X;
+        }
+
+        public static ChunkPosition GetLocalChunkPosition(ChunkPosition chunkPosition, Size3 regionSize)
+        {
+            int x = chunkPosition.X % (int)regionSize.W;
+            if (x < 0)
+                x = (int)regionSize.W + x;
+
+            int y = chunkPosition.Y % (int)regionSize.H;
+            if (y < 0)
+                y = (int)regionSize.H + y;
+
+            int z = chunkPosition.Z % (int)regionSize.D;
+            if (z < 0)
+                z = (int)regionSize.D + z;
+
+            return new ChunkPosition(x, y, z);
+        }
+
         public bool Equals(RenderRegionPosition other)
         {
             return X == other.X
@@ -55,6 +77,16 @@ namespace VoxelPizza.Client
         public override bool Equals(object? obj)
         {
             return obj is RenderRegionPosition other && Equals(other);
+        }
+
+        public static bool operator ==(RenderRegionPosition left, RenderRegionPosition right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(RenderRegionPosition left, RenderRegionPosition right)
+        {
+            return !(left == right);
         }
     }
 }

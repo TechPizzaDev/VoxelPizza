@@ -3,7 +3,7 @@ using System;
 namespace VoxelPizza.Client
 {
     [Flags]
-    public enum ChunkGraphFaces : byte
+    public enum ChunkGraphFaces : uint
     {
         None = 0,
         Top = 1 << 0,

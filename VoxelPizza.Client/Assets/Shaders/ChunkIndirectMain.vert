@@ -38,9 +38,9 @@ layout(set = 1, binding = 2) readonly restrict buffer TextureAtlas
 
 layout(location = 0) in vec3 Position;
 layout(location = 1) in uint Normal;
-layout(location = 2) in uint TexAnimation0;
-layout(location = 3) in uint TexRegion0;
-layout(location = 4) in vec4 Translation;
+//layout(location = 2) in uint TexAnimation0;
+//layout(location = 3) in uint TexRegion0;
+layout(location = 2) in vec4 Translation;
 
 layout(location = 0) out vec3 f_Normal;
 layout(location = 1) out vec2 f_TexCoord0_0;
@@ -103,24 +103,26 @@ void main()
     vec3 normal = unpack3x10(Normal);
     vec4 outNormal = inverseWorld * vec4(normal, 1);
     
-    TextureAnimation texAnim0 = unpackTexAnim(TexAnimation0);
-    float step0 = GlobalTime * texAnim0.Rate;
-    float indexF0;
-    float texFract0 = modf(step0 - float(texAnim0.Type) * 0.5f, indexF0);
-    uint indexOffset0 = uint(indexF0);
-    uint indexOffset0_0 = indexOffset0 % texAnim0.Count;
-    uint indexOffset0_1 = (indexOffset0 + texAnim0.Type) % texAnim0.Count;
-    
-    TextureRegion texRegion0_0 = unpackTexRegion(TexRegion0 + indexOffset0_0);
-    TextureRegion texRegion0_1 = unpackTexRegion(TexRegion0 + indexOffset0_1);
+    //uint TexAnimation0 = 0u;
+    //uint TexRegion0 = 0u;
+    //TextureAnimation texAnim0 = unpackTexAnim(TexAnimation0);
+    //float step0 = GlobalTime * texAnim0.Rate;
+    //float indexF0;
+    //float texFract0 = modf(step0 - float(texAnim0.Type) * 0.5f, indexF0);
+    //uint indexOffset0 = uint(indexF0);
+    //uint indexOffset0_0 = indexOffset0 % texAnim0.Count;
+    //uint indexOffset0_1 = (indexOffset0 + texAnim0.Type) % texAnim0.Count;
+    //
+    //TextureRegion texRegion0_0 = unpackTexRegion(TexRegion0 + indexOffset0_0);
+    //TextureRegion texRegion0_1 = unpackTexRegion(TexRegion0 + indexOffset0_1);
     
     gl_Position = outPosition;
 
     f_Normal = normalize(outNormal.xyz);
     
-    f_TexCoord0_0 = texRegion0_0.TexCoord;
-    f_TexColor0_0 = texRegion0_0.TexColor;
-    f_TexCoord0_1 = texRegion0_1.TexCoord;
-    f_TexColor0_1 = texRegion0_1.TexColor;
-    f_TexFraction_0 = texFract0;
+    f_TexCoord0_0 = vec2(0, 0); //texRegion0_0.TexCoord;
+    f_TexColor0_0 = mod(worldPosition.xyz, 16.0) / 16.0; //texRegion0_0.TexColor;
+    f_TexCoord0_1 = vec2(0, 0); //texRegion0_1.TexCoord;
+    f_TexColor0_1 = vec3(0, 0, 0); //texRegion0_1.TexColor;
+    f_TexFraction_0 = 0.0; //texFract0;
 }

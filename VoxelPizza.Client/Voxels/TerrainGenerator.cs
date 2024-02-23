@@ -1,3 +1,5 @@
+using VoxelPizza.Memory;
+
 namespace VoxelPizza.World;
 
 public abstract class TerrainGenerator
@@ -7,5 +9,5 @@ public abstract class TerrainGenerator
         return true;
     }
 
-    public abstract bool Generate(Chunk chunk);
+    public abstract ChunkTicket CreateTicket(ValueArc<Chunk> chunk);
 }

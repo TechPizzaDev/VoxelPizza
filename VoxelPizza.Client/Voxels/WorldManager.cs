@@ -38,7 +38,7 @@ namespace VoxelPizza.Client
 
                     int width = 64;
                     int depth = width;
-                    int height = width;
+                    int height = (int)(width * 1.5);
 
                     Size3 size = new((uint)width, (uint)height, (uint)depth);
 
@@ -48,23 +48,23 @@ namespace VoxelPizza.Client
                     ChunkPosition centerOffsetMin = new(width / 2, height / 2, depth / 2);
                     ChunkPosition centerOffsetMax = new((width + 1) / 2, (height + 1) / 2, (depth + 1) / 2);
 
-                    void AddChunk(ChunkRegion region, ChunkPosition position)
+                    ChunkTicket? AddChunk(ChunkRegion region, ChunkPosition position)
                     {
                         if (!generator.CanGenerate(position))
                         {
-                            return;
+                            return null;
                         }
 
                         ValueArc<Chunk> chunkArc = region.CreateChunk(position, out _);
 
-                        if (generator.Generate(chunk))
-                        {
-                            chunk.InvokeUpdate();
-                        }
+                        ChunkTicket ticket = generator.CreateTicket(chunkArc);
+                        return ticket;
                     }
 
                     ChunkPosition currentOrigin = currentPosition - centerOffsetMin;
                     ChunkPosition currentMax = currentPosition + centerOffsetMax;
+
+                    Dictionary<ChunkRegionPosition, ChunkTicketRegion> ticketRegions = new();
 
                     foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(currentOrigin, currentMax))
                     {
@@ -74,6 +74,8 @@ namespace VoxelPizza.Client
                             continue;
                         }
 
+                        ChunkTicketRegion? ticketRegion = null;
+
                         ChunkBox chunkBox = regionSlice.GetChunkBox();
                         ChunkPosition origin = chunkBox.Origin;
                         ChunkPosition max = chunkBox.Max;
@@ -81,16 +83,34 @@ namespace VoxelPizza.Client
                         for (int y = origin.Y; y < max.Y; y++)
                         {
                             for (int z = origin.Z; z < max.Z; z++)
-                        {
-                                for (int x = origin.X; x < max.X; x++)
                             {
+                                for (int x = origin.X; x < max.X; x++)
+                                {
                                     ChunkPosition position = new(x, y, z);
-                                    
-                                    AddChunk(region, position);
+
+                                    ChunkTicket? ticket = AddChunk(region, position);
+                                    if (ticket == null)
+                                    {
+                                        continue;
+                                    }
+
+                                    if (ticketRegion == null)
+                                    {
+                                        if (!ticketRegions.TryGetValue(region.Position, out ticketRegion))
+                                        {
+                                            ticketRegion = new ChunkTicketRegion(region.Position);
+                                            ticketRegions.Add(region.Position, ticketRegion);
+                                        }
+                                    }
+                                    ticketRegion.Add(position, ticket);
                                 }
                             }
                         }
                     }
+
+                    Stopwatch workWatch = new();
+
+                    List<ChunkTicket> cancelledTickets = new();
 
                     while (true)
                     {
@@ -98,7 +118,63 @@ namespace VoxelPizza.Client
 
                         if (previousPosition == currentPosition)
                         {
-                            Thread.Sleep(10);
+                            workWatch.Restart();
+
+                            int skipped = 0;
+                            bool timeExhausted = false;
+
+                            foreach (ChunkTicketRegion ticketRegion in ticketRegions.Values)
+                            {
+                                if (ticketRegion.Count == 0)
+                                {
+                                    ticketRegions.Remove(ticketRegion.Position);
+                                    continue;
+                                }
+
+                                foreach (ChunkTicket? ticket in ticketRegion.AsSpan())
+                                {
+                                    if (ticket == null)
+                                    {
+                                        continue;
+                                    }
+
+                                    if (workWatch.Elapsed.TotalMilliseconds > 10)
+                                    {
+                                        timeExhausted = true;
+                                        break;
+                                    }
+
+                                    Chunk chunk = ticket.Value.Get();
+
+                                    if (!ticket.IsStopRequested)
+                                    {
+                                        GeneratorState prevState = ticket.Work(GeneratorState.Complete);
+                                        if (ticket.State == GeneratorState.Complete)
+                                        {
+                                            chunk.InvokeUpdate();
+                                        }
+                                    }
+
+                                    if (ticketRegion.Remove(chunk.Position, out _))
+                                    {
+                                        if (ticket.State == GeneratorState.Cancel)
+                                            skipped++;
+
+                                        ticket.Work(GeneratorState.Dispose);
+                                    }
+                                }
+                            }
+                            workWatch.Stop();
+
+                            if (skipped > 0)
+                            {
+                                //Console.WriteLine($"Skipped {skipped} cancelled chunks");
+                            }
+
+                            if (!timeExhausted)
+                            {
+                                Thread.Sleep(1);
+                            }
                             continue;
                         }
 
@@ -106,8 +182,8 @@ namespace VoxelPizza.Client
                         currentMax = currentPosition + centerOffsetMax;
                         ChunkBox currentBox = new(currentOrigin, currentMax);
 
-                        ChunkPosition previousOrigin = previousPosition - centerOffset;
-                        ChunkPosition previousMax = previousPosition + centerOffset;
+                        ChunkPosition previousOrigin = previousPosition - centerOffsetMin;
+                        ChunkPosition previousMax = previousPosition + centerOffsetMax;
                         ChunkBox previousBox = new(previousOrigin, previousMax);
 
                         foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(previousOrigin, previousMax))
@@ -118,6 +194,8 @@ namespace VoxelPizza.Client
                                 continue;
                             }
 
+                            ticketRegions.TryGetValue(region.Position, out ChunkTicketRegion? ticketRegion);
+
                             ChunkBox chunkBox = regionSlice.GetChunkBox();
                             ChunkPosition origin = chunkBox.Origin;
                             ChunkPosition max = chunkBox.Max;
@@ -125,13 +203,20 @@ namespace VoxelPizza.Client
                             for (int y = origin.Y; y < max.Y; y++)
                             {
                                 for (int z = origin.Z; z < max.Z; z++)
-                            {
-                                    for (int x = origin.X; x < max.X; x++)
                                 {
+                                    for (int x = origin.X; x < max.X; x++)
+                                    {
                                         ChunkPosition position = new(x, y, z);
                                         if (currentBox.Contains(position))
                                         {
-                                            region.RemoveChunk(position);
+                                            continue;
+                                        }
+
+                                        region.RemoveChunk(position);
+
+                                        if (ticketRegion != null && ticketRegion.TryGet(position, out ChunkTicket? ticket))
+                                        {
+                                            ticket.Work(GeneratorState.Cancel);
                                         }
                                     }
                                 }
@@ -145,6 +230,8 @@ namespace VoxelPizza.Client
                             {
                                 continue;
                             }
+
+                            ChunkTicketRegion? ticketRegion = null;
 
                             ChunkBox chunkBox = regionSlice.GetChunkBox();
                             ChunkPosition origin = chunkBox.Origin;
@@ -161,14 +248,41 @@ namespace VoxelPizza.Client
                                         {
                                             continue;
                                         }
-                                        
-                                        AddChunk(region, position);
-                                    }
+
+                                        if (ticketRegion == null)
+                                        {
+                                            if (!ticketRegions.TryGetValue(region.Position, out ticketRegion))
+                                            {
+                                                ticketRegion = new ChunkTicketRegion(region.Position);
+                                                ticketRegions.Add(region.Position, ticketRegion);
+                                            }
+                                        }
+
+                                        if (ticketRegion.Remove(position, out ChunkTicket? existingTicket))
+                                        {
+                                            cancelledTickets.Add(existingTicket);
+                                        }
+
+                                        ChunkTicket? ticket = AddChunk(region, position);
+                                        if (ticket != null)
+                                        {
+                                            ticketRegion.Add(position, ticket);
                                         }
                                     }
                                 }
                             }
                         }
+
+                        if (cancelledTickets.Count > 0)
+                        {
+                            //Console.WriteLine($"Cleared {cancelledTickets.Count} cancelled chunks");
+                        }
+
+                        foreach (ChunkTicket ticket in cancelledTickets)
+                        {
+                            ticket.Work(GeneratorState.Dispose);
+                        }
+                        cancelledTickets.Clear();
 
                         previousPosition = currentPosition;
                     }

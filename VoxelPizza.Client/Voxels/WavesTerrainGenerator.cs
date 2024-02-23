@@ -1,5 +1,6 @@
 using System;
 using VoxelPizza.Collections;
+using VoxelPizza.Memory;
 
 namespace VoxelPizza.World;
 
@@ -7,7 +8,7 @@ public class WavesTerrainGenerator : TerrainGenerator
 {
     public override bool CanGenerate(ChunkPosition position)
     {
-        if (position.Y < 0)
+        if (position.Y < -1)
         {
             return false;
         }
@@ -18,53 +19,78 @@ public class WavesTerrainGenerator : TerrainGenerator
         return true;
     }
 
-    public override bool Generate(Chunk chunk)
+    public override ChunkTicket CreateTicket(ValueArc<Chunk> chunk)
     {
-        ChunkPosition chunkPos = chunk.Position;
-        if (!CanGenerate(chunk.Position))
+        return new WavesTerrainTicket(chunk.Wrap());
+    }
+
+    public class WavesTerrainTicket : ChunkTicket
+    {
+        public WavesTerrainTicket(ValueArc<Chunk> value) : base(value)
         {
-            return false;
         }
 
-        BlockPosition blockPos = chunkPos.ToBlock();
-        BlockStorage blockStorage = chunk.GetBlockStorage();
-
-        Span<uint> layerTmp = stackalloc uint[Chunk.Width * Chunk.Depth];
-
-        for (int y = 0; y < Chunk.Height; y++)
+        public override GeneratorState Work(GeneratorState state)
         {
-            float blockY = blockPos.Y + y;
-
-            for (int z = 0; z < Chunk.Depth; z++)
+            if (state != GeneratorState.Complete)
             {
-                float blockZ = blockPos.Z + z;
-                float cos = 64 * (MathF.Cos(blockZ / 16f) + 1) * 0.5f;
-
-                if (cos * 0.5f >= blockY)
-                {
-                    for (int x = 0; x < Chunk.Width; x++)
-                    {
-                        layerTmp[x + z * Chunk.Width] = 1;
-                    }
-                    continue;
-                }
-
-                for (int x = 0; x < Chunk.Width; x++)
-                {
-                    float blockX = blockPos.X + x;
-                    float sin = 64 * (MathF.Sin(blockX / 16f) + 1) * 0.5f;
-
-                    uint v = 0;
-                    if ((sin + cos) * 0.5f >= blockY)
-                    {
-                        v = 1;
-                    }
-                    layerTmp[x + z * Chunk.Width] = v;
-                }
+                return TransitionState(state);
             }
 
-            blockStorage.SetBlockLayer(y, layerTmp);
+            if (IsStopRequested)
+            {
+                return State;
+            }
+
+            Chunk chunk = Value.Get();
+            ChunkPosition chunkPos = chunk.Position;
+
+            BlockPosition blockPos = chunkPos.ToBlock();
+            BlockStorage blockStorage = chunk.GetBlockStorage();
+
+            Span<uint> layerTmp = stackalloc uint[Chunk.Width * Chunk.Depth];
+
+            for (int y = 0; y < Chunk.Height; y++)
+            {
+                float blockY = blockPos.Y + y;
+
+                if (IsStopRequested)
+                {
+                    return State;
+                }
+
+                for (int z = 0; z < Chunk.Depth; z++)
+                {
+                    float blockZ = blockPos.Z + z;
+                    float cos = 64 * (MathF.Cos(blockZ / 16f) + 1) * 0.5f;
+
+                    if (cos * 0.5f >= blockY)
+                    {
+                        for (int x = 0; x < Chunk.Width; x++)
+                        {
+                            layerTmp[x + z * Chunk.Width] = 1;
+                        }
+                        continue;
+                    }
+
+                    for (int x = 0; x < Chunk.Width; x++)
+                    {
+                        float blockX = blockPos.X + x;
+                        float sin = 64 * (MathF.Sin(blockX / 16f) + 1) * 0.5f;
+
+                        uint v = 0;
+                        if ((sin + cos) * 0.5f >= blockY)
+                        {
+                            v = 1;
+                        }
+                        layerTmp[x + z * Chunk.Width] = v;
+                    }
+                }
+
+                blockStorage.SetBlockLayer(y, layerTmp);
+            }
+
+            return TransitionState(GeneratorState.Complete);
         }
-        return true;
     }
 }

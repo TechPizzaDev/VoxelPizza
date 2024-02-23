@@ -25,6 +25,16 @@ namespace VoxelPizza.Collections
         /// <summary>
         /// The data is stored in 16-bit unsigned integers.
         /// </summary>
-        Unsigned16
+        Unsigned16,
+        
+        /// <summary>
+        /// The data is stored in 24-bit unsigned integers.
+        /// </summary>
+        Unsigned24,
+        
+        /// <summary>
+        /// The data is stored in 32-bit unsigned integers.
+        /// </summary>
+        Unsigned32
     }
 }

@@ -5,9 +5,9 @@ namespace VoxelPizza.Collections
     public interface IBlockStorage
     {
         BlockStorageType StorageType { get; }
-        ushort Width { get; }
-        ushort Height { get; }
-        ushort Depth { get; }
+        int Width { get; }
+        int Height { get; }
+        int Depth { get; }
         bool IsEmpty { get; }
 
         /// <summary>

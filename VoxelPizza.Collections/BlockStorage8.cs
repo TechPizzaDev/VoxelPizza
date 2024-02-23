@@ -8,16 +8,16 @@ namespace VoxelPizza.Collections
 
         public override BlockStorageType StorageType => BlockStorageType.Unsigned8;
 
-        public BlockStorage8(ushort width, ushort height, ushort depth) : base(width, height, depth)
+        public BlockStorage8(int width, int height, int depth) : base(width, height, depth)
         {
-            _array = new byte[(long)height * depth * width * sizeof(byte)];
+            _array = new byte[(long)height * depth * width];
             IsEmpty = false;
         }
 
         public override bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType)
         {
-            storageType = BlockStorageType.Unsigned8;
             inlineSpan = _array;
+            storageType = StorageType;
             return true;
         }
 
@@ -33,9 +33,8 @@ namespace VoxelPizza.Collections
             int index = GetIndex(x, y, z);
             int length = Math.Min(destination.Length, Width - x);
             ReadOnlySpan<byte> src = _array.AsSpan(index, length);
-            Span<uint> dst = destination.Slice(0, length);
 
-            Expand8To32(src, dst, length);
+            Expand8To32(src, destination);
         }
 
         public override void GetBlockLayer(int y, Span<uint> destination)
@@ -43,9 +42,8 @@ namespace VoxelPizza.Collections
             int index = GetIndex(0, y, 0);
             int length = Math.Min(destination.Length, Width * Depth);
             ReadOnlySpan<byte> src = _array.AsSpan(index, length);
-            Span<uint> dst = destination.Slice(0, length);
-
-            Expand8To32(src, dst, length);
+            
+            Expand8To32(src, destination);
         }
 
         public override void SetBlock(int x, int y, int z, uint value)
@@ -78,6 +76,7 @@ namespace VoxelPizza.Collections
             int index = GetIndex(x, y, z);
             int length = Width - x;
             Span<byte> dst = _array.AsSpan(index, length);
+
             dst.Fill((byte)value);
         }
 
@@ -86,6 +85,7 @@ namespace VoxelPizza.Collections
             int index = GetIndex(0, y, 0);
             int length = Width * Depth;
             Span<byte> dst = _array.AsSpan(index, length);
+
             dst.Fill((byte)value);
         }
     }

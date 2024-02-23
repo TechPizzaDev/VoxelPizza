@@ -3,5 +3,9 @@
     <PropertyGroup>
         <RootNamespace>VoxelPizza.Collections</RootNamespace>
     </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\VoxelPizza.Numerics\VoxelPizza.Numerics.csproj" />
+    </ItemGroup>
     
 </Project>

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace VoxelPizza.Collections
 {
@@ -6,7 +7,7 @@ namespace VoxelPizza.Collections
     {
         public override BlockStorageType StorageType => BlockStorageType.Null;
 
-        public BlockStorage0(ushort width, ushort height, ushort depth) : base(width, height, depth)
+        public BlockStorage0(int width, int height, int depth) : base(width, height, depth)
         {
             IsEmpty = true;
         }
@@ -15,7 +16,7 @@ namespace VoxelPizza.Collections
         {
             inlineSpan = default;
             storageType = StorageType;
-            return false;
+            return true;
         }
 
         public override uint GetBlock(int x, int y, int z)
@@ -24,7 +25,7 @@ namespace VoxelPizza.Collections
 
             if (index > Width * Height * Depth)
             {
-                throw new IndexOutOfRangeException();
+                ThrowIndexOutOfRange();
             }
             return 0;
         }
@@ -37,7 +38,7 @@ namespace VoxelPizza.Collections
 
             if (index + length > Width * Height * Depth)
             {
-                throw new IndexOutOfRangeException();
+                ThrowIndexOutOfRange();
             }
             dst.Clear();
         }
@@ -50,7 +51,7 @@ namespace VoxelPizza.Collections
 
             if (index + dst.Length > Width * Height * Depth)
             {
-                throw new IndexOutOfRangeException();
+                ThrowIndexOutOfRange();
             }
             dst.Clear();
         }
@@ -61,7 +62,7 @@ namespace VoxelPizza.Collections
 
             if (index > Width * Height * Depth)
             {
-                throw new IndexOutOfRangeException();
+                ThrowIndexOutOfRange();
             }
         }
 
@@ -73,7 +74,7 @@ namespace VoxelPizza.Collections
 
             if (index + src.Length > Width * Height * Depth)
             {
-                throw new IndexOutOfRangeException();
+                ThrowIndexOutOfRange();
             }
         }
 
@@ -85,7 +86,7 @@ namespace VoxelPizza.Collections
 
             if (index + src.Length > Width * Height * Depth)
             {
-                throw new IndexOutOfRangeException();
+                ThrowIndexOutOfRange();
             }
         }
 
@@ -93,10 +94,10 @@ namespace VoxelPizza.Collections
         {
             int index = GetIndex(x, y, z);
             int length = Width - x;
-            
+
             if (index + length > Width * Height * Depth)
             {
-                throw new IndexOutOfRangeException();
+                ThrowIndexOutOfRange();
             }
         }
 
@@ -104,8 +105,18 @@ namespace VoxelPizza.Collections
         {
             if (y > Height)
             {
-                throw new IndexOutOfRangeException();
+                ThrowIndexOutOfRange();
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+        }
+
+        [DoesNotReturn]
+        private static void ThrowIndexOutOfRange()
+        {
+            throw new IndexOutOfRangeException();
         }
     }
 }

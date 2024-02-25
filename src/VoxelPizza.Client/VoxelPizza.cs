@@ -861,7 +861,7 @@ namespace VoxelPizza.Client
 
                         ImGui.NextColumn();
 
-                        foreach (SDL_GameControllerButton button in Enum.GetValues<SDL_GameControllerAxis>())
+                        foreach (SDL_GameControllerButton button in Enum.GetValues<SDL_GameControllerButton>())
                         {
                             ImGui.Text($"{button}: {_controllerTracker.IsPressed(button)}");
                         }

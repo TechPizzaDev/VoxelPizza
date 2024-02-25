@@ -10,6 +10,7 @@ namespace VoxelPizza.Client
             SDL_version version;
             Sdl2Native.SDL_GetVersion(&version);
 
+            // TODO: enable based on args?
             AppContext.SetSwitch(VoxelPizza.GraphicsDebugSwitchName, false);
 
             using VoxelPizza app = new();

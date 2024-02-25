@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 
 namespace VoxelPizza.Numerics
 {
@@ -27,15 +28,22 @@ namespace VoxelPizza.Numerics
 
         public readonly bool Equals(Byte4 other)
         {
-            return X == other.X
-                && Y == other.Y
-                && Z == other.Z
-                && W == other.W;
+            return ToInt32() == other.ToInt32();
+        }
+
+        public readonly int ToInt32()
+        {
+            return Unsafe.BitCast<Byte4, int>(this);
+        }
+
+        public override readonly bool Equals(object? obj)
+        {
+            return obj is Byte4 other && Equals(other);
         }
 
         public override readonly int GetHashCode()
         {
-            return HashCode.Combine(X, Y, Z, W);
+            return ToInt32();
         }
     }
 }

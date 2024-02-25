@@ -3,31 +3,39 @@ using System.Numerics;
 
 namespace VoxelPizza.Numerics
 {
-    public struct BoundingSphere4
+    public readonly struct BoundingSphere4
     {
-        public Vector4 Center;
-        public float Radius;
+        private readonly Vector4 _value;
+
+        public Vector3 Center => _value.ToVector3();
+
+        public float Radius => _value.W;
 
         public BoundingSphere4(Vector4 center, float radius)
         {
-            Center = center;
-            Radius = radius;
+            _value = center with { W = radius };
         }
 
         public BoundingSphere4(Vector3 center, float radius)
         {
-            Center = new Vector4(center, 0);
-            Radius = radius;
+            _value = new Vector4(center, radius);
+        }
+
+        public Vector4 ToVector4()
+        {
+            return _value;
         }
 
         public override readonly string ToString()
         {
-            return string.Format("Center:{0}, Radius:{1}", Center, Radius);
+            return $"Center:{_value.ToVector3()}, Radius:{Radius}";
         }
 
         public readonly bool Contains(Vector4 point)
         {
-            return (Center - point).LengthSquared() <= Radius * Radius;
+            Vector4 p = _value - point;
+            float r = Radius;
+            return p.ToVector3().LengthSquared() <= r * r;
         }
 
         public static BoundingSphere4 CreateFromPoints(ReadOnlySpan<Vector3> points)
@@ -44,10 +52,7 @@ namespace VoxelPizza.Numerics
             foreach (Vector3 pt in points)
             {
                 float distSq = Vector3.DistanceSquared(center, pt);
-                if (distSq > maxDistanceSquared)
-                {
-                    maxDistanceSquared = distSq;
-                }
+                maxDistanceSquared = MathF.Max(maxDistanceSquared, distSq);
             }
 
             return new BoundingSphere4(center, MathF.Sqrt(maxDistanceSquared));
@@ -67,10 +72,7 @@ namespace VoxelPizza.Numerics
             foreach (Vector4 pt in points)
             {
                 float distSq = Vector4.DistanceSquared(center, pt);
-                if (distSq > maxDistanceSquared)
-                {
-                    maxDistanceSquared = distSq;
-                }
+                maxDistanceSquared = MathF.Max(maxDistanceSquared, distSq);
             }
 
             return new BoundingSphere4(center, MathF.Sqrt(maxDistanceSquared));

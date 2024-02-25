@@ -25,12 +25,10 @@ namespace VoxelPizza.Numerics
 
         public readonly bool Equals(Int3 other)
         {
-            return X == other.X
-                && Y == other.Y
-                && Z == other.Z;
+            return this == other;
         }
 
-        public override bool Equals(object? obj)
+        public override readonly bool Equals(object? obj)
         {
             return obj is Int3 other && Equals(other);
         }
@@ -67,12 +65,16 @@ namespace VoxelPizza.Numerics
 
         public static bool operator ==(Int3 left, Int3 right)
         {
-            return left.Equals(right);
+            return left.X == right.X
+                && left.Y == right.Y
+                && left.Z == right.Z;
         }
 
         public static bool operator !=(Int3 left, Int3 right)
         {
-            return !(left == right);
+            return left.X != right.X
+                || left.Y != right.Y
+                || left.Z != right.Z;
         }
 
         private readonly string GetDebuggerDisplay()

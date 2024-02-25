@@ -140,7 +140,7 @@ namespace VoxelPizza.Client
             if (DrawRenderRegions)
                 _renderRegionEvents.Enqueue(new(EventType.Add, renderRegion.Position));
         }
-        
+
         private void RegionManager_RegionRemoved(LogicalRegion renderRegion)
         {
             if (DrawRenderRegions)
@@ -320,7 +320,7 @@ namespace VoxelPizza.Client
 
             _cameraBatch.Begin();
 
-            BoundingFrustum4 cullFrustum = new(camera.ViewMatrix * camera.ProjectionMatrix);
+            BoundingFrustum4 cullFrustum = BoundingFrustum4.CreateNormalizedFromMatrix(camera.ViewMatrix * camera.ProjectionMatrix);
             cullFrustum.GetCorners(out FrustumCorners4 corners);
 
             _cameraBatch.AppendQuad(

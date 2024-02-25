@@ -1,63 +1,66 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.X86;
 
 namespace VoxelPizza.Numerics
 {
-    public struct BoundingFrustum4
+    public readonly struct BoundingFrustum4
     {
-        public Plane4 Left;
-        public Plane4 Right;
-        public Plane4 Bottom;
-        public Plane4 Top;
-        public Plane4 Near;
-        public Plane4 Far;
+        public const int PlaneCount = 6;
 
-        public BoundingFrustum4(in Matrix4x4 m)
+        public readonly Plane4 Left;
+        public readonly Plane4 Right;
+        public readonly Plane4 Bottom;
+        public readonly Plane4 Top;
+        public readonly Plane4 Near;
+        public readonly Plane4 Far;
+
+        public static BoundingFrustum4 CreateNormalizedFromMatrix(in Matrix4x4 m)
         {
             // Plane computations: http://gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
-            Left = Plane4.Normalize(
+            Plane4 left = Plane4.Normalize(
                 new Plane4(
                     m.M14 + m.M11,
                     m.M24 + m.M21,
                     m.M34 + m.M31,
                     m.M44 + m.M41));
 
-            Right = Plane4.Normalize(
+            Plane4 right = Plane4.Normalize(
                 new Plane4(
                     m.M14 - m.M11,
                     m.M24 - m.M21,
                     m.M34 - m.M31,
                     m.M44 - m.M41));
 
-            Bottom = Plane4.Normalize(
+            Plane4 bottom = Plane4.Normalize(
                 new Plane4(
                     m.M14 + m.M12,
                     m.M24 + m.M22,
                     m.M34 + m.M32,
                     m.M44 + m.M42));
 
-            Top = Plane4.Normalize(
+            Plane4 top = Plane4.Normalize(
                 new Plane4(
                     m.M14 - m.M12,
                     m.M24 - m.M22,
                     m.M34 - m.M32,
                     m.M44 - m.M42));
 
-            Near = Plane4.Normalize(
+            Plane4 near = Plane4.Normalize(
                 new Plane4(
                     m.M13,
                     m.M23,
                     m.M33,
                     m.M43));
 
-            Far = Plane4.Normalize(
+            Plane4 far = Plane4.Normalize(
                 new Plane4(
                     m.M14 - m.M13,
                     m.M24 - m.M23,
                     m.M34 - m.M33,
                     m.M44 - m.M43));
+
+            return new BoundingFrustum4(left, right, bottom, top, near, far);
         }
 
         public BoundingFrustum4(Plane4 left, Plane4 right, Plane4 bottom, Plane4 top, Plane4 near, Plane4 far)
@@ -96,11 +99,11 @@ namespace VoxelPizza.Numerics
         {
             ContainmentType result = ContainmentType.Contains;
 
-            for (nint i = 0; i < 6 * Unsafe.SizeOf<Plane4>(); i += Unsafe.SizeOf<Plane4>())
+            for (int i = 0; i < PlaneCount; i++)
             {
-                Plane4 plane = Unsafe.AddByteOffset(ref Unsafe.AsRef(Left), i);
+                Plane4 plane = Unsafe.Add(ref Unsafe.AsRef(in Left), i);
 
-                float distance = Plane4.DotCoordinate(plane, sphere.Center);
+                float distance = Plane4.DotCoordinate(plane, sphere.ToVector4());
                 if (distance < -sphere.Radius)
                     return ContainmentType.Disjoint;
                 else if (distance < sphere.Radius)
@@ -115,78 +118,33 @@ namespace VoxelPizza.Numerics
 
             ContainmentType result = ContainmentType.Contains;
 
-            Vector128<float> boxMin = Vector128.AsVector128(box.Min);
-            Vector128<float> boxMax = Vector128.AsVector128(box.Max);
+            Vector128<float> boxMin = box.Min.AsVector128();
+            Vector128<float> boxMax = box.Max.AsVector128();
 
-            for (nuint i = 0; i < 6 * (nuint)Unsafe.SizeOf<Plane4>(); i += (nuint)Unsafe.SizeOf<Plane4>())
+            for (int i = 0; i < PlaneCount; i++)
             {
-                ref Plane4 plane = ref Unsafe.AddByteOffset(ref Unsafe.AsRef(Left), i);
+                Plane4 plane = Unsafe.Add(ref Unsafe.AsRef(in Left), i);
 
-                if (Sse.IsSupported)
+                Vector128<float> normal = plane.Normal.AsVector128();
+
+                Vector128<float> compare = Vector128.GreaterThanOrEqual(normal, Vector128<float>.Zero);
+
+                // If the positive vertex is outside (behind plane), the box is disjoint.
+                Vector128<float> positive = Vector128.ConditionalSelect(compare, boxMax, boxMin);
+                float positiveDistance = plane.D + Vector128.Dot(normal, positive);
+                if (positiveDistance < 0)
                 {
-                    Vector128<float> normal = Vector128.AsVector128(plane.Normal);
-
-                    Vector128<float> compare = Sse.CompareGreaterThanOrEqual(normal, Vector128<float>.Zero);
-                    Vector128<float> positive = Sse.Or(Sse.AndNot(compare, boxMin), Sse.And(compare, boxMax));
-                    Vector128<float> negative = Sse.Or(Sse.AndNot(compare, boxMax), Sse.And(compare, boxMin));
-
-                    // If the positive vertex is outside (behind plane), the box is disjoint.
-                    float positiveDistance = plane.D + Vector4.Dot(
-                        Vector128.AsVector4(normal), Vector128.AsVector4(positive));
-
-                    if (positiveDistance < 0)
-                    {
-                        return ContainmentType.Disjoint;
-                    }
-
-                    // If the negative vertex is outside (behind plane), the box is intersecting.
-                    // Because the above check failed, the positive vertex is in front of the plane,
-                    // and the negative vertex is behind. Thus, the box is intersecting this plane.
-                    float negativeDistance = plane.D + Vector4.Dot(
-                        Vector128.AsVector4(normal), Vector128.AsVector4(negative));
-
-                    if (negativeDistance < 0)
-                    {
-                        result = ContainmentType.Intersects;
-                    }
+                    return ContainmentType.Disjoint;
                 }
-                else
+
+                // If the negative vertex is outside (behind plane), the box is intersecting.
+                // Because the above check failed, the positive vertex is in front of the plane,
+                // and the negative vertex is behind. Thus, the box is intersecting this plane.
+                Vector128<float> negative = Vector128.ConditionalSelect(compare, boxMin, boxMax);
+                float negativeDistance = plane.D + Vector128.Dot(normal, negative);
+                if (negativeDistance < 0)
                 {
-                    Vector4 normal = plane.Normal;
-                    Vector4 positive = box.Min;
-                    Vector4 negative = box.Max;
-
-                    if (normal.X >= 0)
-                    {
-                        positive.X = box.Max.X;
-                        negative.X = box.Min.X;
-                    }
-                    if (normal.Y >= 0)
-                    {
-                        positive.Y = box.Max.Y;
-                        negative.Y = box.Min.Y;
-                    }
-                    if (normal.Z >= 0)
-                    {
-                        positive.Z = box.Max.Z;
-                        negative.Z = box.Min.Z;
-                    }
-
-                    // If the positive vertex is outside (behind plane), the box is disjoint.
-                    float positiveDistance = plane.D + Vector4.Dot(normal, positive);
-                    if (positiveDistance < 0)
-                    {
-                        return ContainmentType.Disjoint;
-                    }
-
-                    // If the negative vertex is outside (behind plane), the box is intersecting.
-                    // Because the above check failed, the positive vertex is in front of the plane,
-                    // and the negative vertex is behind. Thus, the box is intersecting this plane.
-                    float negativeDistance = plane.D + Vector4.Dot(normal, negative);
-                    if (negativeDistance < 0)
-                    {
-                        result = ContainmentType.Intersects;
-                    }
+                    result = ContainmentType.Intersects;
                 }
             }
 
@@ -198,92 +156,67 @@ namespace VoxelPizza.Numerics
             int pointsContained = 0;
             other.GetCorners(out FrustumCorners4 corners);
 
-            if (Contains(corners.NearTopLeft) != ContainmentType.Disjoint)
-                pointsContained++;
-            if (Contains(corners.NearTopRight) != ContainmentType.Disjoint)
-                pointsContained++;
-            if (Contains(corners.NearBottomLeft) != ContainmentType.Disjoint)
-                pointsContained++;
-            if (Contains(corners.NearBottomRight) != ContainmentType.Disjoint)
-                pointsContained++;
-            if (Contains(corners.FarTopLeft) != ContainmentType.Disjoint)
-                pointsContained++;
-            if (Contains(corners.FarTopRight) != ContainmentType.Disjoint)
-                pointsContained++;
-            if (Contains(corners.FarBottomLeft) != ContainmentType.Disjoint)
-                pointsContained++;
-            if (Contains(corners.FarBottomRight) != ContainmentType.Disjoint)
-                pointsContained++;
+            for (int i = 0; i < FrustumCorners4.CornerCount; i++)
+            {
+                Vector4 point = Unsafe.Add(ref corners.NearTopLeft, i);
+                if (Contains(point) != ContainmentType.Disjoint)
+                {
+                    pointsContained++;
+                }
+                else if (pointsContained > 0)
+                {
+                    // Break early since we won't have all points.
+                    break;
+                }
+            }
 
-            if (pointsContained == 8)
+            return pointsContained switch
             {
-                return ContainmentType.Contains;
-            }
-            else if (pointsContained == 0)
-            {
-                return ContainmentType.Disjoint;
-            }
-            else
-            {
-                return ContainmentType.Intersects;
-            }
-        }
-
-        public readonly FrustumCorners4 GetCorners()
-        {
-            GetCorners(out FrustumCorners4 corners);
-            return corners;
+                FrustumCorners4.CornerCount => ContainmentType.Contains,
+                0 => ContainmentType.Disjoint,
+                _ => ContainmentType.Intersects
+            };
         }
 
         public readonly void GetCorners(out FrustumCorners4 corners)
         {
-            PlaneIntersection(Near, Top, Left, out corners.NearTopLeft);
-            PlaneIntersection(Near, Top, Right, out corners.NearTopRight);
-            PlaneIntersection(Near, Bottom, Left, out corners.NearBottomLeft);
-            PlaneIntersection(Near, Bottom, Right, out corners.NearBottomRight);
-            PlaneIntersection(Far, Top, Left, out corners.FarTopLeft);
-            PlaneIntersection(Far, Top, Right, out corners.FarTopRight);
-            PlaneIntersection(Far, Bottom, Left, out corners.FarBottomLeft);
-            PlaneIntersection(Far, Bottom, Right, out corners.FarBottomRight);
+            corners.NearTopLeft = PlaneIntersection(Near, Top, Left);
+            corners.NearTopRight = PlaneIntersection(Near, Top, Right);
+            corners.NearBottomLeft = PlaneIntersection(Near, Bottom, Left);
+            corners.NearBottomRight = PlaneIntersection(Near, Bottom, Right);
+            corners.FarTopLeft = PlaneIntersection(Far, Top, Left);
+            corners.FarTopRight = PlaneIntersection(Far, Top, Right);
+            corners.FarBottomLeft = PlaneIntersection(Far, Bottom, Left);
+            corners.FarBottomRight = PlaneIntersection(Far, Bottom, Right);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void PlaneIntersection(in Plane4 p1, in Plane4 p2, in Plane4 p3, out Vector4 intersection)
+        private static Vector4 PlaneIntersection(Plane4 p1, Plane4 p2, Plane4 p3)
         {
             // Formula: http://geomalgorithms.com/a05-_intersect-1.html
             // The formula assumes that there is only a single intersection point.
             // Because of the way the frustum planes are constructed, this should be guaranteed.
-            intersection =
+            Vector3 intersection =
                 (-(p1.D * Cross(p2.Normal, p3.Normal))
                 - (p2.D * Cross(p3.Normal, p1.Normal))
                 - (p3.D * Cross(p1.Normal, p2.Normal)))
-                / Vector4.Dot(p1.Normal, Cross(p2.Normal, p3.Normal));
+                / Vector3.Dot(p1.Normal, Cross(p2.Normal, p3.Normal));
+            return intersection.AsVector128().AsVector4();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector4 Cross(Vector4 vector1, Vector4 vector2)
+        private static Vector3 Cross(Vector3 vector1, Vector3 vector2)
         {
-            if (Sse.IsSupported)
-            {
-                Vector128<float> v1 = Vector128.AsVector128(vector1);
-                Vector128<float> v2 = Vector128.AsVector128(vector2);
+            Vector128<float> v1 = vector1.AsVector128();
+            Vector128<float> v2 = vector2.AsVector128();
 
-                Vector128<float> left1 = Sse.Shuffle(v1, v1, 0b11_00_10_01);
-                Vector128<float> left2 = Sse.Shuffle(v2, v2, 0b11_01_00_10);
+            Vector128<float> left1 = Vector128.Shuffle(v1, Vector128.Create(1, 2, 0, 3));
+            Vector128<float> left2 = Vector128.Shuffle(v2, Vector128.Create(2, 0, 1, 3));
 
-                Vector128<float> right1 = Sse.Shuffle(v1, v1, 0b11_01_00_10);
-                Vector128<float> right2 = Sse.Shuffle(v2, v2, 0b11_00_10_01);
+            Vector128<float> right1 = Vector128.Shuffle(v1, Vector128.Create(2, 0, 1, 3));
+            Vector128<float> right2 = Vector128.Shuffle(v2, Vector128.Create(1, 2, 0, 3));
 
-                return Vector128.AsVector4(Sse.Subtract(
-                    Sse.Multiply(left1, left2),
-                    Sse.Multiply(right1, right2)));
-            }
-
-            return new Vector4(
-                (vector1.Y * vector2.Z) - (vector1.Z * vector2.Y),
-                (vector1.Z * vector2.X) - (vector1.X * vector2.Z),
-                (vector1.X * vector2.Y) - (vector1.Y * vector2.X),
-                0);
+            return ((left1 * left2) - (right1 * right2)).AsVector3();
         }
     }
 }

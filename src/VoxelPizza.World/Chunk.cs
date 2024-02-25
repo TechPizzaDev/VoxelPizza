@@ -19,6 +19,7 @@ namespace VoxelPizza.World
 
         public static Size3 Size => new(Width, Height, Depth);
 
+        private ValueArc<ChunkRegion> _region;
         private BlockStorage _storage;
 
         public event ChunkAction? Updated;
@@ -30,13 +31,13 @@ namespace VoxelPizza.World
         public int Y => Position.Y;
         public int Z => Position.Z;
 
-        public ChunkRegion Region { get; }
+        public ValueArc<ChunkRegion> Region => _region.Wrap();
 
         public bool IsEmpty => _storage.IsEmpty;
 
-        public Chunk(ChunkRegion region, ChunkPosition position)
+        public Chunk(ValueArc<ChunkRegion> region, ChunkPosition position)
         {
-            Region = region ?? throw new ArgumentNullException(nameof(region));
+            _region = region.Wrap();
             Position = position;
 
             _storage = EmptyStorage;

@@ -48,14 +48,14 @@ namespace VoxelPizza.Client
                     ChunkPosition centerOffsetMin = new(width / 2, height / 2, depth / 2);
                     ChunkPosition centerOffsetMax = new((width + 1) / 2, (height + 1) / 2, (depth + 1) / 2);
 
-                    ChunkTicket? AddChunk(ChunkRegion region, ChunkPosition position)
+                    ChunkTicket? AddChunk(ValueArc<ChunkRegion> region, ChunkPosition position)
                     {
                         if (!generator.CanGenerate(position))
                         {
                             return null;
                         }
 
-                        ValueArc<Chunk> chunkArc = region.CreateChunk(position, out _);
+                        ValueArc<Chunk> chunkArc = ChunkRegion.CreateChunk(region, position, out _);
 
                         ChunkTicket ticket = generator.CreateTicket(chunkArc);
                         return ticket;
@@ -68,7 +68,7 @@ namespace VoxelPizza.Client
 
                     foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(currentOrigin, currentMax))
                     {
-                        using ValueArc<ChunkRegion> regionArc = dim.CreateRegion(regionSlice.Region);
+                        using ValueArc<ChunkRegion> regionArc = Dimension.CreateRegion(dimension, regionSlice.Region);
                         if (!regionArc.TryGet(out ChunkRegion? region))
                         {
                             continue;
@@ -88,7 +88,7 @@ namespace VoxelPizza.Client
                                 {
                                     ChunkPosition position = new(x, y, z);
 
-                                    ChunkTicket? ticket = AddChunk(region, position);
+                                    ChunkTicket? ticket = AddChunk(regionArc, position);
                                     if (ticket == null)
                                     {
                                         continue;
@@ -225,7 +225,7 @@ namespace VoxelPizza.Client
 
                         foreach (ChunkRegionBoxSlice regionSlice in new ChunkRegionBoxSliceEnumerator(currentOrigin, currentMax))
                         {
-                            using ValueArc<ChunkRegion> regionArc = dim.CreateRegion(regionSlice.Region);
+                            using ValueArc<ChunkRegion> regionArc = Dimension.CreateRegion(dimension, regionSlice.Region);
                             if (!regionArc.TryGet(out ChunkRegion? region))
                             {
                                 continue;
@@ -263,7 +263,7 @@ namespace VoxelPizza.Client
                                             cancelledTickets.Add(existingTicket);
                                         }
 
-                                        ChunkTicket? ticket = AddChunk(region, position);
+                                        ChunkTicket? ticket = AddChunk(regionArc, position);
                                         if (ticket != null)
                                         {
                                             ticketRegion.Add(position, ticket);

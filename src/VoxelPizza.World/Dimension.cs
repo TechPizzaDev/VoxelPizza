@@ -177,40 +177,42 @@ namespace VoxelPizza.World
             }
         }
 
-        public ValueArc<ChunkRegion> CreateRegion(ChunkRegionPosition position)
+        public static ValueArc<ChunkRegion> CreateRegion(ValueArc<Dimension> dimension, ChunkRegionPosition position)
         {
-            ValueArc<ChunkRegion> vRegion = GetRegion(position);
+            Dimension self = dimension.Get();
+
+            ValueArc<ChunkRegion> vRegion = self.GetRegion(position);
             if (vRegion.HasTarget)
             {
                 // GetRegion increments refcount
                 return vRegion;
             }
 
-            _regionLock.EnterWriteLock();
+            self._regionLock.EnterWriteLock();
             try
             {
                 // Check again after acquiring lock,
                 // as a region may have been created while we were waiting.
-                if (!_regions.TryGetValue(position, out Arc<ChunkRegion>? regionArc))
+                if (!self._regions.TryGetValue(position, out Arc<ChunkRegion>? regionArc))
                 {
-                    ChunkRegion region = new(this, position);
-                    region.ChunkAdded += _cachedChunkAdded;
-                    region.ChunkUpdated += _cachedChunkUpdated;
-                    region.ChunkRemoved += _cachedChunkRemoved;
-                    region.Empty += _cachedRegionEmpty;
-                    region.Destroyed += _cachedRegionDestroyed;
+                    ChunkRegion region = new(dimension, position);
+                    region.ChunkAdded += self._cachedChunkAdded;
+                    region.ChunkUpdated += self._cachedChunkUpdated;
+                    region.ChunkRemoved += self._cachedChunkRemoved;
+                    region.Empty += self._cachedRegionEmpty;
+                    region.Destroyed += self._cachedRegionDestroyed;
 
                     regionArc = new Arc<ChunkRegion>(region);
 
-                    _regions.Add(region.Position, regionArc);
-                    OnChunkRegionAdded(region);
+                    self._regions.Add(region.Position, regionArc);
+                    self.OnChunkRegionAdded(region);
                 }
 
                 return regionArc.Track();
             }
             finally
             {
-                _regionLock.ExitWriteLock();
+                self._regionLock.ExitWriteLock();
             }
         }
 
@@ -254,11 +256,11 @@ namespace VoxelPizza.World
             return ValueArc<Chunk>.Empty;
         }
 
-        public ValueArc<Chunk> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
+        public static ValueArc<Chunk> CreateChunk(ValueArc<Dimension> dimension, ChunkPosition position, out ChunkAddStatus status)
         {
             ChunkRegionPosition regionPosition = position.ToRegion();
-            using ValueArc<ChunkRegion> region = CreateRegion(regionPosition);
-            return region.Get().CreateChunk(position, out status);
+            using ValueArc<ChunkRegion> region = CreateRegion(dimension, regionPosition);
+            return ChunkRegion.CreateChunk(region, position, out status);
         }
 
         public ChunkRemoveStatus RemoveChunk(ChunkPosition position)

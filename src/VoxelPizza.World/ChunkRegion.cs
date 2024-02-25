@@ -17,13 +17,14 @@ namespace VoxelPizza.World
 
         public static Size3 Size => new(Width, Height, Depth);
 
+        private ValueArc<Dimension> _dimension;
         private Arc<Chunk>?[]? _chunks;
         private int _chunkCount;
         private ReaderWriterLockSlim _chunkLock = new();
         private ChunkAction _cachedChunkUpdated;
         private ChunkAction _cachedChunkDestroyed;
 
-        public Dimension Dimension { get; }
+        public ValueArc<Dimension> Dimension => _dimension.Wrap();
         public ChunkRegionPosition Position { get; }
 
         public event ChunkAction? ChunkAdded;
@@ -35,9 +36,9 @@ namespace VoxelPizza.World
 
         public bool HasChunks => _chunkCount > 0;
 
-        public ChunkRegion(Dimension dimension, ChunkRegionPosition position)
+        public ChunkRegion(ValueArc<Dimension> dimension, ChunkRegionPosition position)
         {
-            Dimension = dimension ?? throw new ArgumentNullException(nameof(dimension));
+            _dimension = dimension.Wrap();
             Position = position;
 
             _chunks = Array.Empty<Arc<Chunk>>();
@@ -120,14 +121,16 @@ namespace VoxelPizza.World
             return GetLocalChunk(index);
         }
 
-        public ValueArc<Chunk> CreateChunk(ChunkPosition position, out ChunkAddStatus status)
+        public static ValueArc<Chunk> CreateChunk(ValueArc<ChunkRegion> region, ChunkPosition position, out ChunkAddStatus status)
         {
-            CheckChunkPosition(Position, position);
+            ChunkRegion self = region.Get();
+
+            CheckChunkPosition(self.Position, position);
 
             ChunkPosition localPosition = GetLocalChunkPosition(position);
             int index = GetChunkIndex(localPosition);
 
-            ValueArc<Chunk> vChunk = GetLocalChunk(index);
+            ValueArc<Chunk> vChunk = self.GetLocalChunk(index);
             if (vChunk.HasTarget)
             {
                 // GetLocalChunk increments refcount
@@ -135,25 +138,25 @@ namespace VoxelPizza.World
                 return vChunk;
             }
 
-            _chunkLock.EnterWriteLock();
+            self._chunkLock.EnterWriteLock();
             try
             {
-                Arc<Chunk>?[] chunks = GetOrCreateChunkArray();
+                Arc<Chunk>?[] chunks = self.GetOrCreateChunkArray();
 
                 // Check again after acquiring lock,
                 // as a chunk may have been created while we were waiting.
                 Arc<Chunk>? chunkArc = chunks[index];
                 if (chunkArc == null)
                 {
-                    Chunk chunk = new(this, position);
-                    chunk.Updated += _cachedChunkUpdated;
-                    chunk.Destroyed += _cachedChunkDestroyed;
+                    Chunk chunk = new(region, position);
+                    chunk.Updated += self._cachedChunkUpdated;
+                    chunk.Destroyed += self._cachedChunkDestroyed;
 
                     chunkArc = new Arc<Chunk>(chunk);
                     chunks[index] = chunkArc;
-                    _chunkCount++;
+                    self._chunkCount++;
 
-                    ChunkAdded?.Invoke(chunk);
+                    self.ChunkAdded?.Invoke(chunk);
                 }
 
                 status = ChunkAddStatus.Success;
@@ -161,7 +164,7 @@ namespace VoxelPizza.World
             }
             finally
             {
-                _chunkLock.ExitWriteLock();
+                self._chunkLock.ExitWriteLock();
             }
         }
 

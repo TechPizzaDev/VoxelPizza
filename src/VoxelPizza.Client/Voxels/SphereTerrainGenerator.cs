@@ -36,7 +36,7 @@ public class SphereTerrainGenerator : TerrainGenerator
     {
         public SphereTerrainGenerator Generator { get; }
 
-        public SphereTerrainTicket(ValueArc<Chunk> value, SphereTerrainGenerator generator) : base(value)
+        public SphereTerrainTicket(ValueArc<Chunk> chunk, SphereTerrainGenerator generator) : base(chunk.Wrap())
         {
             Generator = generator ?? throw new ArgumentNullException(nameof(generator));
         }
@@ -48,7 +48,7 @@ public class SphereTerrainGenerator : TerrainGenerator
                 return TransitionState(state);
             }
 
-            Chunk chunk = Value.Get();
+            Chunk chunk = GetChunk().Get();
             ChunkPosition chunkPos = chunk.Position;
 
             BlockPosition blockPos = chunkPos.ToBlock();

@@ -48,16 +48,14 @@ namespace VoxelPizza.Client
                     ChunkPosition centerOffsetMin = new(width / 2, height / 2, depth / 2);
                     ChunkPosition centerOffsetMax = new((width + 1) / 2, (height + 1) / 2, (depth + 1) / 2);
 
-                    ChunkTicket? AddChunk(ValueArc<ChunkRegion> region, ChunkPosition position)
+                    ChunkTicket? AddChunk(ValueArc<ChunkRegion> chunkRegion, ChunkPosition position)
                     {
                         if (!generator.CanGenerate(position))
                         {
                             return null;
                         }
 
-                        ValueArc<Chunk> chunkArc = ChunkRegion.CreateChunk(region, position, out _);
-
-                        ChunkTicket ticket = generator.CreateTicket(chunkArc);
+                        ChunkTicket? ticket = generator.CreateTicket(chunkRegion, position);
                         return ticket;
                     }
 
@@ -144,7 +142,7 @@ namespace VoxelPizza.Client
                                         break;
                                     }
 
-                                    Chunk chunk = ticket.Value.Get();
+                                    Chunk chunk = ticket.GetChunk().Get();
 
                                     if (!ticket.IsStopRequested)
                                     {

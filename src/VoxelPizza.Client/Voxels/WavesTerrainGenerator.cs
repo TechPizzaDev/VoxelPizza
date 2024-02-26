@@ -18,7 +18,7 @@ public class WavesTerrainGenerator : TerrainGenerator
         }
         return true;
     }
-
+    
     public override ChunkTicket CreateTicket(ValueArc<Chunk> chunk)
     {
         return new WavesTerrainTicket(chunk.Wrap());
@@ -26,7 +26,7 @@ public class WavesTerrainGenerator : TerrainGenerator
 
     public class WavesTerrainTicket : ChunkTicket
     {
-        public WavesTerrainTicket(ValueArc<Chunk> value) : base(value)
+        public WavesTerrainTicket(ValueArc<Chunk> chunk) : base(chunk.Wrap())
         {
         }
 
@@ -42,7 +42,7 @@ public class WavesTerrainGenerator : TerrainGenerator
                 return State;
             }
 
-            Chunk chunk = Value.Get();
+            Chunk chunk = GetChunk().Get();
             ChunkPosition chunkPos = chunk.Position;
 
             BlockPosition blockPos = chunkPos.ToBlock();

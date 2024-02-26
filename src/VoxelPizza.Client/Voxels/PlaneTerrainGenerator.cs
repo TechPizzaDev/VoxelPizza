@@ -13,7 +13,7 @@ public class PlaneTerrainGenerator : TerrainGenerator
     {
         return position.Y == LevelY;
     }
-
+    
     public override ChunkTicket CreateTicket(ValueArc<Chunk> chunk)
     {
         return new PlaneTerrainTicket(chunk.Wrap());
@@ -21,7 +21,7 @@ public class PlaneTerrainGenerator : TerrainGenerator
 
     public class PlaneTerrainTicket : ChunkTicket
     {
-        public PlaneTerrainTicket(ValueArc<Chunk> value) : base(value)
+        public PlaneTerrainTicket(ValueArc<Chunk> chunk) : base(chunk.Wrap())
         {
         }
 
@@ -32,7 +32,7 @@ public class PlaneTerrainGenerator : TerrainGenerator
                 return TransitionState(state);
             }
 
-            Chunk chunk = Value.Get();
+            Chunk chunk = GetChunk().Get();
             ChunkPosition chunkPos = chunk.Position;
 
             BlockStorage blockStorage = chunk.GetBlockStorage();

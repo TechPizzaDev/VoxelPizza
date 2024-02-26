@@ -5,24 +5,24 @@ using VoxelPizza.Memory;
 
 namespace VoxelPizza.World;
 
-public abstract class ChunkTicket : IStateMachine<GeneratorState, ValueArc<Chunk>>
+public abstract class ChunkTicket : IStateMachine<GeneratorState>
 {
     private int _state;
 
-    private ValueArc<Chunk> _value;
+    private ValueArc<Chunk> _chunk;
 
     public GeneratorState State => (GeneratorState)_state;
 
     public bool IsStopRequested => _state == (int)GeneratorState.Dispose || _state == (int)GeneratorState.Cancel;
 
-    public ValueArc<Chunk> Value => _value.Wrap();
-
-    public ChunkTicket(ValueArc<Chunk> value)
+    public ChunkTicket(ValueArc<Chunk> chunk)
     {
-        _value = value.Track();
+        _chunk = chunk.Track();
 
         TransitionState(GeneratorState.Idle);
     }
+
+    public ValueArc<Chunk> GetChunk() => _chunk.Wrap();
 
     protected virtual GeneratorState TransitionState(GeneratorState state)
     {
@@ -39,7 +39,7 @@ public abstract class ChunkTicket : IStateMachine<GeneratorState, ValueArc<Chunk
 
         if (state == GeneratorState.Dispose)
         {
-            _value.Dispose();
+            _chunk.Dispose();
         }
 
         return previousState;

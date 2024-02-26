@@ -1,5 +1,5 @@
-using System;
 using System.Numerics;
+using System.Runtime.Intrinsics;
 
 namespace VoxelPizza.Numerics
 {
@@ -30,11 +30,13 @@ namespace VoxelPizza.Numerics
         //    }
         //}
 
-        public VoxelRayCast(Vector3 origin, Vector3 direction)
+        private VoxelRayCast(Vector4 origin, Vector4 direction)
         {
             // Avoids an infinite loop.
-            if (direction.X == 0 && direction.Y == 0 && direction.Y == 0)
+            if (Vector128.EqualsAll(direction.AsVector128(), Vector128<float>.Zero))
+            {
                 direction.X = 1;
+            }
 
             _result = false;
 
@@ -42,27 +44,23 @@ namespace VoxelPizza.Numerics
             //_tRadius = float.PositiveInfinity;
 
             // Cube containing origin point.
-            Current.X = (int)MathF.Floor(origin.X);
-            Current.Y = (int)MathF.Floor(origin.Y);
-            Current.Z = (int)MathF.Floor(origin.Z);
+            Current = Vector128.ConvertToInt32(Vector128.Floor(origin.AsVector128())).AsInt3();
 
             Face = default;
 
-            DistanceMax.X = intbound(origin.X, direction.X);
-            DistanceMax.Y = intbound(origin.Y, direction.Y);
-            DistanceMax.Z = intbound(origin.Z, direction.Z);
+            DistanceMax = intbound(origin.AsVector128(), direction.AsVector128()).AsVector3();
 
             // Direction to increment x,y,z when stepping.
-            Step.X = signum(direction.X);
-            Step.Y = signum(direction.Y);
-            Step.Z = signum(direction.Z);
+            Step = signum(direction.AsVector128()).AsInt3();
 
             // See description above. The initial values depend on the fractional
             // part of the origin.
             // The change in t when taking a step (always positive).
-            DistanceDelta.X = Step.X / direction.X;
-            DistanceDelta.Y = Step.Y / direction.Y;
-            DistanceDelta.Z = Step.Z / direction.Z;
+            DistanceDelta = (Vector128.ConvertToSingle(Step.AsVector128()) / direction.AsVector128()).AsVector3();
+        }
+
+        public VoxelRayCast(Vector3 origin, Vector3 direction) : this(new Vector4(origin, 0), new Vector4(direction, 0))
+        {
         }
 
         public bool MoveNext<TCallback>(ref TCallback callback)
@@ -84,17 +82,26 @@ namespace VoxelPizza.Numerics
             // if we took a step sufficient to cross a cube boundary along that axis
             // (i.e. change the integer part of the coordinate) in _tMax.
 
-            while (
-                // ray has not gone past bounds of world
-                (Step.X > 0 ? Current.X < callback.EndX : Current.X >= callback.StartX) &&
-                (Step.Y > 0 ? Current.Y < callback.EndY : Current.Y >= callback.StartY) &&
-                (Step.Z > 0 ? Current.Z < callback.EndZ : Current.Z >= callback.StartZ))
+            while (true)
             {
+                Int3 start = callback.Start;
+                Int3 end = callback.End;
+
+                // ray has not gone past bounds of world
+                bool inBounds =
+                    (Step.X > 0 ? Current.X < end.X : Current.X >= start.X) &&
+                    (Step.Y > 0 ? Current.Y < end.Y : Current.Y >= start.Y) &&
+                    (Step.Z > 0 ? Current.Z < end.Z : Current.Z >= start.Z);
+                if (!inBounds)
+                {
+                    break;
+                }
+
                 if (!_result)
                 {
                     // Invoke the callback, unless we are not *yet* within the bounds of the world.
-                    if (Current.X >= callback.StartX && Current.Y >= callback.StartY && Current.Z >= callback.StartZ &&
-                        Current.X < callback.EndX && Current.Y < callback.EndY && Current.Z < callback.EndZ)
+                    if (Current.X >= start.X && Current.Y >= start.Y && Current.Z >= start.Z &&
+                        Current.X < end.X && Current.Y < end.Y && Current.Z < end.Z)
                     {
                         _result = true;
                         break;
@@ -162,29 +169,29 @@ namespace VoxelPizza.Numerics
             return _result;
         }
 
-        private static float intbound(float s, float ds)
+        private static Vector128<float> intbound(Vector128<float> s, Vector128<float> ds)
         {
             // Find the smallest positive t such that s+t*ds is an integer.
-            if (ds < 0)
-            {
-                return intbound(-s, -ds);
-            }
-            else
-            {
-                s = mod(s, 1);
-                // problem is now s+t*ds = 1
-                return (1 - s) / ds;
-            }
+            Vector128<float> condition = Vector128.LessThan(ds, Vector128<float>.Zero);
+            Vector128<float> signBit = Vector128.Create(unchecked((int)0x80000000)).AsSingle() & condition;
+            s ^= signBit;
+            ds ^= signBit;
+
+            Vector128<float> mod = Modulus(s, Vector128<float>.One);
+            // problem is now s+t*ds = 1
+            return (Vector128<float>.One - mod) / ds;
         }
 
-        private static int signum(float x)
+        private static Vector128<int> signum(Vector128<float> value)
         {
-            return x > 0 ? 1 : x < 0 ? -1 : 0;
+            Vector128<float> gt = Vector128.GreaterThan(value, Vector128<float>.Zero);
+            Vector128<float> lt = Vector128.LessThan(value, Vector128<float>.Zero);
+            return Vector128.ConditionalSelect(gt.AsInt32(), Vector128<int>.One, lt.AsInt32() & (-Vector128<int>.One));
         }
 
-        private static float mod(float value, float modulus)
+        private static Vector128<float> Modulus(Vector128<float> value, Vector128<float> modulus)
         {
-            return (value % modulus + modulus) % modulus;
+            return V128Helper.Remainder(V128Helper.Remainder(value, modulus) + modulus, modulus);
         }
     }
 }

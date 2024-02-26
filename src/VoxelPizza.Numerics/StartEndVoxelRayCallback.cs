@@ -1,23 +1,14 @@
-
 namespace VoxelPizza.Numerics
 {
     public readonly struct StartEndVoxelRayCallback : IRayCallback<VoxelRayCast>
     {
-        public int StartX { get; }
-        public int StartY { get; }
-        public int StartZ { get; }
-        public int EndX { get; }
-        public int EndY { get; }
-        public int EndZ { get; }
+        public Int3 Start { get; }
+        public Int3 End { get; }
 
         public StartEndVoxelRayCallback(Int3 start, Int3 end)
         {
-            StartX = start.X;
-            StartY = start.Y;
-            StartZ = start.Z;
-            EndX = end.X;
-            EndY = end.Y;
-            EndZ = end.Z;
+            Start = start;
+            End = end;
         }
 
         public bool BreakOnX(ref VoxelRayCast state)

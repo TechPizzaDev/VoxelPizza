@@ -54,7 +54,8 @@ namespace VoxelPizza.Client
                                     if (blocksLeft-- <= 0)
                                         break;
 
-                                    if ((rayCast.Current - origin).LengthSquared() > distance * distance)
+                                    Int3 current = rayCast.Current;
+                                    if ((current - origin).LengthSquared() > distance * distance)
                                         break;
 
                                     if (status == BlockRayCastStatus.Chunk)
@@ -67,7 +68,7 @@ namespace VoxelPizza.Client
                                     else if (status == BlockRayCastStatus.Block)
                                     {
                                         Chunk c = chunk.Get();
-                                        Int3 p = rayCast.Current - c.Position.ToBlock().ToInt3();
+                                        Int3 p = current - c.Position.ToBlock().ToInt3();
                                         c.GetBlockStorage().SetBlock(p.X, p.Y, p.Z, id);
                                     }
                                 }

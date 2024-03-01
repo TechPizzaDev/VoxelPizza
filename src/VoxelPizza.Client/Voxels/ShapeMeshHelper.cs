@@ -13,7 +13,7 @@ namespace VoxelPizza.Client
         public const int BoxIndexCount = 216;
 
         public static int GetBoxMesh(
-            WorldBox box, float lineWidth,
+            DimensionBox box, float lineWidth,
             RgbaByte color0, RgbaByte color1,
             Span<uint> indexDestination,
             Span<VertexPosition<RgbaByte>> vertexDestination)

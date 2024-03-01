@@ -6,7 +6,7 @@ using VoxelPizza.Numerics;
 namespace VoxelPizza.World
 {
     [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
-    public readonly struct WorldBox
+    public readonly partial struct DimensionBox
     {
         public BlockPosition Origin { get; }
         public BlockPosition Max { get; }
@@ -20,13 +20,13 @@ namespace VoxelPizza.World
                (uint)(Max.Z - Origin.Z));
         }
 
-        public WorldBox(BlockPosition origin, BlockPosition max)
+        public DimensionBox(BlockPosition origin, BlockPosition max)
         {
             Origin = origin;
             Max = max;
         }
 
-        public WorldBox(BlockPosition origin, Size3 size)
+        public DimensionBox(BlockPosition origin, Size3 size)
         {
             Origin = origin;
             Max = origin + new BlockPosition((int)size.W, (int)size.H, (int)size.D);
@@ -43,7 +43,7 @@ namespace VoxelPizza.World
                 && min2.Z < max1.Z;
         }
 
-        public bool Intersects(WorldBox other)
+        public bool Intersects(DimensionBox other)
         {
             BlockPosition min1 = Origin;
             BlockPosition max1 = Max;
@@ -54,7 +54,7 @@ namespace VoxelPizza.World
             return Intersects(min1, max1, min2, max2);
         }
 
-        private static WorldBox Intersect(
+        private static DimensionBox Intersect(
             BlockPosition min1, BlockPosition max1, BlockPosition min2, BlockPosition max2)
         {
             int left_side = Math.Max(min1.X, min2.X);
@@ -69,12 +69,12 @@ namespace VoxelPizza.World
             int front_side = Math.Min(max1.Z, max2.Z);
             uint d = (uint)(front_side - back_side);
 
-            return new WorldBox(
+            return new DimensionBox(
                 new BlockPosition(left_side, bottom_side, back_side),
                 new Size3(w, h, d));
         }
 
-        public WorldBox Intersect(WorldBox other)
+        public DimensionBox Intersect(DimensionBox other)
         {
             BlockPosition min1 = Origin;
             BlockPosition max1 = Max;
@@ -85,7 +85,7 @@ namespace VoxelPizza.World
             return Intersect(min1, max1, min2, max2);
         }
 
-        public bool TryIntersect(WorldBox other, out WorldBox intersection)
+        public bool TryIntersect(DimensionBox other, out DimensionBox intersection)
         {
             BlockPosition min1 = Origin;
             BlockPosition max1 = Max;

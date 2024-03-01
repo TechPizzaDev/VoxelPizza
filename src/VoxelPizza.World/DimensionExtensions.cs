@@ -21,7 +21,7 @@ namespace VoxelPizza.World
                 origin.X - (int)xOffset,
                 origin.Y - (int)yOffset,
                 origin.Z - (int)zOffset);
-            WorldBox fetchBox = new(blockOffset, outerSize);
+            DimensionBox fetchBox = new(blockOffset, outerSize);
 
             ChunkBoxSliceEnumerator chunkBoxEnumerator = fetchBox.EnumerateChunkBoxSlices();
             int maxChunkCount = chunkBoxEnumerator.GetMaxChunkCount();

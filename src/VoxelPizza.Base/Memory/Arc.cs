@@ -37,6 +37,11 @@ public sealed class Arc<T> : IArc<T>
         _state = StateBits.RefCountOne; // Ref count 1 and not closed or disposed.
     }
 
+    internal nint GetState()
+    {
+        return _state;
+    }
+
     public ref T Get()
     {
         if (IsClosed)
@@ -204,18 +209,27 @@ public sealed class Arc<T> : IArc<T>
 
     private string GetDebuggerDisplay()
     {
-        nint state = _state;
+        return GetDebuggerDisplay(nameof(Arc<T>), _state);
+    }
+
+    internal static string GetDebuggerDisplay(string type, nint state)
+    {
         nint count = GetCount(state);
-        string flags = " ";
+
+        string dFlag = "";
         if ((state & StateBits.Disposed) == StateBits.Disposed)
         {
-            flags += "D";
+            dFlag = "D";
         }
+
+        string cFlag = "";
         if ((state & StateBits.Closed) == StateBits.Closed)
         {
-            flags += "C";
+            cFlag = "C";
         }
-        return $"{nameof(Arc<T>)}@{count}{flags}";
+
+        string delim = dFlag.Length > 0 || cFlag.Length > 0 ? " " : "";
+        return $"{type}@{count}{delim}{dFlag}{cFlag}";
     }
 
     [DoesNotReturn]

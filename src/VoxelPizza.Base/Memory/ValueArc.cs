@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
@@ -8,6 +9,7 @@ namespace VoxelPizza.Memory
     /// Represents a tracker used for safely accessing an <see cref="Arc{T}"/>.
     /// </summary>
     /// <typeparam name="T">The type deriving from <see cref="IDestroyable"/> to track.</typeparam>
+    [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}} ({{{nameof(Get)}(),nq}})")]
     public struct ValueArc<T> : IArc<T>, IDisposable
         where T : IDestroyable
     {
@@ -15,9 +17,13 @@ namespace VoxelPizza.Memory
 
         public static ValueArc<T> Empty => new(null);
 
-        public bool HasTarget => _value != null && _value.HasTarget;
+        public readonly bool IsEmpty => _value == null;
 
-        public nint Count => _value!.Count;
+        public readonly bool HasTarget => _value != null && _value.HasTarget;
+
+        public readonly nint Count => _value!.Count;
+
+        private T Target => Get(); // for debugger
 
         internal ValueArc(Arc<T>? value)
         {
@@ -67,6 +73,11 @@ namespace VoxelPizza.Memory
         public void Decrement()
         {
             _value!.Decrement();
+        }
+
+        private readonly string GetDebuggerDisplay()
+        {
+            return Arc<T>.GetDebuggerDisplay(nameof(ValueArc<T>), _value?.GetState() ?? 0);
         }
     }
 }

@@ -63,7 +63,7 @@ public sealed class Arc<T> : IArc<T>
     }
 
     /// <inheritdoc/>
-    public void Increment()
+    public bool TryIncrement()
     {
         // To prevent handle recycling security attacks we must enforce the
         // following invariant: we cannot successfully Increment a handle on which
@@ -98,7 +98,7 @@ public sealed class Arc<T> : IArc<T>
             oldState = _state;
             if ((oldState & StateBits.Closed) != 0)
             {
-                ThrowObjectDisposed();
+                return false;
             }
 
             // Not closed, let's propose an update (to the ref count, just add
@@ -112,10 +112,20 @@ public sealed class Arc<T> : IArc<T>
 
         // If we got here we managed to update the ref count while the state
         // remained non closed. So we're done.
+        return true;
     }
 
     /// <inheritdoc/>
-    public void Decrement() 
+    public void Increment()
+    {
+        if (!TryIncrement())
+        {
+            ThrowObjectDisposed();
+        }
+    }
+
+    /// <inheritdoc/>
+    public void Decrement()
     {
         DecrementCore(disposeOrFinalizeOperation: false);
     }
@@ -196,7 +206,7 @@ public sealed class Arc<T> : IArc<T>
             Release();
         }
     }
-    
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void Release()
     {

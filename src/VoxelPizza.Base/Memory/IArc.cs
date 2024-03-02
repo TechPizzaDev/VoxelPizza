@@ -19,6 +19,14 @@ namespace VoxelPizza.Memory
         public ref T Get();
 
         public bool TryGet([MaybeNullWhen(false)] out T value);
+        
+        /// <summary>
+        /// Attempts to increment the reference count by one.
+        /// </summary>
+        /// <remarks>
+        /// Does not throw exceptions.
+        /// </remarks>
+        public bool TryIncrement();
 
         /// <summary>
         /// Increments the reference count by one.

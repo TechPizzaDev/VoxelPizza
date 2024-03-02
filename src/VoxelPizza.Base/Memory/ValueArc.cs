@@ -30,12 +30,12 @@ namespace VoxelPizza.Memory
             _value = value;
         }
 
-        public ref T Get()
+        public readonly ref T Get()
         {
             return ref _value!.Get();
         }
 
-        public bool TryGet([MaybeNullWhen(false)] out T value)
+        public readonly bool TryGet([MaybeNullWhen(false)] out T value)
         {
             if (_value == null)
             {
@@ -44,8 +44,8 @@ namespace VoxelPizza.Memory
             }
             return _value.TryGet(out value);
         }
-        
-        public T? TryGet()
+
+        public readonly T? TryGet()
         {
             if (_value == null)
             {
@@ -62,15 +62,21 @@ namespace VoxelPizza.Memory
             Arc<T>? arc = Interlocked.Exchange(ref _value, null);
             arc?.Decrement();
         }
+        
+        /// <inheritdoc/>
+        public readonly bool TryIncrement()
+        {
+            return _value != null && _value.TryIncrement();
+        }
 
         /// <inheritdoc/>
-        public void Increment()
+        public readonly void Increment()
         {
             _value!.Increment();
         }
 
         /// <inheritdoc/>
-        public void Decrement()
+        public readonly void Decrement()
         {
             _value!.Decrement();
         }

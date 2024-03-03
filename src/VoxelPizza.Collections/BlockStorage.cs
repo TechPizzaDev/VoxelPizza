@@ -76,6 +76,17 @@ namespace VoxelPizza.Collections
             }
         }
 
+        public virtual void FillBlock(ReadOnlySpan<uint> source)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                int index = GetIndexBase(Depth, Width, y, 0);
+                ReadOnlySpan<uint> src = source.Slice(index, Width * Depth);
+
+                SetBlockLayer(y, src);
+            }
+        }
+
         public virtual void SetBlockRow(int x, int y, int z, uint value)
         {
             int length = Width - x;
@@ -91,6 +102,14 @@ namespace VoxelPizza.Collections
             for (int z = 0; z < Depth; z++)
             {
                 SetBlockRow(0, y, z, value);
+            }
+        }
+        
+        public virtual void FillBlock(uint value)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                SetBlockLayer(y, value);
             }
         }
 
@@ -210,6 +229,8 @@ namespace VoxelPizza.Collections
             {
                 BlockStorageType.Unsigned8 => 1,
                 BlockStorageType.Unsigned16 => 2,
+                BlockStorageType.Unsigned24 => 3,
+                BlockStorageType.Unsigned32 => 4,
                 _ => throw new ArgumentOutOfRangeException(nameof(inlineType))
             };
         }
@@ -223,6 +244,8 @@ namespace VoxelPizza.Collections
                 BlockStorageType.Specialized => "S",
                 BlockStorageType.Unsigned8 => "U8",
                 BlockStorageType.Unsigned16 => "U16",
+                BlockStorageType.Unsigned24 => "U24",
+                BlockStorageType.Unsigned32 => "U32",
                 _ => StorageType.ToString(),
             };
             if (IsEmpty)

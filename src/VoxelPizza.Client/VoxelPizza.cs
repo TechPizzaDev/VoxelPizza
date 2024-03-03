@@ -58,6 +58,7 @@ namespace VoxelPizza.Client
         private WorldManager _worldManager;
         private Arc<Dimension> _currentDimension;
         private RayTest _rayTest;
+        private bool _meshChunks = true;
 
         private RenderRegionManager _renderRegionManager;
         private RenderRegionRenderer _renderRegionRenderer;
@@ -135,7 +136,6 @@ namespace VoxelPizza.Client
             //_scene.AddRenderable(ChunkRenderer);
 
             _renderRegionManager = new RenderRegionManager(_currentDimension.Wrap(), chunkMeshHeap, new Size3(12, 8, 12));
-            _scene.AddUpdateable(_renderRegionManager);
 
             _renderRegionRenderer = new RenderRegionRenderer(_renderRegionManager);
             _scene.AddUpdateable(_renderRegionRenderer);
@@ -292,6 +292,11 @@ namespace VoxelPizza.Client
 
             _rayTest.Update(updateState, _currentDimension.Wrap());
 
+            if (_meshChunks)
+            {
+                _renderRegionManager.Update(updateState);
+            }
+
             UpdateScene(updateState);
 
             particlePlane?.Update(time);
@@ -305,10 +310,10 @@ namespace VoxelPizza.Client
                 // TODO: remove this
 
                 Vector3 cullCameraPos = _scene.PrimaryCamera.Position;
-                dim.PlayerChunkPosition = new BlockPosition(
+                dim.PlayerBlockPosition = new BlockPosition(
                     (int)MathF.Round(cullCameraPos.X),
                     (int)MathF.Round(cullCameraPos.Y),
-                    (int)MathF.Round(cullCameraPos.Z)).ToChunk();
+                    (int)MathF.Round(cullCameraPos.Z));
             }
 
             if (InputTracker.GetKeyDown(Key.F11))
@@ -457,16 +462,19 @@ namespace VoxelPizza.Client
                 RenderRegionRenderer? renderer = _renderRegionRenderer;
                 if (renderer != null)
                 {
-                    if (ImGui.Button("Reupload regions"))
+                    //if (ImGui.Button("Reupload regions"))
                     {
                         //renderer.ReuploadRegions();
                     }
 
-                    if (ImGui.Button("Rebuild chunks"))
+                    //if (ImGui.Button("Rebuild chunks"))
                     {
                         //renderer.RebuildChunks();
                     }
                 }
+
+                ImGui.Checkbox("Load chunks", ref _worldManager.LoadChunks);
+                ImGui.Checkbox("Mesh chunks", ref _meshChunks);
 
                 ImGui.End();
             }
@@ -475,49 +483,100 @@ namespace VoxelPizza.Client
             _visualRegionsForDebug.Clear();
             _chunksForDebug.Clear();
 
+            if (ImGui.Begin("Player info"))
+            {
+                BlockPosition blockPos = _currentDimension.Get().PlayerBlockPosition;
+                ImGui.Text("Block: " + blockPos);
+                ImGui.Text("Chunk: " + blockPos.ToChunk());
+                ImGui.Text("Region: " + blockPos.ToRegion());
+
+                RenderRegionPosition renderPos = new(blockPos.ToChunk(), _renderRegionManager.RegionSize);
+
+                _renderRegionManager.IterateMeshes((region) =>
+                {
+                    if (region.Position == renderPos)
+                    {
+                        _logicalRegionsForDebug.Add(region.Position, region);
+                        _chunksForDebug.Add(region.Position);
+                        return false;
+                    }
+                    return true;
+                });
+
+                _renderRegionRenderer.IterateMeshes((region) =>
+                {
+                    if (region.Position == renderPos)
+                    {
+                        _visualRegionsForDebug.Add(region.Position, region);
+                        _chunksForDebug.Add(region.Position);
+                        return false;
+                    }
+                    return true;
+                });
+
+                DrawRegionInfo(renderPos);
+
+                _logicalRegionsForDebug.Clear();
+                _visualRegionsForDebug.Clear();
+                _chunksForDebug.Clear();
+            }
+
             if (ImGui.Begin("Mesh view"))
             {
                 _renderRegionManager.IterateMeshes((region) =>
                 {
                     _logicalRegionsForDebug.Add(region.Position, region);
                     _chunksForDebug.Add(region.Position);
+                    return true;
                 });
 
                 _renderRegionRenderer.IterateMeshes((region) =>
                 {
                     _visualRegionsForDebug.Add(region.Position, region);
                     _chunksForDebug.Add(region.Position);
+                    return true;
                 });
 
                 foreach (RenderRegionPosition regionPosition in _chunksForDebug)
                 {
-                    bool hasLogical = _logicalRegionsForDebug.TryGetValue(regionPosition, out LogicalRegion? logicalRegion);
-                    bool hasVisual = _visualRegionsForDebug.TryGetValue(regionPosition, out VisualRegion? visualRegion);
-                    if (hasLogical || hasVisual)
-                    {
-                        ImGui.TreePush("#" + regionPosition);
-                        if (ImGui.CollapsingHeader(regionPosition.ToString()))
-                        {
-                            if (logicalRegion != null)
-                            {
-                                ImGui.Text($"Chunk count: {logicalRegion.ChunkCount}");
-                                ImGui.Text($"Mesh bytes: {logicalRegion.BytesForMesh}");
-                            }
-
-                            if (visualRegion != null && visualRegion._vertexArena.Buffer != null)
-                            {
-                                ImGui.Text($"Capacity: {visualRegion._vertexArena.ByteCapacity / 1024}kB");
-                                ImGui.Text($"Used: {visualRegion._vertexArena.BytesUsed / 1024}kB");
-                                ImGui.Text($"Free: {visualRegion._vertexArena.BytesFree / 1024}kB");
-                                ImGui.Text($"Segments used: {visualRegion._vertexArena.SegmentsUsed}");
-                                ImGui.Text($"Segments free: {visualRegion._vertexArena.SegmentsFree}");
-                            }
-                        }
-                        ImGui.TreePop();
-                    }
+                    DrawRegionInfo(regionPosition);
                 }
 
                 ImGui.End();
+            }
+
+            void DrawRegionInfo(RenderRegionPosition regionPosition)
+            {
+                bool hasLogical = _logicalRegionsForDebug.TryGetValue(regionPosition, out LogicalRegion? logicalRegion);
+                bool hasVisual = _visualRegionsForDebug.TryGetValue(regionPosition, out VisualRegion? visualRegion);
+                if (!hasLogical && !hasVisual)
+                {
+                    return;
+                }
+
+                if (!ImGui.CollapsingHeader(regionPosition.ToString()))
+                {
+                    return;
+                }
+
+                ImGui.TreePush("#" + regionPosition);
+
+                if (logicalRegion != null)
+                {
+                    ImGui.Text($"Chunk count: {logicalRegion.ChunkCount}");
+                    ImGui.Text($"Mesh bytes: {logicalRegion.BytesForMesh}");
+                }
+
+                if (visualRegion != null && visualRegion._vertexArena.Buffer != null)
+                {
+                    ImGui.Text($"Capacity: {visualRegion._vertexArena.ByteCapacity / 1024}kB");
+                    ImGui.Text($"Used: {visualRegion._vertexArena.BytesUsed / 1024}kB");
+                    ImGui.Text($"Free: {visualRegion._vertexArena.BytesFree / 1024}kB");
+                    ImGui.Text($"Segments used: {visualRegion._vertexArena.SegmentsUsed}");
+                    ImGui.Text($"Segments free: {visualRegion._vertexArena.SegmentsFree}");
+                }
+
+                ImGui.TreePop();
             }
         }
 

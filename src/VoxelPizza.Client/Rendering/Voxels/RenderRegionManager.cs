@@ -65,13 +65,16 @@ namespace VoxelPizza.Client.Rendering.Voxels
             _graph.SidesFulfilled += Graph_SidesFulfilled;
         }
 
-        public void IterateMeshes(Action<LogicalRegion> transform)
+        public void IterateMeshes(Predicate<LogicalRegion> transform)
         {
             lock (_regions)
             {
                 foreach (LogicalRegion item in _regions.Values)
                 {
-                    transform.Invoke(item);
+                    if (!transform.Invoke(item))
+                    {
+                        break;
+                    }
                 }
             }
         }

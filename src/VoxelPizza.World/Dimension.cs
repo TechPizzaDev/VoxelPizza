@@ -23,7 +23,9 @@ namespace VoxelPizza.World
         private ChunkRegionAction _cachedRegionEmpty;
         private ChunkRegionAction _cachedRegionDestroyed;
 
-        public ChunkPosition PlayerChunkPosition;
+        public BlockPosition PlayerBlockPosition;
+
+        public ChunkPosition PlayerChunkPosition => PlayerBlockPosition.ToChunk();
 
         /// <summary>
         /// Raised when a <see cref="Chunk"/> is added to this <see cref="Dimension"/>.

@@ -119,13 +119,16 @@ namespace VoxelPizza.Client.Rendering.Voxels
             return (sumDense, sumSparse, sumDense / count, sumSparse / count);
         }
 
-        public void IterateMeshes(Action<VisualRegion> transform)
+        public void IterateMeshes(Predicate<VisualRegion> transform)
         {
             lock (_regions)
             {
                 foreach (VisualRegion item in _regions.Values)
                 {
-                    transform.Invoke(item);
+                    if (!transform.Invoke(item))
+                    {
+                        break;
+                    }
                 }
             }
         }

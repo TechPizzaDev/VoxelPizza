@@ -11,6 +11,8 @@ namespace VoxelPizza.Client
 {
     public class WorldManager
     {
+        public bool LoadChunks = true;
+
         public WorldManager()
         {
         }

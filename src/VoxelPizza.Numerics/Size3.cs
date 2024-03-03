@@ -15,6 +15,8 @@ namespace VoxelPizza.Numerics
 
         public readonly uint Volume => W * H * D;
 
+        public readonly bool IsZero => Equals(Zero);
+
         public Size3(uint width, uint height, uint depth)
         {
             W = width;

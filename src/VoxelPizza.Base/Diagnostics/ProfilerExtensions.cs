@@ -13,8 +13,9 @@ namespace VoxelPizza.Diagnostics
             if (profiler != null && profiler.IsRecording)
             {
                 profiler.Push(memberName, filePath, lineNumber);
+                return new ProfilerPopToken(profiler);
             }
-            return new ProfilerPopToken(profiler);
+            return new ProfilerPopToken(null);
         }
     }
 }

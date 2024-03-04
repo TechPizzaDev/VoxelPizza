@@ -34,8 +34,17 @@ namespace VoxelPizza.Client
             if ((oldValue & ChunkGraphFaces.All) != ChunkGraphFaces.All &&
                 (newValue & ChunkGraphFaces.All) == ChunkGraphFaces.All)
             {
-                SidesFulfilled?.Invoke(this, localChunkPosition, newValue);
+                SidesFulfilled?.Invoke(this, localChunkPosition, oldValue, newValue);
             }
+            return newValue;
+        }
+
+        public ChunkGraphFaces Update(ChunkPosition localChunkPosition, Size3 regionSize, ChunkGraphFaces mask, ChunkGraphFaces value)
+        {
+            int index = RenderRegionPosition.GetChunkIndex(localChunkPosition, regionSize);
+            ChunkGraphFaces oldValue = Chunks[index];
+            ChunkGraphFaces newValue = (oldValue & ~mask) | (value & mask);
+            Chunks[index] = newValue;
             return newValue;
         }
 
@@ -49,7 +58,7 @@ namespace VoxelPizza.Client
             if ((oldValue & ChunkGraphFaces.All) == ChunkGraphFaces.All &&
                 (newValue & ChunkGraphFaces.All) != ChunkGraphFaces.All)
             {
-                SidesDisconnected?.Invoke(this, localChunkPosition, newValue);
+                SidesDisconnected?.Invoke(this, localChunkPosition, oldValue, newValue);
             }
             return newValue;
         }

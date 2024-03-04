@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
@@ -32,8 +33,8 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
         private BlockMemory _blockBuffer;
 
-        private HashSet<ChunkPosition> _chunksToAdd = new();
-        private HashSet<ChunkPosition> _chunksToUpdate = new();
+        private HashSet<ChunkUpdateEvent> _chunksToAdd = new();
+        private HashSet<ChunkUpdateEvent> _chunksToUpdate = new();
         private HashSet<ChunkPosition> _chunksToRemove = new();
         private bool _pendingRegionUpdate;
         private Stopwatch _updateWatch = new();
@@ -79,12 +80,22 @@ namespace VoxelPizza.Client.Rendering.Voxels
             }
         }
 
-        private void Graph_SidesFulfilled(RenderRegionGraph graph, ChunkPosition localPosition, ChunkGraphFaces newFaces)
+        private void Graph_SidesFulfilled(
+            RenderRegionGraph graph,
+            ChunkPosition localPosition,
+            ChunkGraphFaces oldFlags,
+            ChunkGraphFaces newFlags)
         {
-            if (_regions.TryGetValue(graph.RegionPosition, out LogicalRegion? region))
+            if ((newFlags & ChunkGraphFaces.Update) == 0)
             {
-
+                return;
             }
+
+            ChunkPosition position = graph.RegionPosition.ToChunk(_graph.RegionSize) + localPosition;
+
+            // Do not pass along Update flag.
+            ChunkUpdateEvent ev = new(position, newFlags & ChunkGraphFaces.Empty);
+            _chunksToUpdate.Add(ev);
         }
 
         public (uint Sum, uint Avg) GetBytesForMeshes()
@@ -109,130 +120,190 @@ namespace VoxelPizza.Client.Rendering.Voxels
             return (sum, sum / count);
         }
 
-        public void Update(in UpdateState state)
+        private void ProcessChunkChanges(Profiler? profiler)
         {
-            using ProfilerPopToken profilerToken = state.Profiler.Push();
+            using ProfilerPopToken profilerToken = profiler.Push();
 
+            _updateWatch.Restart();
+
+            long chunkChangeCount = 0;
             while (_chunkChanges.TryDequeue(out ChunkChange change))
             {
                 switch (change.Type)
                 {
                     case ChunkChangeType.Add:
-                        _chunksToAdd.Add(change.Chunk);
-                        _chunksToRemove.Remove(change.Chunk);
+                        _chunksToAdd.Add(change.Data);
+                        _chunksToRemove.Remove(change.Data.Position);
                         break;
 
                     case ChunkChangeType.Update:
-                        _chunksToUpdate.Add(change.Chunk);
+                        _chunksToUpdate.Add(change.Data);
                         break;
 
                     case ChunkChangeType.Remove:
-                        _chunksToAdd.Remove(change.Chunk);
-                        _chunksToRemove.Add(change.Chunk);
+                        _chunksToAdd.Remove(change.Data);
+                        _chunksToRemove.Add(change.Data.Position);
                         break;
                 }
+
+                chunkChangeCount++;
             }
 
-            if (_chunksToRemove.Count > 0)
-            {
-                foreach (ChunkPosition chunkPosition in _chunksToRemove)
-                {
-                    // We processed as many events as possible.
-                    // If a chunk is now marked for removal, stop its update request.
-                    if (_chunksToUpdate.Count > 0)
-                    {
-                        _chunksToUpdate.Remove(chunkPosition);
-                    }
+            _updateWatch.Stop();
 
-                    RenderRegionPosition regionPosition = new(chunkPosition, RegionSize);
+            if (chunkChangeCount > 0)
+            {
+                Console.WriteLine($"Processed {chunkChangeCount} chunk changes in {_updateWatch.Elapsed.TotalMilliseconds:0.00}ms");
+            }
+        }
+
+        private void ProcessChunksToRemove(Profiler? profiler)
+        {
+            using ProfilerPopToken profilerToken = profiler.Push();
+
+            if (_chunksToRemove.Count <= 0)
+            {
+                return;
+            }
+
+            foreach (ChunkPosition chunkPosition in _chunksToRemove)
+            {
+                // We processed as many events as possible.
+                // If a chunk is now marked for removal, stop its update request.
+                if (_chunksToUpdate.Count > 0)
+                {
+                    _chunksToUpdate.Remove(new ChunkUpdateEvent(chunkPosition, ChunkGraphFaces.None));
+                }
+
+                RenderRegionPosition regionPosition = new(chunkPosition, RegionSize);
+                if (_regions.TryGetValue(regionPosition, out LogicalRegion? region))
+                {
+                    region.RemoveChunk(chunkPosition);
+                    _graph.RemoveChunk(chunkPosition);
+
+                    if (region.ChunkCount == 0)
+                    {
+                        RegionRemoved?.Invoke(region);
+
+                        _regions.Remove(regionPosition);
+                        region.Dispose();
+                    }
+                }
+            }
+
+            _pendingRegionUpdate = true;
+            _chunksToRemove.Clear();
+        }
+
+        private void ProcessChunksToAdd(Profiler? profiler)
+        {
+            using ProfilerPopToken profilerToken = profiler.Push();
+
+            if (_chunksToAdd.Count <= 0)
+            {
+                return;
+            }
+
+            foreach (ChunkUpdateEvent update in _chunksToAdd)
+            {
+                RenderRegionPosition regionPosition = new(update.Position, RegionSize);
+                if (!_regions.TryGetValue(regionPosition, out LogicalRegion? region))
+                {
+                    region = new LogicalRegion(RegionSize);
+                    region.SetPosition(regionPosition);
+                    _regions.Add(regionPosition, region);
+
+                    RegionAdded?.Invoke(region);
+                }
+
+                region.AddChunk(update.Position);
+                _graph.AddChunk(update.Position, update.Flags);
+            }
+
+            _pendingRegionUpdate = true;
+            _chunksToAdd.Clear();
+        }
+
+        private void ProcessChunksToUpdate(Profiler? profiler)
+        {
+            using ProfilerPopToken profilerToken = profiler.Push();
+
+            if (_chunksToUpdate.Count <= 0)
+            {
+                return;
+            }
+
+            foreach (ChunkUpdateEvent update in _chunksToUpdate)
+            {
+                ChunkGraphFaces newFlags = _graph.UpdateChunk(update.Position, update.Flags);
+                if ((newFlags & ChunkGraphFaces.All) == ChunkGraphFaces.All)
+                {
+                    RenderRegionPosition regionPosition = new(update.Position, RegionSize);
                     if (_regions.TryGetValue(regionPosition, out LogicalRegion? region))
                     {
-                        region.RemoveChunk(chunkPosition);
-                        _graph.RemoveChunk(chunkPosition);
-
-                        if (region.ChunkCount == 0)
-                        {
-                            RegionRemoved?.Invoke(region);
-
-                            _regions.Remove(regionPosition);
-                            region.Dispose();
-                        }
+                        region.UpdateChunk(update.Position, newFlags.HasFlag(ChunkGraphFaces.Empty));
                     }
                 }
-
-                _pendingRegionUpdate = true;
-                _chunksToRemove.Clear();
             }
 
-            if (_chunksToAdd.Count > 0)
+            _pendingRegionUpdate = true;
+            _chunksToUpdate.Clear();
+        }
+
+        private void UpdateRegions(Profiler? profiler)
+        {
+            using ProfilerPopToken profilerToken = profiler.Push();
+
+            if (!_pendingRegionUpdate)
             {
-                foreach (ChunkPosition chunkPosition in _chunksToAdd)
-                {
-                    RenderRegionPosition regionPosition = new(chunkPosition, RegionSize);
-                    if (!_regions.TryGetValue(regionPosition, out LogicalRegion? region))
-                    {
-                        region = new LogicalRegion(RegionSize);
-                        region.SetPosition(regionPosition);
-                        _regions.Add(regionPosition, region);
-
-                        RegionAdded?.Invoke(region);
-                    }
-
-                    region.AddChunk(chunkPosition);
-                    _graph.AddChunk(chunkPosition, false);
-                }
-
-                _pendingRegionUpdate = true;
-                _chunksToAdd.Clear();
+                return;
             }
 
-            if (_chunksToUpdate.Count > 0)
+            bool wasBroken = false;
+
+            _updateWatch.Restart();
+
+            Dimension dim = Dimension.Get();
+            ChunkPosition origin = dim.PlayerChunkPosition;
+
+            Span<LogicalRegion> sortedRegions = GetSortedRegions(origin);
+
+            foreach (LogicalRegion region in sortedRegions)
             {
-                foreach (ChunkPosition chunkPosition in _chunksToUpdate)
+                bool updated = region.Update(Dimension, _blockBuffer, ChunkMesher);
+                if (updated)
                 {
-                    RenderRegionPosition regionPosition = new(chunkPosition, RegionSize);
-                    if (_regions.TryGetValue(regionPosition, out LogicalRegion? region))
-                    {
-                        region.UpdateChunk(chunkPosition);
-                    }
+                    RegionUpdated?.Invoke(region);
                 }
 
-                _pendingRegionUpdate = true;
-                _chunksToUpdate.Clear();
+                if (_updateWatch.Elapsed >= TimeSpan.FromMilliseconds(10))
+                {
+                    wasBroken = true;
+                    break;
+                }
             }
 
-            if (_pendingRegionUpdate)
+            _updateWatch.Stop();
+
+            if (!wasBroken)
             {
-                bool wasBroken = false;
-
-                _updateWatch.Restart();
-
-                Dimension dim = Dimension.Get();
-                ChunkPosition origin = dim.PlayerChunkPosition;
-
-                Span<LogicalRegion> sortedRegions = GetSortedRegions(origin);
-
-                foreach (LogicalRegion region in sortedRegions)
-                {
-                    bool updated = region.Update(Dimension, _blockBuffer, ChunkMesher);
-                    if (updated)
-                    {
-                        RegionUpdated?.Invoke(region);
-                    }
-
-                    if (_updateWatch.Elapsed >= TimeSpan.FromMilliseconds(10))
-                    {
-                        wasBroken = true;
-                        break;
-                    }
-                }
-                _updateWatch.Stop();
-
-                if (!wasBroken)
-                {
-                    _pendingRegionUpdate = false;
-                }
+                _pendingRegionUpdate = false;
             }
+        }
+
+        public void Update(in UpdateState state)
+        {
+            using ProfilerPopToken profilerToken = state.Profiler.Push();
+
+            ProcessChunkChanges(state.Profiler);
+
+            ProcessChunksToRemove(state.Profiler);
+
+            ProcessChunksToAdd(state.Profiler);
+
+            ProcessChunksToUpdate(state.Profiler);
+
+            UpdateRegions(state.Profiler);
         }
 
         private Span<LogicalRegion> GetSortedRegions(ChunkPosition origin)
@@ -274,17 +345,19 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
         private void Dimension_ChunkAdded(Chunk chunk)
         {
-            _chunkChanges.Enqueue(new ChunkChange(ChunkChangeType.Add, chunk.Position));
+            ChunkGraphFaces flags = ChunkUpdateEvent.GetFlags(chunk);
+            _chunkChanges.Enqueue(new ChunkChange(ChunkChangeType.Add, new ChunkUpdateEvent(chunk.Position, flags)));
         }
 
         private void Dimension_ChunkUpdated(Chunk chunk)
         {
-            _chunkChanges.Enqueue(new ChunkChange(ChunkChangeType.Update, chunk.Position));
+            ChunkGraphFaces flags = ChunkUpdateEvent.GetFlags(chunk);
+            _chunkChanges.Enqueue(new ChunkChange(ChunkChangeType.Update, new ChunkUpdateEvent(chunk.Position, flags)));
         }
 
         private void Dimension_ChunkRemoved(Chunk chunk)
         {
-            _chunkChanges.Enqueue(new ChunkChange(ChunkChangeType.Remove, chunk.Position));
+            _chunkChanges.Enqueue(new ChunkChange(ChunkChangeType.Remove, new ChunkUpdateEvent(chunk.Position, ChunkGraphFaces.None)));
         }
 
         public bool TryGetLogicalRegion(RenderRegionPosition regionPosition, [MaybeNullWhen(false)] out LogicalRegion region)
@@ -309,13 +382,45 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 innerSize.D + doubleMargin);
         }
 
-        private enum ChunkChangeType
+        private enum ChunkChangeType : byte
         {
             Add,
             Update,
             Remove
         }
 
-        private record struct ChunkChange(ChunkChangeType Type, ChunkPosition Chunk);
+        [StructLayout(LayoutKind.Auto)]
+        private readonly struct ChunkChange(ChunkChangeType type, ChunkUpdateEvent data)
+        {
+            public ChunkChangeType Type { get; } = type;
+            public ChunkUpdateEvent Data { get; } = data;
+        }
+
+        [StructLayout(LayoutKind.Auto)]
+        private readonly struct ChunkUpdateEvent(ChunkPosition position, ChunkGraphFaces flags) : IEquatable<ChunkUpdateEvent>
+        {
+            public ChunkPosition Position { get; } = position;
+            public ChunkGraphFaces Flags { get; } = flags;
+
+            public bool Equals(ChunkUpdateEvent other)
+            {
+                return Position == other.Position;
+            }
+
+            public override int GetHashCode()
+            {
+                return Position.GetHashCode();
+            }
+
+            public static ChunkGraphFaces GetFlags(Chunk chunk)
+            {
+                ChunkGraphFaces flags = ChunkGraphFaces.None;
+                if (chunk.IsEmpty)
+                {
+                    flags |= ChunkGraphFaces.Empty;
+                }
+                return flags;
+            }
+        }
     }
 }

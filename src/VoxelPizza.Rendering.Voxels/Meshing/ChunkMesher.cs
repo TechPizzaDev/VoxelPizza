@@ -6,7 +6,7 @@ using VoxelPizza.World;
 
 namespace VoxelPizza.Rendering.Voxels.Meshing
 {
-    public partial class ChunkMesher
+    public class ChunkMesher : IDisposable
     {
         private BlockVisualFeatures[] visualFeatures;
         private CubeFaces[] oppositeBlockingFaces;
@@ -175,5 +175,12 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
                     ref mesherState);
             }
         }
+
+        public void Dispose()
+        {
+            _indexStore.Dispose();
+            _spaceVertexStore.Dispose();
+            _paintVertexStore.Dispose();
+        }
     }
-}
+} 

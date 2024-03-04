@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
@@ -71,7 +72,9 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
                 chunk.Version++;
 
-                if (!chunk.RemoveRequired)
+                chunk.Mesh.Dispose();
+
+                if (!chunk.IsEmpty)
                 {
                     fetchWatch.Start();
 
@@ -84,25 +87,15 @@ namespace VoxelPizza.Client.Rendering.Voxels
                     meshWatch.Start();
                     if (memoryState == BlockMemoryState.Filled)
                     {
-                        chunk.Mesh.Dispose();
                         chunk.Mesh = mesher.Mesh(blockBuffer);
 
-                        BytesForMesh += chunk.Mesh.IndexByteCount + chunk.Mesh.SpaceVertexByteCount + chunk.Mesh.PaintVertexByteCount;
+                        BytesForMesh += GetBytesForMesh(chunk.Mesh);
 
                         meshCount++;
                     }
-                    else
-                    {
-                        chunk.Mesh.Dispose();
-                    }
                     meshWatch.Stop();
                 }
-                else
-                {
-                    chunk.Mesh.Dispose();
-                }
 
-                chunk.RemoveRequired = false;
                 chunk.UpdateRequired = false;
             }
 
@@ -135,37 +128,52 @@ namespace VoxelPizza.Client.Rendering.Voxels
         {
             ChunkPosition localPosition = RenderRegionPosition.GetLocalChunkPosition(chunkPosition, Size);
             ref LogicalRegionChunk chunk = ref GetStoredChunk(localPosition);
-            if (!chunk.HasValue)
+            if (chunk.HasValue)
             {
-                chunk.HasValue = true;
-                chunk.RemoveRequired = false;
-                _chunkCount++;
+                return;
             }
+            chunk.HasValue = true;
+
+            _chunkCount++;
         }
 
-        public void UpdateChunk(ChunkPosition chunkPosition)
+        public void UpdateChunk(ChunkPosition chunkPosition, bool isEmpty)
         {
             ChunkPosition localPosition = RenderRegionPosition.GetLocalChunkPosition(chunkPosition, Size);
             ref LogicalRegionChunk chunk = ref GetStoredChunk(localPosition);
-            if (chunk.HasValue)
+            if (!chunk.HasValue)
             {
-                chunk.UpdateRequired = true;
-                _updateRequired++;
+                return;
             }
+
+            if (isEmpty && chunk.IsEmpty)
+            {
+                return;
+            }
+
+            chunk.IsEmpty = isEmpty;
+            chunk.UpdateRequired = true;
+            _updateRequired++;
         }
 
         public void RemoveChunk(ChunkPosition chunkPosition)
         {
             ChunkPosition localPosition = RenderRegionPosition.GetLocalChunkPosition(chunkPosition, Size);
             ref LogicalRegionChunk chunk = ref GetStoredChunk(localPosition);
-            if (chunk.HasValue)
+            if (!chunk.HasValue)
             {
-                chunk.HasValue = false;
-                chunk.RemoveRequired = true;
+                return;
+            }
+            chunk.HasValue = false;
+
+            if (!chunk.IsEmpty)
+            {
+                chunk.IsEmpty = true;
                 chunk.UpdateRequired = true;
                 _updateRequired++;
-                _chunkCount--;
             }
+
+            _chunkCount--;
         }
 
         public void SetPosition(RenderRegionPosition position)
@@ -207,11 +215,12 @@ namespace VoxelPizza.Client.Rendering.Voxels
         }
     }
 
+    [StructLayout(LayoutKind.Auto)]
     public struct LogicalRegionChunk
     {
         public bool HasValue;
         public bool UpdateRequired;
-        public bool RemoveRequired;
+        public bool IsEmpty;
         public ushort Version;
 
         public ChunkPosition LocalPosition;

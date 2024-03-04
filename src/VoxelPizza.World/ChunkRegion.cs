@@ -82,26 +82,56 @@ namespace VoxelPizza.World
 
         public ValueArc<Chunk> GetLocalChunk(int index)
         {
-            _chunkLock.EnterReadLock();
-            try
+            Arc<Chunk>?[] chunks = GetChunkArray();
+            if (chunks.Length == 0)
             {
-                Arc<Chunk>?[] chunks = GetChunkArray();
-                if (chunks.Length == 0)
-                {
-                    return ValueArc<Chunk>.Empty;
-                }
-
-                Arc<Chunk>? chunk = chunks[index];
-                if (chunk != null)
-                {
-                    return chunk.Track();
-                }
                 return ValueArc<Chunk>.Empty;
             }
-            finally
+            
+            // It is critical that no exception may be thrown inside the locked section.
+            _chunkLock.EnterReadLock();
+
+            Arc<Chunk>? chunk = (uint)index < (uint)chunks.Length ? chunks[index] : null;
+            ValueArc<Chunk> result = chunk.TryTrack();
+
+            _chunkLock.ExitReadLock();
+            return result;
+        }
+
+        public int GetLocalChunks(ReadOnlySpan<int> indices, Span<ValueArc<Chunk>> chunks, bool skipEmpty = false)
+        {
+            chunks = chunks.Slice(0, indices.Length);
+
+            Arc<Chunk>?[] chunkArray = GetChunkArray();
+            if (chunkArray.Length == 0)
             {
-                _chunkLock.ExitReadLock();
+                chunks.Fill(ValueArc<Chunk>.Empty);
+                return 0;
             }
+
+            // It is critical that no exception may be thrown inside the locked section.
+            _chunkLock.EnterReadLock();
+
+            int count = 0;
+            if (chunkArray.Length != 0)
+            {
+                for (int i = 0; i < indices.Length; i++)
+                {
+                    ValueArc<Chunk> chunkArc = chunkArray[indices[i]].TryTrack();
+                    if (chunkArc.TryGet(out Chunk? chunk) && !(skipEmpty && chunk.IsEmpty))
+                    {
+                        count++;
+                        chunks[i] = chunkArc;
+                    }
+                    else
+                    {
+                        chunks[i] = ValueArc<Chunk>.Empty;
+                    }
+                }
+            }
+
+            _chunkLock.ExitReadLock();
+            return count;
         }
 
         public ValueArc<Chunk> GetLocalChunk(ChunkPosition localPosition)
@@ -137,6 +167,14 @@ namespace VoxelPizza.World
                 status = ChunkAddStatus.Success;
                 return vChunk;
             }
+
+            return CreateChunkCore(region, position, index, out status);
+        }
+
+        private static ValueArc<Chunk> CreateChunkCore(
+            ValueArc<ChunkRegion> region, ChunkPosition position, int index, out ChunkAddStatus status)
+        {
+            ChunkRegion self = region.Get();
 
             self._chunkLock.EnterWriteLock();
             try
@@ -262,7 +300,10 @@ namespace VoxelPizza.World
         {
             if (index > Width * Height * Depth)
             {
-                throw new IndexOutOfRangeException("The local chunk index is out of range.");
+                Throw();
+
+                [DoesNotReturn]
+                static void Throw() => throw new IndexOutOfRangeException("The local chunk index is out of range.");
             }
         }
 
@@ -272,7 +313,10 @@ namespace VoxelPizza.World
                 chunk.Y < 0 || chunk.Y >= Size.H ||
                 chunk.Z < 0 || chunk.Z >= Size.D)
             {
-                throw new IndexOutOfRangeException("The local chunk position is out of range.");
+                Throw();
+
+                [DoesNotReturn]
+                static void Throw() => throw new IndexOutOfRangeException("The local chunk position is out of range.");
             }
         }
 
@@ -285,7 +329,10 @@ namespace VoxelPizza.World
                 chunk.Y < start.Y || chunk.Y >= end.Y ||
                 chunk.Z < start.Z || chunk.Z >= end.Z)
             {
-                throw new IndexOutOfRangeException("The chunk position is out of range.");
+                Throw();
+
+                [DoesNotReturn]
+                static void Throw() => throw new IndexOutOfRangeException("The chunk position is out of range.");
             }
         }
 

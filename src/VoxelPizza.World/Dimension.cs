@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using VoxelPizza.Diagnostics;
@@ -164,19 +165,36 @@ namespace VoxelPizza.World
 
         public ValueArc<ChunkRegion> GetRegion(ChunkRegionPosition position)
         {
+            // It is critical that no exception may be thrown inside the locked section.
             _regionLock.EnterReadLock();
-            try
+
+            _regions.TryGetValue(position, out Arc<ChunkRegion>? region);
+            ValueArc<ChunkRegion> result = region.TryTrack();
+
+            _regionLock.ExitReadLock();
+            return result;
+        }
+
+        public int GetRegions(ReadOnlySpan<ChunkRegionPosition> positions, Span<ValueArc<ChunkRegion>> regions)
+        {
+            regions = regions.Slice(0, positions.Length);
+            
+            // It is critical that no exception may be thrown inside the locked section.
+            _regionLock.EnterReadLock();
+
+            int count = 0;
+            for (int i = 0; i < positions.Length; i++)
             {
-                if (_regions.TryGetValue(position, out Arc<ChunkRegion>? region))
+                _regions.TryGetValue(positions[i], out Arc<ChunkRegion>? region);
+                regions[i] = region.TryTrack();
+                if (!regions[i].IsEmpty)
                 {
-                    return region.Track();
+                    count++;
                 }
-                return ValueArc<ChunkRegion>.Empty;
             }
-            finally
-            {
-                _regionLock.ExitReadLock();
-            }
+
+            _regionLock.ExitReadLock();
+            return count;
         }
 
         public static ValueArc<ChunkRegion> CreateRegion(ValueArc<Dimension> dimension, ChunkRegionPosition position)
@@ -189,6 +207,13 @@ namespace VoxelPizza.World
                 // GetRegion increments refcount
                 return vRegion;
             }
+
+            return CreateRegionCore(dimension, position);
+        }
+
+        private static ValueArc<ChunkRegion> CreateRegionCore(ValueArc<Dimension> dimension, ChunkRegionPosition position)
+        {
+            Dimension self = dimension.Get();
 
             self._regionLock.EnterWriteLock();
             try

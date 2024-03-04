@@ -1,24 +1,16 @@
 using System;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
     [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
-    public readonly partial struct DimensionBox
+    public readonly partial struct DimensionBox : IEquatable<DimensionBox>
     {
         public BlockPosition Origin { get; }
         public BlockPosition Max { get; }
 
-        public Size3 Size
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(
-               (uint)(Max.X - Origin.X),
-               (uint)(Max.Y - Origin.Y),
-               (uint)(Max.Z - Origin.Z));
-        }
+        public Size3 Size => (Max - Origin).ToSize3();
 
         public DimensionBox(BlockPosition origin, BlockPosition max)
         {
@@ -106,6 +98,11 @@ namespace VoxelPizza.World
         public ChunkBoxSliceEnumerator EnumerateChunkBoxSlices()
         {
             return new ChunkBoxSliceEnumerator(Origin, Max);
+        }
+        
+        public bool Equals(DimensionBox other)
+        {
+            return Origin == other.Origin && Max == other.Max;
         }
 
         public override int GetHashCode()

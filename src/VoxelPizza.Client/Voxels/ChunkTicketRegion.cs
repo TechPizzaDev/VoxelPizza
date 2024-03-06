@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using VoxelPizza.World;
 
 namespace VoxelPizza.Client
@@ -32,13 +33,12 @@ namespace VoxelPizza.Client
             int index = ChunkRegion.GetChunkIndex(localPosition);
 
             ChunkTicket?[] tickets = _tickets;
-            if (tickets[index] != null)
+            ChunkTicket? previousTicket = Interlocked.Exchange(ref tickets[index], ticket);
+            if (previousTicket != null)
             {
                 throw new InvalidOperationException();
             }
-
-            tickets[index] = ticket;
-            _count++;
+            Interlocked.Increment(ref _count);
         }
 
         public bool TryGet(ChunkPosition position, [MaybeNullWhen(false)] out ChunkTicket ticket)
@@ -65,11 +65,10 @@ namespace VoxelPizza.Client
             int index = ChunkRegion.GetChunkIndex(localPosition);
 
             ChunkTicket?[] tickets = _tickets;
-            ticket = tickets[index];
+            ticket = Interlocked.Exchange(ref tickets[index], null);
             if (ticket != null)
             {
-                tickets[index] = null;
-                _count--;
+                Interlocked.Decrement(ref _count);
                 return true;
             }
             return false;

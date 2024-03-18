@@ -250,9 +250,11 @@ namespace VoxelPizza.Client.Rendering.Voxels
                         {
                             if (mappedStagingBuffer.Resource != null)
                             {
+                                // The buffer was already mapped, which means we ran out of space this time.
                                 break;
                             }
 
+                            // Lazy mapping in case of regions being empty or unchanged.
                             mappedStagingBuffer = _gd.Map(_stagingBuffer, MapMode.Write);
                             stagingBufferSpan = mappedStagingBuffer.AsBytes();
                             goto TryUpload;

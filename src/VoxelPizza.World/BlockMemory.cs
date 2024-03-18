@@ -1,4 +1,5 @@
-using System;
+using System.Buffers;
+using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
@@ -7,11 +8,16 @@ namespace VoxelPizza.World
     {
         public uint[] Data;
 
-        private ChunkBoxSlice[] _chunkBoxBuffer;
-        private bool[] _emptyChunkBuffer;
-
         public Size3 InnerSize { get; }
         public Size3 OuterSize { get; }
+        
+        public ArrayBufferWriter<ChunkRegionPosition> RegionPosWriter { get; } = new();
+        public ArrayBufferWriter<DimSlice> DimSliceWriter { get; } = new();
+        public ArrayBufferWriter<ValueArc<ChunkRegion>> RegionArcWriter { get; } = new();
+        
+        public ArrayBufferWriter<ChunkInfo> ChunkInfoWriter { get; } = new();
+        public ArrayBufferWriter<int> ChunkIndexWriter { get; } = new();
+        public ArrayBufferWriter<ValueArc<Chunk>> ChunkArcWriter { get; } = new();
 
         public BlockMemory(Size3 innerSize, Size3 outerSize)
         {
@@ -19,25 +25,6 @@ namespace VoxelPizza.World
             OuterSize = outerSize;
 
             Data = new uint[OuterSize.Volume];
-
-            _chunkBoxBuffer = Array.Empty<ChunkBoxSlice>();
-            _emptyChunkBuffer = Array.Empty<bool>();
-        }
-
-        public Span<ChunkBoxSlice> GetChunkBoxBuffer(int size)
-        {
-            if (_chunkBoxBuffer.Length < size)
-                _chunkBoxBuffer = GC.AllocateUninitializedArray<ChunkBoxSlice>(size);
-            Span<ChunkBoxSlice> span = _chunkBoxBuffer.AsSpan(0, size);
-            return span;
-        }
-
-        public Span<bool> GetEmptyChunkBuffer(int size)
-        {
-            if (_emptyChunkBuffer.Length < size)
-                _emptyChunkBuffer = GC.AllocateUninitializedArray<bool>(size);
-            Span<bool> span = _emptyChunkBuffer.AsSpan(0, size);
-            return span;
         }
 
         public static int GetIndexBase(int depth, int width, int y, int z)
@@ -48,6 +35,19 @@ namespace VoxelPizza.World
         public static nuint GetIndexBase(nuint depth, nuint width, nuint y, nuint z)
         {
             return (y * depth + z) * width;
+        }
+
+        public struct DimSlice(BlockPosition origin, BlockPosition max)
+        {
+            public BlockPosition Origin = origin;
+            public BlockPosition Max = max;
+            public bool IsEmpty;
+        }
+
+        public struct ChunkInfo
+        {
+            public ChunkBoxSlice BoxSlice;
+            public bool IsEmpty;
         }
     }
 }

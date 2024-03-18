@@ -1,13 +1,10 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
-    public struct ChunkBoxSliceEnumerator : IEnumerator<ChunkBoxSlice>
+    public struct ChunkBoxSliceEnumerator
     {
         private int processedY;
         private int blockY;
@@ -34,25 +31,18 @@ namespace VoxelPizza.World
 
         public readonly BlockPosition CurrentInnerOrigin
         {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => new(
                 (int)((uint)blockX % Chunk.Width),
                 innerY,
                 innerZ);
         }
 
-        public readonly BlockPosition CurrentOuterOrigin
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(
-                blockX - Origin.X,
-                blockY - Origin.Y,
-                blockZ - Origin.Z);
-        }
+        public readonly BlockPosition CurrentOuterOrigin => CurrentBlock - Origin;
+        
+        public readonly BlockPosition CurrentBlock => new(blockX, blockY, blockZ);
 
         public readonly Size3 CurrentSize
         {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
                 Debug.Assert(width >= 0 && height >= 0 && depth >= 0);
@@ -65,14 +55,12 @@ namespace VoxelPizza.World
             get
             {
                 ChunkPosition chunk = CurrentChunk;
-                BlockPosition outerOrigin = CurrentOuterOrigin;
+                BlockPosition block = CurrentBlock;
                 BlockPosition innerOrigin = CurrentInnerOrigin;
                 Size3 size = CurrentSize;
-                return new ChunkBoxSlice(chunk, outerOrigin, innerOrigin, size);
+                return new ChunkBoxSlice(chunk, block, innerOrigin, size);
             }
         }
-
-        readonly object IEnumerator.Current => Current;
 
         public ChunkBoxSliceEnumerator(BlockPosition origin, BlockPosition max) : this()
         {
@@ -127,6 +115,7 @@ namespace VoxelPizza.World
 
         public bool MoveNext()
         {
+            TryMove:
             if (processedX < Size.W)
             {
                 blockX = Origin.X + processedX;
@@ -143,11 +132,6 @@ namespace VoxelPizza.World
                 return true;
             }
 
-            return MoveNextZY();
-        }
-
-        private bool MoveNextZY()
-        {
             processedX = 0;
             // X will be updated in the next call
 
@@ -156,7 +140,7 @@ namespace VoxelPizza.World
 
             if (processedZ < Size.D)
             {
-                return MoveNext();
+                goto TryMove;
             }
 
             processedZ = 0;
@@ -167,7 +151,7 @@ namespace VoxelPizza.World
 
             if (processedY < Size.H)
             {
-                return MoveNext();
+                goto TryMove;
             }
 
             return false;
@@ -185,10 +169,6 @@ namespace VoxelPizza.World
             processedX = 0;
             chunkX = 0;
             width = 0;
-        }
-
-        public void Dispose()
-        {
         }
     }
 }

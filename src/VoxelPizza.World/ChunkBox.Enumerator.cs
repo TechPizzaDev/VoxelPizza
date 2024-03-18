@@ -1,11 +1,8 @@
-using System.Collections;
-using System.Collections.Generic;
-
 namespace VoxelPizza.World
 {
     public readonly partial struct ChunkBox
     {
-        public struct Enumerator : IEnumerator<ChunkPosition>
+        public struct Enumerator
         {
             private ChunkPosition _position;
             private ChunkPosition _current;
@@ -14,8 +11,6 @@ namespace VoxelPizza.World
             public readonly ChunkPosition Max;
 
             public readonly ChunkPosition Current => _current;
-
-            readonly object IEnumerator.Current => Current;
 
             public Enumerator(ChunkPosition origin, ChunkPosition max)
             {
@@ -28,23 +23,20 @@ namespace VoxelPizza.World
 
             public bool MoveNext()
             {
+                TryMove:
                 if (_position.X < Max.X)
                 {
                     _current.X = _position.X;
                     _position.X++;
                     return true;
                 }
-                return MoveNextZY();
-            }
 
-            private bool MoveNextZY()
-            {
                 if (_position.Z < Max.Z)
                 {
                     _position.X = Origin.X;
                     _current.Z = _position.Z;
                     _position.Z++;
-                    return MoveNext();
+                    goto TryMove;
                 }
 
                 if (_position.Y < Max.Y)
@@ -52,7 +44,7 @@ namespace VoxelPizza.World
                     _position.Z = Origin.Z;
                     _current.Y = _position.Y;
                     _position.Y++;
-                    return MoveNext();
+                    goto TryMove;
                 }
 
                 return false;
@@ -62,10 +54,6 @@ namespace VoxelPizza.World
             {
                 _position = Origin;
                 _current = Origin;
-            }
-
-            public void Dispose()
-            {
             }
         }
     }

@@ -1,24 +1,17 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+using System;
+using System.Diagnostics;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
 {
-    public readonly partial struct ChunkBox : IEnumerable<ChunkPosition>
+    [DebuggerDisplay("{" + nameof(GetDebuggerDisplay) + "(),nq}")]
+    public readonly partial struct ChunkBox : IEquatable<ChunkBox>
     {
         public readonly ChunkPosition Origin;
         public readonly ChunkPosition Max;
 
-        public Size3 Size
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new(
-               (uint)(Max.X - Origin.X),
-               (uint)(Max.Y - Origin.Y),
-               (uint)(Max.Z - Origin.Z));
-        }
-
+        public Size3 Size => (Max - Origin).ToSize3();
+    
         public ChunkBox(ChunkPosition origin, ChunkPosition max)
         {
             Origin = origin;
@@ -64,19 +57,29 @@ namespace VoxelPizza.World
                 position.Z < Max.Z;
         }
 
+        public bool Equals(ChunkBox other)
+        {
+            return Origin == other.Origin && Max == other.Max;
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Origin, Max);
+        }
+
         public Enumerator GetEnumerator()
         {
             return new Enumerator(Origin, Max);
         }
-
-        IEnumerator<ChunkPosition> IEnumerable<ChunkPosition>.GetEnumerator()
+        
+        public override string ToString()
         {
-            return GetEnumerator();
+            return $"{Origin} {Size}";
         }
 
-        IEnumerator IEnumerable.GetEnumerator()
+        private string GetDebuggerDisplay()
         {
-            return GetEnumerator();
+            return $"{Origin}  {Size}";
         }
     }
 }

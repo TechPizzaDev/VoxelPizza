@@ -27,6 +27,13 @@ namespace VoxelPizza.Client.Rendering.Voxels
         private bool _isDisposed;
         public ChunkMeshBuffers? _meshBuffers;
 
+        // TODO: 
+        // Arena manager - you allocate segments through the manager.
+        // The manager contains multiple arenas, and segments know which arena they come from.
+        // When an arena gets full, return segments from a new arena.
+        // Copy old arena into new arena asynchronously.
+        // Generations can also be introduced, so untouched meshes get moved into a compacted arena.
+
         // TODO: divide into heaps based on region rebuild frequency
         public GraphicsArenaAllocator _indexArena;
         public GraphicsArenaAllocator _vertexArena;

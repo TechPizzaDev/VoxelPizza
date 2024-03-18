@@ -85,7 +85,7 @@ public readonly partial struct DimensionBox
             return this;
         }
 
-        public readonly int GetMaxCount()
+        public readonly int GetMaxRegionCount()
         {
             uint w = Size.W / Width + 2;
             uint h = Size.H / Height + 2;

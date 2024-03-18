@@ -38,6 +38,9 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LoudPizza.Vorbis", "LoudPizza\LoudPizza.Vorbis\LoudPizza.Vorbis.csproj", "{F7B4DBF8-2D9A-417E-B4B0-87038569BCA5}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{7E6DA5B2-3FDC-4DF1-B204-616747DC50D4}"
+	ProjectSection(SolutionItems) = preProject
+		test\Directory.Build.props = test\Directory.Build.props
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.Analyzers.Test", "test\VoxelPizza.Analyzers.Test\VoxelPizza.Analyzers.Test.csproj", "{999D2C2E-6CC1-4A2D-BC1C-24042101D304}"
 EndProject
@@ -56,6 +59,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.Rendering.Voxels", "src\VoxelPizza.Rendering.Voxels\VoxelPizza.Rendering.Voxels.csproj", "{9F062281-ED15-4673-B970-6350C29F0271}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.World", "src\VoxelPizza.World\VoxelPizza.World.csproj", "{CC245437-4125-4A3B-8B05-D7D1BBA2347B}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.World.Test", "test\VoxelPizza.World.Test\VoxelPizza.World.Test.csproj", "{A21850FD-F79A-4542-86B4-69148C1C9B6C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -143,6 +148,10 @@ Global
 		{CC245437-4125-4A3B-8B05-D7D1BBA2347B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CC245437-4125-4A3B-8B05-D7D1BBA2347B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CC245437-4125-4A3B-8B05-D7D1BBA2347B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A21850FD-F79A-4542-86B4-69148C1C9B6C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A21850FD-F79A-4542-86B4-69148C1C9B6C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A21850FD-F79A-4542-86B4-69148C1C9B6C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A21850FD-F79A-4542-86B4-69148C1C9B6C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -168,6 +177,7 @@ Global
 		{C07FC562-7BDE-42C4-9FD1-C20C7FF752FE} = {789B1001-F064-4978-BD5D-7C1AAAF0ADEB}
 		{9F062281-ED15-4673-B970-6350C29F0271} = {789B1001-F064-4978-BD5D-7C1AAAF0ADEB}
 		{CC245437-4125-4A3B-8B05-D7D1BBA2347B} = {789B1001-F064-4978-BD5D-7C1AAAF0ADEB}
+		{A21850FD-F79A-4542-86B4-69148C1C9B6C} = {7E6DA5B2-3FDC-4DF1-B204-616747DC50D4}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {1B0DC0DC-14D7-4206-8728-62E24FA288B0}

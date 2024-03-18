@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
@@ -104,7 +105,7 @@ namespace VoxelPizza.Collections
                 SetBlockRow(0, y, z, value);
             }
         }
-        
+
         public virtual void FillBlock(uint value)
         {
             for (int y = 0; y < Height; y++)
@@ -278,7 +279,7 @@ namespace VoxelPizza.Collections
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }
-		
+
         [DoesNotReturn]
         private static void ThrowDstTooSmall()
         {

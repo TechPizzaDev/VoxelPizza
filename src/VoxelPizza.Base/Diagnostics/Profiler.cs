@@ -19,7 +19,7 @@ namespace VoxelPizza.Diagnostics
             public TimeSpan TimeOfPush;
             public TimeSpan TimeOfPop;
 
-            public StackFrame? Frame;
+            public bool Collapse;
             public string MemberName;
             public string FilePath;
             public int LineNumber;
@@ -34,10 +34,10 @@ namespace VoxelPizza.Diagnostics
         public bool IsRecording => _watch.IsRunning;
 
         public void Push(
+            bool collapse,
             string memberName,
             string filePath,
-            int lineNumber,
-            StackFrame? frame = null)
+            int lineNumber)
         {
             TimeSpan timeOfPush = _watch.Elapsed;
 
@@ -61,7 +61,7 @@ namespace VoxelPizza.Diagnostics
             item.TimeOfPush = timeOfPush;
             item.TimeOfPop = default;
 
-            item.Frame = frame;
+            item.Collapse = collapse;
             item.MemberName = memberName;
             item.FilePath = filePath;
             item.LineNumber = lineNumber;

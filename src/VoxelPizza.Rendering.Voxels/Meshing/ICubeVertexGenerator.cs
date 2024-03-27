@@ -1,14 +1,14 @@
 
 namespace VoxelPizza.Rendering.Voxels.Meshing
 {
-    public interface ICubeVertexGenerator<T> : IVertexGenerator<T>
+    public unsafe interface ICubeVertexGenerator<T> : IVertexGenerator<T>
         where T : unmanaged
     {
-        void AppendTop(ref ByteStore<T> store);
-        void AppendBottom(ref ByteStore<T> store);
-        void AppendLeft(ref ByteStore<T> store);
-        void AppendRight(ref ByteStore<T> store);
-        void AppendFront(ref ByteStore<T> store);
-        void AppendBack(ref ByteStore<T> store);
+        uint AppendTop(T* destination);
+        uint AppendBottom(T* destination);
+        uint AppendLeft(T* destination);
+        uint AppendRight(T* destination);
+        uint AppendFront(T* destination);
+        uint AppendBack(T* destination);
     }
 }

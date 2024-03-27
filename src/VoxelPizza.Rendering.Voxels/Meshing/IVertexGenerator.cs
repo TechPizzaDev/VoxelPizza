@@ -1,7 +1,7 @@
 
 namespace VoxelPizza.Rendering.Voxels.Meshing
 {
-    public interface IVertexGenerator<T>
+    public unsafe interface IVertexGenerator<T>
         where T : unmanaged
     {
         /// <summary>
@@ -9,7 +9,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         /// </summary>
         uint MaxVertices { get; }
 
-        void AppendFirst(ref ByteStore<T> store);
-        void AppendLast(ref ByteStore<T> store);
+        uint AppendFirst(T* destination);
+        uint AppendLast(T* destination);
     }
 }

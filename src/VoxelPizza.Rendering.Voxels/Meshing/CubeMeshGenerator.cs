@@ -1,213 +1,264 @@
 
 namespace VoxelPizza.Rendering.Voxels.Meshing
 {
-    public struct CubeMeshGenerator<TIndexGen, TSpaceGen, TPaintGen>
+    public unsafe struct CubeMeshGenerator<TIndexGen, TSpaceGen, TPaintGen>
         where TIndexGen : ICubeIndexGenerator<uint>
         where TSpaceGen : ICubeVertexGenerator<ChunkSpaceVertex>
         where TPaintGen : ICubeVertexGenerator<ChunkPaintVertex>
     {
-        public static void GenerateFullFrom(
+        public static bool GenerateFullFrom(
             ref ChunkMeshOutput meshOutput,
             CubeFaces faces,
             ref TIndexGen indGen,
             ref TSpaceGen spaGen,
             ref TPaintGen paiGen)
         {
-            meshOutput.Indices.PrepareCapacityFor(indGen.MaxIndices);
-            meshOutput.SpaceVertices.PrepareCapacityFor(spaGen.MaxVertices);
-            meshOutput.PaintVertices.PrepareCapacityFor(paiGen.MaxVertices);
+            if (!meshOutput.Indices.PrepareCapacityFor(indGen.MaxIndices) ||
+                !meshOutput.SpaceVertices.PrepareCapacityFor(spaGen.MaxVertices) ||
+                !meshOutput.PaintVertices.PrepareCapacityFor(paiGen.MaxVertices))
+            {
+                return false;
+            }
 
-            indGen.AppendFirst(ref meshOutput.Indices, ref meshOutput.VertexOffset);
-            spaGen.AppendFirst(ref meshOutput.SpaceVertices);
-            paiGen.AppendFirst(ref meshOutput.PaintVertices);
+            uint* indices = meshOutput.Indices.Head;
+            ChunkSpaceVertex* spaceVertices = meshOutput.SpaceVertices.Head;
+            ChunkPaintVertex* paintVertices = meshOutput.PaintVertices.Head;
+
+            indices += indGen.AppendFirst(indices, ref meshOutput.VertexOffset);
+            spaceVertices += spaGen.AppendFirst(spaceVertices);
+            paintVertices += paiGen.AppendFirst(paintVertices);
 
             if ((faces & CubeFaces.Top) != 0)
             {
-                indGen.AppendTop(ref meshOutput.Indices, ref meshOutput.VertexOffset);
-                spaGen.AppendTop(ref meshOutput.SpaceVertices);
-                paiGen.AppendTop(ref meshOutput.PaintVertices);
+                indices += indGen.AppendTop(indices, ref meshOutput.VertexOffset);
+                spaceVertices += spaGen.AppendTop(spaceVertices);
+                paintVertices += paiGen.AppendTop(paintVertices);
             }
 
             if ((faces & CubeFaces.Bottom) != 0)
             {
-                indGen.AppendBottom(ref meshOutput.Indices, ref meshOutput.VertexOffset);
-                spaGen.AppendBottom(ref meshOutput.SpaceVertices);
-                paiGen.AppendBottom(ref meshOutput.PaintVertices);
+                indices += indGen.AppendBottom(indices, ref meshOutput.VertexOffset);
+                spaceVertices += spaGen.AppendBottom(spaceVertices);
+                paintVertices += paiGen.AppendBottom(paintVertices);
             }
 
             if ((faces & CubeFaces.Left) != 0)
             {
-                indGen.AppendLeft(ref meshOutput.Indices, ref meshOutput.VertexOffset);
-                spaGen.AppendLeft(ref meshOutput.SpaceVertices);
-                paiGen.AppendLeft(ref meshOutput.PaintVertices);
+                indices += indGen.AppendLeft(indices, ref meshOutput.VertexOffset);
+                spaceVertices += spaGen.AppendLeft(spaceVertices);
+                paintVertices += paiGen.AppendLeft(paintVertices);
             }
 
             if ((faces & CubeFaces.Right) != 0)
             {
-                indGen.AppendRight(ref meshOutput.Indices, ref meshOutput.VertexOffset);
-                spaGen.AppendRight(ref meshOutput.SpaceVertices);
-                paiGen.AppendRight(ref meshOutput.PaintVertices);
+                indices += indGen.AppendRight(indices, ref meshOutput.VertexOffset);
+                spaceVertices += spaGen.AppendRight(spaceVertices);
+                paintVertices += paiGen.AppendRight(paintVertices);
             }
 
             if ((faces & CubeFaces.Front) != 0)
             {
-                indGen.AppendFront(ref meshOutput.Indices, ref meshOutput.VertexOffset);
-                spaGen.AppendFront(ref meshOutput.SpaceVertices);
-                paiGen.AppendFront(ref meshOutput.PaintVertices);
+                indices += indGen.AppendFront(indices, ref meshOutput.VertexOffset);
+                spaceVertices += spaGen.AppendFront(spaceVertices);
+                paintVertices += paiGen.AppendFront(paintVertices);
             }
 
             if ((faces & CubeFaces.Back) != 0)
             {
-                indGen.AppendBack(ref meshOutput.Indices, ref meshOutput.VertexOffset);
-                spaGen.AppendBack(ref meshOutput.SpaceVertices);
-                paiGen.AppendBack(ref meshOutput.PaintVertices);
+                indices += indGen.AppendBack(indices, ref meshOutput.VertexOffset);
+                spaceVertices += spaGen.AppendBack(spaceVertices);
+                paintVertices += paiGen.AppendBack(paintVertices);
             }
 
-            indGen.AppendLast(ref meshOutput.Indices, ref meshOutput.VertexOffset);
-            spaGen.AppendLast(ref meshOutput.SpaceVertices);
-            paiGen.AppendLast(ref meshOutput.PaintVertices);
+            indices += indGen.AppendLast(indices, ref meshOutput.VertexOffset);
+            spaceVertices += spaGen.AppendLast(spaceVertices);
+            paintVertices += paiGen.AppendLast(paintVertices);
+
+            meshOutput.Indices.Head = indices;
+            meshOutput.SpaceVertices.Head = spaceVertices;
+            meshOutput.PaintVertices.Head = paintVertices;
+
+            return true;
         }
 
-        public static void GenerateIndicesFrom(
+        public static bool GenerateIndicesFrom(
             ref ChunkMeshOutput meshOutput,
             CubeFaces faces,
             ref TIndexGen indGen)
         {
-            meshOutput.Indices.PrepareCapacityFor(indGen.MaxIndices);
+            if (!meshOutput.Indices.PrepareCapacityFor(indGen.MaxIndices))
+            {
+                return false;
+            }
 
-            indGen.AppendFirst(ref meshOutput.Indices, ref meshOutput.VertexOffset);
+            uint* indices = meshOutput.Indices.Head;
+
+            indices += indGen.AppendFirst(indices, ref meshOutput.VertexOffset);
 
             if ((faces & CubeFaces.Top) != 0)
-                indGen.AppendTop(ref meshOutput.Indices, ref meshOutput.VertexOffset);
+                indices += indGen.AppendTop(indices, ref meshOutput.VertexOffset);
 
             if ((faces & CubeFaces.Bottom) != 0)
-                indGen.AppendBottom(ref meshOutput.Indices, ref meshOutput.VertexOffset);
+                indices += indGen.AppendBottom(indices, ref meshOutput.VertexOffset);
 
             if ((faces & CubeFaces.Left) != 0)
-                indGen.AppendLeft(ref meshOutput.Indices, ref meshOutput.VertexOffset);
+                indices += indGen.AppendLeft(indices, ref meshOutput.VertexOffset);
 
             if ((faces & CubeFaces.Right) != 0)
-                indGen.AppendRight(ref meshOutput.Indices, ref meshOutput.VertexOffset);
+                indices += indGen.AppendRight(indices, ref meshOutput.VertexOffset);
 
             if ((faces & CubeFaces.Front) != 0)
-                indGen.AppendFront(ref meshOutput.Indices, ref meshOutput.VertexOffset);
+                indices += indGen.AppendFront(indices, ref meshOutput.VertexOffset);
 
             if ((faces & CubeFaces.Back) != 0)
-                indGen.AppendBack(ref meshOutput.Indices, ref meshOutput.VertexOffset);
+                indices += indGen.AppendBack(indices, ref meshOutput.VertexOffset);
 
-            indGen.AppendLast(ref meshOutput.Indices, ref meshOutput.VertexOffset);
+            indices += indGen.AppendLast(indices, ref meshOutput.VertexOffset);
+
+            meshOutput.Indices.Head = indices;
+
+            return true;
         }
 
-        public static void GenerateSpaceFrom(
+        public static bool GenerateSpaceFrom(
             ref ChunkMeshOutput meshOutput,
             CubeFaces faces,
             ref TSpaceGen spaGen)
         {
-            meshOutput.SpaceVertices.PrepareCapacityFor(spaGen.MaxVertices);
+            if (!meshOutput.SpaceVertices.PrepareCapacityFor(spaGen.MaxVertices))
+            {
+                return false;
+            }
 
-            spaGen.AppendFirst(ref meshOutput.SpaceVertices);
+            ChunkSpaceVertex* spaceVertices = meshOutput.SpaceVertices.Head;
+
+            spaceVertices += spaGen.AppendFirst(spaceVertices);
 
             if ((faces & CubeFaces.Top) != 0)
-                spaGen.AppendTop(ref meshOutput.SpaceVertices);
+                spaceVertices += spaGen.AppendTop(spaceVertices);
 
             if ((faces & CubeFaces.Bottom) != 0)
-                spaGen.AppendBottom(ref meshOutput.SpaceVertices);
+                spaceVertices += spaGen.AppendBottom(spaceVertices);
 
             if ((faces & CubeFaces.Left) != 0)
-                spaGen.AppendLeft(ref meshOutput.SpaceVertices);
+                spaceVertices += spaGen.AppendLeft(spaceVertices);
 
             if ((faces & CubeFaces.Right) != 0)
-                spaGen.AppendRight(ref meshOutput.SpaceVertices);
+                spaceVertices += spaGen.AppendRight(spaceVertices);
 
             if ((faces & CubeFaces.Front) != 0)
-                spaGen.AppendFront(ref meshOutput.SpaceVertices);
+                spaceVertices += spaGen.AppendFront(spaceVertices);
 
             if ((faces & CubeFaces.Back) != 0)
-                spaGen.AppendBack(ref meshOutput.SpaceVertices);
+                spaceVertices += spaGen.AppendBack(spaceVertices);
 
-            spaGen.AppendLast(ref meshOutput.SpaceVertices);
+            spaceVertices += spaGen.AppendLast(spaceVertices);
+
+            meshOutput.SpaceVertices.Head = spaceVertices;
+
+            return true;
         }
 
-        public static void GeneratePaintFrom(
+        public static bool GeneratePaintFrom(
             ref ChunkMeshOutput meshOutput,
             CubeFaces faces,
             ref TPaintGen paiGen)
         {
-            meshOutput.PaintVertices.PrepareCapacityFor(paiGen.MaxVertices);
+            if (!meshOutput.PaintVertices.PrepareCapacityFor(paiGen.MaxVertices))
+            {
+                return false;
+            }
 
-            paiGen.AppendFirst(ref meshOutput.PaintVertices);
+            ChunkPaintVertex* paintVertices = meshOutput.PaintVertices.Head;
+
+            paintVertices += paiGen.AppendFirst(paintVertices);
 
             if ((faces & CubeFaces.Top) != 0)
-                paiGen.AppendTop(ref meshOutput.PaintVertices);
+                paintVertices += paiGen.AppendTop(paintVertices);
 
             if ((faces & CubeFaces.Bottom) != 0)
-                paiGen.AppendBottom(ref meshOutput.PaintVertices);
+                paintVertices += paiGen.AppendBottom(paintVertices);
 
             if ((faces & CubeFaces.Left) != 0)
-                paiGen.AppendLeft(ref meshOutput.PaintVertices);
+                paintVertices += paiGen.AppendLeft(paintVertices);
 
             if ((faces & CubeFaces.Right) != 0)
-                paiGen.AppendRight(ref meshOutput.PaintVertices);
+                paintVertices += paiGen.AppendRight(paintVertices);
 
             if ((faces & CubeFaces.Front) != 0)
-                paiGen.AppendFront(ref meshOutput.PaintVertices);
+                paintVertices += paiGen.AppendFront(paintVertices);
 
             if ((faces & CubeFaces.Back) != 0)
-                paiGen.AppendBack(ref meshOutput.PaintVertices);
+                paintVertices += paiGen.AppendBack(paintVertices);
 
-            paiGen.AppendLast(ref meshOutput.PaintVertices);
+            paintVertices += paiGen.AppendLast(paintVertices);
+
+            meshOutput.PaintVertices.Head = paintVertices;
+
+            return false;
         }
 
-        public static void GenerateSpacePaintFrom(
+        public static bool GenerateSpacePaintFrom(
             ref ChunkMeshOutput meshOutput,
             CubeFaces faces,
             ref TSpaceGen spaGen,
             ref TPaintGen paiGen)
         {
-            meshOutput.SpaceVertices.PrepareCapacityFor(spaGen.MaxVertices);
-            meshOutput.PaintVertices.PrepareCapacityFor(paiGen.MaxVertices);
+            if (!meshOutput.SpaceVertices.PrepareCapacityFor(spaGen.MaxVertices) ||
+                !meshOutput.PaintVertices.PrepareCapacityFor(paiGen.MaxVertices))
+            {
+                return false;
+            }
 
-            spaGen.AppendFirst(ref meshOutput.SpaceVertices);
-            paiGen.AppendFirst(ref meshOutput.PaintVertices);
+            ChunkSpaceVertex* spaceVertices = meshOutput.SpaceVertices.Head;
+            ChunkPaintVertex* paintVertices = meshOutput.PaintVertices.Head;
+
+            spaceVertices += spaGen.AppendFirst(spaceVertices);
+            paintVertices += paiGen.AppendFirst(paintVertices);
 
             if ((faces & CubeFaces.Top) != 0)
             {
-                spaGen.AppendTop(ref meshOutput.SpaceVertices);
-                paiGen.AppendTop(ref meshOutput.PaintVertices);
+                spaceVertices += spaGen.AppendTop(spaceVertices);
+                paintVertices += paiGen.AppendTop(paintVertices);
             }
 
             if ((faces & CubeFaces.Bottom) != 0)
             {
-                spaGen.AppendBottom(ref meshOutput.SpaceVertices);
-                paiGen.AppendBottom(ref meshOutput.PaintVertices);
+                spaceVertices += spaGen.AppendBottom(spaceVertices);
+                paintVertices += paiGen.AppendBottom(paintVertices);
             }
 
             if ((faces & CubeFaces.Left) != 0)
             {
-                spaGen.AppendLeft(ref meshOutput.SpaceVertices);
-                paiGen.AppendLeft(ref meshOutput.PaintVertices);
+                spaceVertices += spaGen.AppendLeft(spaceVertices);
+                paintVertices += paiGen.AppendLeft(paintVertices);
             }
 
             if ((faces & CubeFaces.Right) != 0)
             {
-                spaGen.AppendRight(ref meshOutput.SpaceVertices);
-                paiGen.AppendRight(ref meshOutput.PaintVertices);
+                spaceVertices += spaGen.AppendRight(spaceVertices);
+                paintVertices += paiGen.AppendRight(paintVertices);
             }
 
             if ((faces & CubeFaces.Front) != 0)
             {
-                spaGen.AppendFront(ref meshOutput.SpaceVertices);
-                paiGen.AppendFront(ref meshOutput.PaintVertices);
+                spaceVertices += spaGen.AppendFront(spaceVertices);
+                paintVertices += paiGen.AppendFront(paintVertices);
             }
 
             if ((faces & CubeFaces.Back) != 0)
             {
-                spaGen.AppendBack(ref meshOutput.SpaceVertices);
-                paiGen.AppendBack(ref meshOutput.PaintVertices);
+                spaceVertices += spaGen.AppendBack(spaceVertices);
+                paintVertices += paiGen.AppendBack(paintVertices);
             }
 
-            spaGen.AppendLast(ref meshOutput.SpaceVertices);
-            paiGen.AppendLast(ref meshOutput.PaintVertices);
+            spaceVertices += spaGen.AppendLast(spaceVertices);
+            paintVertices += paiGen.AppendLast(paintVertices);
+
+            meshOutput.SpaceVertices.Head = spaceVertices;
+            meshOutput.PaintVertices.Head = paintVertices;
+
+            return true;
         }
     }
 }

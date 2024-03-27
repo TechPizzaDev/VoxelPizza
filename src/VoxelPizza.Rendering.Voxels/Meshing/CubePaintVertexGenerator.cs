@@ -3,84 +3,94 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public readonly unsafe struct CubePaintVertexGenerator : ICubeVertexGenerator<ChunkPaintVertex>
     {
+        private const int VerticesPerFace = 4;
+
         private readonly ChunkPaintVertex _vertex;
 
         public TextureAnimation TextureAnimation => _vertex.TexAnimation0;
         public uint TextureRegion => _vertex.TexRegion0;
 
-        public uint MaxVertices => 4 * 6;
+        public uint MaxVertices => VerticesPerFace * 6;
 
         public CubePaintVertexGenerator(TextureAnimation textureAnimation, uint textureRegion)
         {
             _vertex = new ChunkPaintVertex(textureAnimation, textureRegion);
         }
 
-        public void AppendFirst(ref ByteStore<ChunkPaintVertex> store)
+        public uint AppendFirst(ChunkPaintVertex* destination)
         {
+            return 0;
         }
 
-        public void AppendLast(ref ByteStore<ChunkPaintVertex> store)
+        public uint AppendLast(ChunkPaintVertex* destination)
         {
+            return 0;
         }
 
-        public void AppendBack(ref ByteStore<ChunkPaintVertex> store)
+        public uint AppendBack(ChunkPaintVertex* destination)
         {
-            ChunkPaintVertex* ptr = store.GetAppendPtr(4);
+            ChunkPaintVertex* ptr = destination;
             ChunkPaintVertex vertex = _vertex;
             ptr[0] = vertex;
             ptr[1] = vertex;
             ptr[2] = vertex;
             ptr[3] = vertex;
+            return VerticesPerFace;
         }
 
-        public void AppendBottom(ref ByteStore<ChunkPaintVertex> store)
+        public uint AppendBottom(ChunkPaintVertex* destination)
         {
-            ChunkPaintVertex* ptr = store.GetAppendPtr(4);
+            ChunkPaintVertex* ptr = destination;
             ChunkPaintVertex vertex = _vertex;
             ptr[0] = vertex;
             ptr[1] = vertex;
             ptr[2] = vertex;
             ptr[3] = vertex;
+            return VerticesPerFace;
         }
 
-        public void AppendFront(ref ByteStore<ChunkPaintVertex> store)
+        public uint AppendFront(ChunkPaintVertex* destination)
         {
-            ChunkPaintVertex* ptr = store.GetAppendPtr(4);
+            ChunkPaintVertex* ptr = destination;
             ChunkPaintVertex vertex = _vertex;
             ptr[0] = vertex;
             ptr[1] = vertex;
             ptr[2] = vertex;
             ptr[3] = vertex;
+            return VerticesPerFace;
         }
 
-        public void AppendLeft(ref ByteStore<ChunkPaintVertex> store)
+        public uint AppendLeft(ChunkPaintVertex* destination)
         {
-            ChunkPaintVertex* ptr = store.GetAppendPtr(4);
+            ChunkPaintVertex* ptr = destination;
             ChunkPaintVertex vertex = _vertex;
             ptr[0] = vertex;
             ptr[1] = vertex;
             ptr[2] = vertex;
             ptr[3] = vertex;
+            return VerticesPerFace;
         }
 
-        public void AppendRight(ref ByteStore<ChunkPaintVertex> store)
+        public uint AppendRight(ChunkPaintVertex* destination)
         {
-            ChunkPaintVertex* ptr = store.GetAppendPtr(4);
+            ChunkPaintVertex* ptr = destination;
             ChunkPaintVertex vertex = _vertex;
             ptr[0] = vertex;
             ptr[1] = vertex;
             ptr[2] = vertex;
             ptr[3] = vertex;
+            return VerticesPerFace;
         }
 
-        public void AppendTop(ref ByteStore<ChunkPaintVertex> store)
+        public uint AppendTop(ChunkPaintVertex* destination)
         {
-            ChunkPaintVertex* ptr = store.GetAppendPtr(4);
+            ChunkPaintVertex* ptr = destination;
             ChunkPaintVertex vertex = _vertex;
             ptr[0] = vertex;
             ptr[1] = vertex;
             ptr[2] = vertex;
             ptr[3] = vertex;
+            return VerticesPerFace;
         }
     }
 }

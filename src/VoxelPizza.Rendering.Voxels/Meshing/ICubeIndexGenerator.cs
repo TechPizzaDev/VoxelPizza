@@ -1,14 +1,14 @@
 
 namespace VoxelPizza.Rendering.Voxels.Meshing
 {
-    public interface ICubeIndexGenerator<T> : IIndexGenerator<T>
+    public unsafe interface ICubeIndexGenerator<T> : IIndexGenerator<T>
        where T : unmanaged
     {
-        void AppendTop(ref ByteStore<T> store, ref uint vertexOffset);
-        void AppendBottom(ref ByteStore<T> store, ref uint vertexOffset);
-        void AppendLeft(ref ByteStore<T> store, ref uint vertexOffset);
-        void AppendRight(ref ByteStore<T> store, ref uint vertexOffset);
-        void AppendFront(ref ByteStore<T> store, ref uint vertexOffset);
-        void AppendBack(ref ByteStore<T> store, ref uint vertexOffset);
+        uint AppendTop(T* destination, ref uint vertexOffset);
+        uint AppendBottom(T* destination, ref uint vertexOffset);
+        uint AppendLeft(T* destination, ref uint vertexOffset);
+        uint AppendRight(T* destination, ref uint vertexOffset);
+        uint AppendFront(T* destination, ref uint vertexOffset);
+        uint AppendBack(T* destination, ref uint vertexOffset);
     }
 }

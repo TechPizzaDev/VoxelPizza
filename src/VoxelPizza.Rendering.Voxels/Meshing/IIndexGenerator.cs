@@ -1,7 +1,7 @@
 
 namespace VoxelPizza.Rendering.Voxels.Meshing
 {
-    public interface IIndexGenerator<T>
+    public unsafe interface IIndexGenerator<T>
         where T : unmanaged
     {
         /// <summary>
@@ -9,7 +9,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         /// </summary>
         uint MaxIndices { get; }
 
-        void AppendFirst(ref ByteStore<T> store, ref uint vertexOffset);
-        void AppendLast(ref ByteStore<T> store, ref uint vertexOffset);
+        uint AppendFirst(T* destination, ref uint vertexOffset);
+        uint AppendLast(T* destination, ref uint vertexOffset);
     }
 }

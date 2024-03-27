@@ -3,62 +3,62 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public abstract class FaceDependentMeshProvider : MeshProvider
     {
-        public override void GenerateFull(
+        public override bool GenerateFull(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState)
         {
-            GenerateFull(ref meshOutput, ref mesherState, CubeFaces.All);
+            return GenerateFull(ref meshOutput, ref mesherState, CubeFaces.All);
         }
 
-        public override void GenerateIndices(
+        public override bool GenerateIndices(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState)
         {
-            GenerateSpace(ref meshOutput, ref mesherState, CubeFaces.All);
+            return GenerateSpace(ref meshOutput, ref mesherState, CubeFaces.All);
         }
 
-        public override void GenerateSpace(
+        public override bool GenerateSpace(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState)
         {
-            GenerateSpace(ref meshOutput, ref mesherState, CubeFaces.All);
+            return GenerateSpace(ref meshOutput, ref mesherState, CubeFaces.All);
         }
 
-        public override void GeneratePaint(
+        public override bool GeneratePaint(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState)
         {
-            GeneratePaint(ref meshOutput, ref mesherState, CubeFaces.All);
+            return GeneratePaint(ref meshOutput, ref mesherState, CubeFaces.All);
         }
 
-        public override void GenerateSpacePaint(
+        public override bool GenerateSpacePaint(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState)
         {
-            GenerateSpacePaint(ref meshOutput, ref mesherState, CubeFaces.All);
+            return GenerateSpacePaint(ref meshOutput, ref mesherState, CubeFaces.All);
         }
 
-        public abstract void GenerateFull(
+        public abstract bool GenerateFull(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces);
 
-        public abstract void GenerateIndices(
+        public abstract bool GenerateIndices(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces);
 
-        public abstract void GenerateSpace(
+        public abstract bool GenerateSpace(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces);
 
-        public abstract void GeneratePaint(
+        public abstract bool GeneratePaint(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces);
 
-        public abstract void GenerateSpacePaint(
+        public abstract bool GenerateSpacePaint(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces);

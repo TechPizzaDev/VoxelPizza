@@ -3,23 +3,23 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public abstract class MeshProvider
     {
-        public abstract void GenerateFull(
+        public abstract bool GenerateFull(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherData);
 
-        public abstract void GenerateIndices(
+        public abstract bool GenerateIndices(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherData);
 
-        public abstract void GenerateSpace(
+        public abstract bool GenerateSpace(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherData);
 
-        public abstract void GeneratePaint(
+        public abstract bool GeneratePaint(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherData);
 
-        public abstract void GenerateSpacePaint(
+        public abstract bool GenerateSpacePaint(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherData);
     }

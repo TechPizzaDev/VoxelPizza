@@ -8,7 +8,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         // TODO: fix this temporary mess
         public TextureAnimation[] anims;
 
-        public override void GenerateFull(
+        public override bool GenerateFull(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces)
@@ -21,33 +21,33 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
                 Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(anims), (nint)blockId),
                 blockId * 2);
 
-            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+            return CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GenerateFullFrom(ref meshOutput, faces, ref indGen, ref spaGen, ref paiGen);
         }
 
-        public override void GenerateIndices(
+        public override bool GenerateIndices(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces)
         {
             var indGen = new CubeIndexGenerator();
 
-            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+            return CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GenerateIndicesFrom(ref meshOutput, faces, ref indGen);
         }
 
-        public override void GenerateSpace(
+        public override bool GenerateSpace(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces)
         {
             var spaGen = new CubeSpaceVertexGenerator(mesherState.X, mesherState.Y, mesherState.Z);
 
-            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+            return CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GenerateSpaceFrom(ref meshOutput, faces, ref spaGen);
         }
 
-        public override void GeneratePaint(
+        public override bool GeneratePaint(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces)
@@ -55,11 +55,11 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             uint blockId = mesherState.CoreId;
             var paiGen = new CubePaintVertexGenerator(anims[blockId], blockId * 2);
 
-            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+            return CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GeneratePaintFrom(ref meshOutput, faces, ref paiGen);
         }
 
-        public override void GenerateSpacePaint(
+        public override bool GenerateSpacePaint(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,
             CubeFaces faces)
@@ -69,7 +69,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             uint blockId = mesherState.CoreId;
             var paiGen = new CubePaintVertexGenerator(anims[blockId], blockId * 2);
 
-            CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
+            return CubeMeshGenerator<CubeIndexGenerator, CubeSpaceVertexGenerator, CubePaintVertexGenerator>
                 .GenerateSpacePaintFrom(ref meshOutput, faces, ref spaGen, ref paiGen);
         }
     }

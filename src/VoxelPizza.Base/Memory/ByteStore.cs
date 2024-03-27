@@ -134,7 +134,11 @@ namespace VoxelPizza
             ByteCapacity = newByteCapacity;
             return true;
         }
-
+        
+        /// <returns>
+        /// <see langword="true"/> when memory allocation succeeded; 
+        /// <see langword="false"/> otherwise.
+        /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool EnsureCapacity(nuint capacity)
         {
@@ -145,7 +149,11 @@ namespace VoxelPizza
             }
             return true;
         }
-
+        
+        /// <returns>
+        /// <see langword="true"/> when memory allocation succeeded; 
+        /// <see langword="false"/> otherwise.
+        /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool PrepareCapacityFor(uint count)
         {

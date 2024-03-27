@@ -3,6 +3,10 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public abstract class MeshProvider
     {
+        /// <returns>
+        /// <see langword="true"/> when memory allocation succeeded; 
+        /// <see langword="false"/> otherwise.
+        /// </returns>
         public abstract bool GenerateFull(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherData);

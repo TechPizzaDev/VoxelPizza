@@ -8,6 +8,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         // TODO: fix this temporary mess
         public TextureAnimation[] anims;
 
+        /// <inheritdoc/>
         public override bool GenerateFull(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,

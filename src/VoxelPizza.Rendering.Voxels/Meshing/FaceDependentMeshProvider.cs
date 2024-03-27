@@ -3,6 +3,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
 {
     public abstract class FaceDependentMeshProvider : MeshProvider
     {
+        /// <inheritdoc/>
         public override bool GenerateFull(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState)
@@ -37,7 +38,11 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         {
             return GenerateSpacePaint(ref meshOutput, ref mesherState, CubeFaces.All);
         }
-
+        
+        /// <returns>
+        /// <see langword="true"/> when memory allocation succeeded; 
+        /// <see langword="false"/> otherwise.
+        /// </returns>
         public abstract bool GenerateFull(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState,

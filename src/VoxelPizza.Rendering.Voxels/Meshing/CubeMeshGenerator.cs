@@ -6,6 +6,10 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         where TSpaceGen : ICubeVertexGenerator<ChunkSpaceVertex>
         where TPaintGen : ICubeVertexGenerator<ChunkPaintVertex>
     {
+        /// <returns>
+        /// <see langword="true"/> when memory allocation succeeded; 
+        /// <see langword="false"/> otherwise.
+        /// </returns>
         public static bool GenerateFullFrom(
             ref ChunkMeshOutput meshOutput,
             CubeFaces faces,

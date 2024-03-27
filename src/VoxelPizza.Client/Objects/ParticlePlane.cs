@@ -298,7 +298,7 @@ namespace VoxelPizza.Client.Objects
 
             _instanceDynamicVb = factory.CreateBuffer(new BufferDescription(particlesDynamic.SizeInBytes(), BufferUsage.VertexBuffer | BufferUsage.DynamicWrite));
 
-            ResourceSetDescription resourceSetDescription = new(sharedLayout, new[] { _cameraInfoBuffer });
+            ResourceSetDescription resourceSetDescription = new(sharedLayout, _cameraInfoBuffer);
             _sharedResourceSet = factory.CreateResourceSet(resourceSetDescription);
         }
 

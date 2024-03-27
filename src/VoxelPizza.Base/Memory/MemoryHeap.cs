@@ -1,5 +1,5 @@
 using System;
-using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace VoxelPizza
 {
@@ -26,14 +26,19 @@ namespace VoxelPizza
             void* newBuffer = Alloc(requestedByteCapacity, out actualByteCapacity);
             if (buffer != null)
             {
-                Unsafe.CopyBlockUnaligned(
-                    newBuffer,
+                Copy(
                     buffer,
+                    newBuffer,
                     (uint)Math.Min(requestedByteCapacity, previousByteCapacity));
 
                 Free(previousByteCapacity, buffer);
             }
             return newBuffer;
+        }
+
+        public virtual void Copy(void* source, void* destination, nuint byteCount)
+        {
+            NativeMemory.Copy(source, destination, byteCount);
         }
     }
 }

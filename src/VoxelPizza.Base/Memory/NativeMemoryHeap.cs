@@ -19,19 +19,31 @@ namespace VoxelPizza
         public override void* Alloc(nuint byteCapacity, out nuint actualByteCapacity)
         {
             actualByteCapacity = byteCapacity;
-            if (byteCapacity == 0)
+            if (byteCapacity != 0)
+            {
+                GC.AddMemoryPressure((long)byteCapacity);
+            }
+
+            try
+            {
+                return NativeMemory.Alloc(byteCapacity);
+            }
+            catch (OutOfMemoryException)
             {
                 return null;
             }
-
-            GC.AddMemoryPressure((long)byteCapacity);
-            return NativeMemory.Alloc(byteCapacity);
         }
 
         public override void Free(nuint byteCapacity, void* buffer)
         {
+            ArgumentNullException.ThrowIfNull(buffer, nameof(buffer));
+
             NativeMemory.Free(buffer);
-            GC.RemoveMemoryPressure((long)byteCapacity);
+
+            if (byteCapacity != 0)
+            {
+                GC.RemoveMemoryPressure((long)byteCapacity);
+            }
         }
 
         public override unsafe void* Realloc(
@@ -47,19 +59,25 @@ namespace VoxelPizza
             }
 
             actualByteCapacity = requestedByteCapacity;
-            if (requestedByteCapacity == 0)
+            if (requestedByteCapacity != 0)
             {
-                Free(previousByteCapacity, buffer);
-                return null;
+                GC.AddMemoryPressure((long)requestedByteCapacity);
             }
 
-            GC.AddMemoryPressure((long)requestedByteCapacity);
-            void* newBuffer = NativeMemory.Realloc(buffer, requestedByteCapacity);
+            try
+            {
+                void* newBuffer = NativeMemory.Realloc(buffer, requestedByteCapacity);
 
-            if (previousByteCapacity != 0)
-                GC.RemoveMemoryPressure((long)previousByteCapacity);
-
-            return newBuffer;
+                if (previousByteCapacity != 0)
+                {
+                    GC.RemoveMemoryPressure((long)previousByteCapacity);
+                }
+                return newBuffer;
+            }
+            catch (OutOfMemoryException)
+            {
+                return null;
+            }
         }
     }
 }

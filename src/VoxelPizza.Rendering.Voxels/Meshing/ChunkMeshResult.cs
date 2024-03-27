@@ -76,9 +76,9 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             ChunkSpaceVertex* spacePtr = (ChunkSpaceVertex*)(bytePtr + indexByteCount);
             ChunkPaintVertex* paintPtr = (ChunkPaintVertex*)(bytePtr + indexByteCount + spaceByteCount);
 
-            Unsafe.CopyBlockUnaligned(indexPtr, indices.Buffer, (uint)indexByteCount);
-            Unsafe.CopyBlockUnaligned(spacePtr, spaceVertices.Buffer, (uint)spaceByteCount);
-            Unsafe.CopyBlockUnaligned(paintPtr, paintVertices.Buffer, (uint)paintByteCount);
+            indices.Heap.Copy(indices.Buffer, indexPtr, indexByteCount);
+            spaceVertices.Heap.Copy(spaceVertices.Buffer, spacePtr, spaceByteCount);
+            paintVertices.Heap.Copy(paintVertices.Buffer, paintPtr, paintByteCount);
 
             ByteStore<uint> resultIndices = new(heap, indexPtr, indexByteCount);
             resultIndices.MoveByteHead(indexByteCount);

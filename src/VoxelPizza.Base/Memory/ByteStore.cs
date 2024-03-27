@@ -11,7 +11,18 @@ namespace VoxelPizza
 
         public MemoryHeap Heap { get; }
         public T* Buffer { get; private set; }
-        public T* Head => _head;
+
+        public T* Head
+        {
+            get => _head;
+            set
+            {
+                Debug.Assert(value >= Buffer && value <= End);
+                _head = value;
+            }
+        }
+
+        internal T* End => (T*)((byte*)Buffer + ByteCapacity);
 
         public nuint ByteCapacity { get; private set; }
         public nuint ByteCount => (nuint)((byte*)_head - (byte*)Buffer);
@@ -53,7 +64,12 @@ namespace VoxelPizza
             }
 
             void* newBuffer = heap.Alloc(byteCount, out nuint newByteCapacity);
-            Unsafe.CopyBlockUnaligned(newBuffer, Buffer, (uint)byteCount);
+            if (newBuffer == null)
+            {
+                return new ByteStore<T>(heap);
+            }
+
+            heap.Copy(Buffer, newBuffer, byteCount);
 
             ByteStore<T> newStore = new(heap, (T*)newBuffer, newByteCapacity);
             newStore._head = (T*)((byte*)newStore._head + byteCount);
@@ -71,18 +87,25 @@ namespace VoxelPizza
 
         public void Trim()
         {
-            Resize(Count);
+            bool resized = Resize(Count);
+            Debug.Assert(resized);
         }
 
         public void MoveByteHead(nuint byteCount)
         {
-            Debug.Assert((byte*)_head + byteCount <= (byte*)Buffer + ByteCapacity);
+            Debug.Assert((byte*)_head + byteCount <= End);
             _head = (T*)((byte*)_head + byteCount);
         }
 
         public void MoveHead(uint count)
         {
-            Debug.Assert(_head + count <= Buffer + Capacity);
+            Debug.Assert(_head + count <= End);
+            _head += count;
+        }
+
+        public void MoveHead(long count)
+        {
+            Debug.Assert(_head + count <= End);
             _head += count;
         }
 
@@ -92,34 +115,41 @@ namespace VoxelPizza
             return new ByteStore<T>(heap, (T*)buffer, actualByteCapacity);
         }
 
-        private unsafe void Resize(nuint newCapacity)
+        private unsafe bool Resize(nuint newCapacity)
         {
             nuint byteCount = ByteCount;
             void* newBuffer = Heap.Realloc(
-                Buffer, 
+                Buffer,
                 ByteCapacity,
-                newCapacity * (uint)Unsafe.SizeOf<T>(), 
+                newCapacity * (uint)Unsafe.SizeOf<T>(),
                 out nuint newByteCapacity);
+
+            if (newBuffer == null)
+            {
+                return false;
+            }
 
             Buffer = (T*)newBuffer;
             _head = (T*)((byte*)Buffer + byteCount);
             ByteCapacity = newByteCapacity;
+            return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void EnsureCapacity(nuint capacity)
+        public bool EnsureCapacity(nuint capacity)
         {
             if (ByteCapacity < capacity * (nuint)Unsafe.SizeOf<T>())
             {
                 nuint newCapacity = Math.Min(capacity * 2, capacity + 1024 * 64);
-                Resize(newCapacity);
+                return Resize(newCapacity);
             }
+            return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void PrepareCapacityFor(uint count)
+        public bool PrepareCapacityFor(uint count)
         {
-            EnsureCapacity(Count + count);
+            return EnsureCapacity(Count + count);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -134,12 +164,6 @@ namespace VoxelPizza
             Span<T> slice = new(_head, (int)count);
             _head += count;
             return slice;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void AppendRange(ReadOnlySpan<T> values)
-        {
-            values.CopyTo(new(_head, values.Length));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

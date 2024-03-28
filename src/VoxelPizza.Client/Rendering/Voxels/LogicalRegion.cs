@@ -45,7 +45,8 @@ namespace VoxelPizza.Client.Rendering.Voxels
             return mesh.IndexByteCount + mesh.SpaceVertexByteCount + mesh.PaintVertexByteCount;
         }
 
-        public bool Update(ValueArc<Dimension> dimension, BlockMemory blockBuffer, ChunkMesher mesher)
+        public bool Update(
+            ValueArc<Dimension> dimension, BlockMemory blockBuffer, ChunkMesher mesher, CancellationToken cancellationToken)
         {
             int updateRequired = Interlocked.Exchange(ref _updateRequired, 0);
             if (updateRequired == 0)
@@ -57,6 +58,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
             Stopwatch meshWatch = new();
             int meshCount = 0;
             int fetchCount = 0;
+            bool cancelled = false;
 
             BytesForMesh = 0;
 
@@ -67,6 +69,12 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 if (!chunk.UpdateRequired)
                 {
                     BytesForMesh += GetBytesForMesh(chunk.Mesh);
+                    continue;
+                }
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    cancelled = true;
                     continue;
                 }
 
@@ -119,6 +127,11 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
                 if (result != "")
                     Console.WriteLine(result);
+            }
+
+            if (cancelled)
+            {
+                Interlocked.Increment(ref _updateRequired);
             }
 
             return true;

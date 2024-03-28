@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using System.Threading;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
@@ -259,6 +260,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 return;
             }
 
+            CancellationTokenSource cancellationSource = new(TimeSpan.FromMilliseconds(10));
             bool wasBroken = false;
 
             _updateWatch.Restart();
@@ -270,13 +272,13 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
             foreach (LogicalRegion region in sortedRegions)
             {
-                bool updated = region.Update(Dimension, _blockBuffer, ChunkMesher);
+                bool updated = region.Update(Dimension, _blockBuffer, ChunkMesher, cancellationSource.Token);
                 if (updated)
                 {
                     RegionUpdated?.Invoke(region);
                 }
 
-                if (_updateWatch.Elapsed >= TimeSpan.FromMilliseconds(10))
+                if (cancellationSource.IsCancellationRequested)
                 {
                     wasBroken = true;
                     break;

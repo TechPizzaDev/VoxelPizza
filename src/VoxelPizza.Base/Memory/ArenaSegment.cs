@@ -2,12 +2,12 @@ namespace VoxelPizza.Memory
 {
     public struct ArenaSegment
     {
-        public uint Offset;
-        public uint Length;
+        public ulong Offset;
+        public ulong Length;
 
         public readonly ulong End => Offset + Length;
 
-        public ArenaSegment(uint offset, uint length)
+        public ArenaSegment(ulong offset, ulong length)
         {
             Offset = offset;
             Length = length;

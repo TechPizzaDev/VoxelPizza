@@ -454,7 +454,7 @@ namespace VoxelPizza.Client
                     (uint bytesSum, uint bytesAvg) = _renderRegionManager.GetBytesForMeshes();
                     ImGui.Text($"Bytes for logical meshes: {bytesSum / 1024}kB ({bytesAvg / 1024}kB avg/chunk)");
 
-                    (uint sumDense, uint sumSparse, uint denseAvg, uint sparseAvg) = _renderRegionRenderer.GetBytesForMeshes();
+                    (ulong sumDense, ulong sumSparse, ulong denseAvg, ulong sparseAvg) = _renderRegionRenderer.GetBytesForMeshes();
                     ImGui.Text($"Dense bytes for visual meshes: {sumDense / 1024}kB ({denseAvg / 1024}kB avg/chunk)");
                     ImGui.Text($"Sparse bytes for visual meshes: {sumSparse / 1024}kB ({sparseAvg / 1024}kB avg/chunk)");
                 }

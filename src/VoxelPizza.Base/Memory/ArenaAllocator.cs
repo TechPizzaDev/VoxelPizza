@@ -13,24 +13,24 @@ namespace VoxelPizza.Memory
     {
         private List<ArenaSegment> _freeSegments = new();
 #if ALLOC_TRACK
-        private SortedList<uint, uint> _allocatedSegments = new();
+        private SortedList<ulong, ulong> _allocatedSegments = new();
 #endif
 
         private uint _segmentsUsed;
-        private uint _elementsUsed;
+        private ulong _elementsUsed;
 
-        public uint ElementCapacity { get; }
+        public ulong ElementCapacity { get; }
 
         public uint SegmentsUsed => _segmentsUsed;
         public uint SegmentsFree => (uint)_freeSegments.Count;
-        public uint ElementsUsed => _elementsUsed;
-        public uint ElementsFree => ElementCapacity - _elementsUsed;
+        public ulong ElementsUsed => _elementsUsed;
+        public ulong ElementsFree => ElementCapacity - _elementsUsed;
 
         private ArenaAllocator()
         {
         }
 
-        public ArenaAllocator(uint elementCapacity)
+        public ArenaAllocator(ulong elementCapacity)
         {
             ElementCapacity = elementCapacity;
 
@@ -44,14 +44,14 @@ namespace VoxelPizza.Memory
             {
                 _freeSegments = new List<ArenaSegment>(_freeSegments),
 #if ALLOC_TRACK
-                _allocatedSegments = new SortedList<uint, uint>(_allocatedSegments),
+                _allocatedSegments = new SortedList<ulong, ulong>(_allocatedSegments),
 #endif
                 _segmentsUsed = _segmentsUsed,
                 _elementsUsed = _elementsUsed,
             };
         }
 
-        public bool TryAlloc(uint size, uint alignment, out ArenaSegment allocatedSegment)
+        public bool TryAlloc(ulong size, uint alignment, out ArenaSegment allocatedSegment)
         {
             if (_freeSegments.Count == 0)
             {
@@ -61,8 +61,8 @@ namespace VoxelPizza.Memory
 
             Span<ArenaSegment> freeSegments = CollectionsMarshal.AsSpan(_freeSegments);
 
-            uint alignedSegmentSize = 0;
-            uint alignedOffsetRemainder = 0;
+            ulong alignedSegmentSize = 0;
+            ulong alignedOffsetRemainder = 0;
 
             int i = 0;
             int selectedIndex = -1;
@@ -73,7 +73,7 @@ namespace VoxelPizza.Memory
                 alignedOffsetRemainder = segment.Offset % alignment;
                 if (alignedOffsetRemainder != 0)
                 {
-                    uint alignmentCorrection = alignment - alignedOffsetRemainder;
+                    ulong alignmentCorrection = alignment - alignedOffsetRemainder;
                     if (alignedSegmentSize <= alignmentCorrection)
                     {
                         continue;
@@ -129,15 +129,17 @@ namespace VoxelPizza.Memory
             return false;
         }
 
-        private static int FindPrecedingSegmentIndex(ReadOnlySpan<ArenaSegment> list, uint targetOffset)
+        private static int FindPrecedingSegmentIndex(ReadOnlySpan<ArenaSegment> list, ulong targetOffset)
         {
             int low = 0;
             int high = list.Length - 1;
             ref ArenaSegment s = ref MemoryMarshal.GetReference(list);
 
-            if (list.Length == 0 || Unsafe.Add(ref s, high).Offset < targetOffset)
+            if (list.Length == 0 || list[high].Offset < targetOffset)
+            {
                 return -1;
-
+            }
+            
             while (low <= high)
             {
                 int mid = low + ((high - low) / 2);
@@ -225,7 +227,7 @@ namespace VoxelPizza.Memory
 
             for (int i = 0; i < freeSegments.Count - 1; i++)
             {
-                uint segmentStart = freeSegments[i].Offset;
+                ulong segmentStart = freeSegments[i].Offset;
                 while (i + contiguousLength < freeSegments.Count
                     && freeSegments[i + contiguousLength - 1].End == freeSegments[i + contiguousLength].Offset)
                 {
@@ -239,7 +241,7 @@ namespace VoxelPizza.Memory
 
                     ArenaSegment mergedSegment = new(
                         segmentStart,
-                        (uint)(segmentEnd - segmentStart));
+                        (ulong)(segmentEnd - segmentStart));
 
                     freeSegments.Insert(i, mergedSegment);
                     hasMerged = true;

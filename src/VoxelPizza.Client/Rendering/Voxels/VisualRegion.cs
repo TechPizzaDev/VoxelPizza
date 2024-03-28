@@ -54,22 +54,22 @@ namespace VoxelPizza.Client.Rendering.Voxels
         {
             Size3 size = Size;
             uint volume = size.Volume;
-            uint initialCapacity = size.D * size.W * Chunk.Width * Chunk.Depth;
+            ulong initialCapacity = size.D * size.W * Chunk.Width * Chunk.Depth;
 
-            uint indexCapacity = AlignCapacity(initialCapacity * 6 * (uint)Unsafe.SizeOf<uint>(), IndexCapacityAlignment);
+            ulong indexCapacity = AlignCapacity(initialCapacity * 6 * (ulong)Unsafe.SizeOf<uint>(), IndexCapacityAlignment);
             _indexArena = GraphicsArenaAllocator.Create(
                 factory, indexCapacity, BufferUsage.IndexBuffer);
 
-            uint vertexCapacity = AlignCapacity(initialCapacity * 4 * (uint)Unsafe.SizeOf<ChunkSpaceVertex>(), VertexCapacityAlignment);
+            ulong vertexCapacity = AlignCapacity(initialCapacity * 4 * (ulong)Unsafe.SizeOf<ChunkSpaceVertex>(), VertexCapacityAlignment);
             _vertexArena = GraphicsArenaAllocator.Create(
                 factory, vertexCapacity, BufferUsage.VertexBuffer);
 
-            uint renderInfoCapacity = AlignCapacity(volume * 4 * (uint)Unsafe.SizeOf<ChunkRenderInfo>(), RenderInfoCapacityAlignment);
+            ulong renderInfoCapacity = AlignCapacity(volume * 4 * (ulong)Unsafe.SizeOf<ChunkRenderInfo>(), RenderInfoCapacityAlignment);
             _renderInfoArena = GraphicsArenaAllocator.Create(
                 factory, renderInfoCapacity, BufferUsage.VertexBuffer);
 
-            uint indirectCapacity = AlignCapacity(
-                volume * 4 * (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>(), IndirectCapacityAlignment);
+            ulong indirectCapacity = AlignCapacity(
+                volume * 4 * (ulong)Unsafe.SizeOf<IndirectDrawIndexedArguments>(), IndirectCapacityAlignment);
             _indirectArena = GraphicsArenaAllocator.Create(
                 factory, indirectCapacity, BufferUsage.IndirectBuffer);
         }
@@ -92,11 +92,11 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
             cl.SetIndexBuffer(mesh._indexBuffer, IndexFormat.UInt32);
             cl.SetVertexBuffer(0, mesh._vertexBuffer);
-            cl.SetVertexBuffer(1, mesh._renderInfoBuffer, mesh.RenderInfoSegment.Offset);
+            cl.SetVertexBuffer(1, mesh._renderInfoBuffer, (uint)mesh.RenderInfoSegment.Offset);
 
             cl.DrawIndexedIndirect(
                 mesh._indirectBuffer,
-                mesh.IndirectSegment.Offset,
+                (uint)mesh.IndirectSegment.Offset,
                 mesh.IndirectCount,
                 (uint)Unsafe.SizeOf<IndirectDrawIndexedArguments>());
         }
@@ -461,7 +461,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 // If extraIndexSize is above zero, then we need a compaction.
                 if (extraIndexSize > 0 || _indexArena.BytesFree < indexSize)
                 {
-                    uint freedSize = 0;
+                    ulong freedSize = 0;
                     foreach ((ArenaSegment, ArenaAllocator) oldBuf in chunkMeshBuffers.OldIndexSegments)
                     {
                         freedSize += oldBuf.Item1.Length;
@@ -469,7 +469,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
                     }
                     chunkMeshBuffers.OldIndexSegments.Clear();
 
-                    uint newCapacity = (uint)Math.Max((int)(indexSize + extraIndexSize) - (int)freedSize, 0);
+                    ulong newCapacity = (ulong)Math.Max(((long)indexSize + extraIndexSize) - (long)freedSize, 0);
                     EnsureCapacityFor<VisualRegionChunk, IndexBufferTransform>(
                         ref _indexArena, visualChunks, newCapacity, IndexCapacityAlignment, chunkMeshBuffers.OldBuffers, factory, cl);
                 }
@@ -483,7 +483,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 // If extraVertexSize is above zero, then we need a compaction.
                 if (extraVertexSize > 0 || _vertexArena.BytesFree < vertexSize)
                 {
-                    uint freedSize = 0;
+                    ulong freedSize = 0;
                     foreach ((ArenaSegment, ArenaAllocator) oldBuf in chunkMeshBuffers.OldVertexSegments)
                     {
                         freedSize += oldBuf.Item1.Length;
@@ -530,11 +530,11 @@ namespace VoxelPizza.Client.Rendering.Voxels
                 }
 
                 {
-                    uint segmentIndexOffset = indexSegment.Offset / sizeof(uint);
-                    uint segmentIndexCount = indexSegment.Length / sizeof(uint);
+                    uint segmentIndexOffset = (uint)(indexSegment.Offset / sizeof(uint));
+                    uint segmentIndexCount = (uint)(indexSegment.Length / sizeof(uint));
 
-                    uint segmentVertexOffset = vertexSegment.Offset / (uint)Unsafe.SizeOf<ChunkSpaceVertex>();
-                    uint segmentVertexCount = vertexSegment.Length / (uint)Unsafe.SizeOf<ChunkSpaceVertex>();
+                    uint segmentVertexOffset = (uint)(vertexSegment.Offset / (ulong)Unsafe.SizeOf<ChunkSpaceVertex>());
+                    uint segmentVertexCount = (uint)(vertexSegment.Length / (ulong)Unsafe.SizeOf<ChunkSpaceVertex>());
 
                     IndirectDrawIndexedArguments indirect = new()
                     {
@@ -658,8 +658,8 @@ namespace VoxelPizza.Client.Rendering.Voxels
             }
 
             cl.InsertDebugMarker("Uploading draw calls");
-            cl.CopyBuffer(stagingBuffer, indirectDstOffset, _indirectArena.Buffer, indirectSegment.Offset, indirectSegment.Length);
-            cl.CopyBuffer(stagingBuffer, renderInfoDstOffset, _renderInfoArena.Buffer, renderInfoSegment.Offset, renderInfoSegment.Length);
+            cl.CopyBuffer(stagingBuffer, indirectDstOffset, _indirectArena.Buffer, (uint)indirectSegment.Offset, (uint)indirectSegment.Length);
+            cl.CopyBuffer(stagingBuffer, renderInfoDstOffset, _renderInfoArena.Buffer, (uint)renderInfoSegment.Offset, (uint)renderInfoSegment.Length);
 
             cl.PopDebugGroup();
 
@@ -726,26 +726,26 @@ namespace VoxelPizza.Client.Rendering.Voxels
             }
         }
 
-        private static uint AlignCapacity(uint capacity, uint alignment)
+        private static ulong AlignCapacity(ulong capacity, uint alignment)
         {
-            uint alignedCapacity = (capacity + alignment - 1) / alignment * alignment;
+            ulong alignedCapacity = (capacity + alignment - 1) / alignment * alignment;
             return alignedCapacity;
         }
 
         public static void EnsureCapacityFor<TIn, TTransform>(
             ref GraphicsArenaAllocator allocator,
             Span<TIn> elements,
-            uint capacity,
+            ulong capacity,
             uint capacityAlignment,
             List<DeviceBuffer> oldBuffers,
             ResourceFactory factory,
             CommandList commandList)
             where TTransform : IIteratorTransform<TIn, ArenaSegment>, new()
         {
-            uint free = allocator.BytesFree;
-            int required = (int)capacity - (int)free;
-            uint newCapacity = Math.Max((uint)((int)allocator.ByteCapacity + required), allocator.ByteCapacity);
-            uint alignedCapacity = AlignCapacity(newCapacity, capacityAlignment);
+            ulong free = allocator.BytesFree;
+            long required = (long)capacity - (long)free;
+            ulong newCapacity = Math.Max((ulong)((long)allocator.ByteCapacity + required), allocator.ByteCapacity);
+            ulong alignedCapacity = AlignCapacity(newCapacity, capacityAlignment);
 
             GraphicsArenaAllocator newAllocator = Resize<TIn, TTransform>(
                 allocator, elements, alignedCapacity, factory, commandList);
@@ -765,7 +765,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
         public static GraphicsArenaAllocator Resize<TIn, TTransform>(
             GraphicsArenaAllocator allocator,
             Span<TIn> elements,
-            uint newCapacity,
+            ulong newCapacity,
             ResourceFactory factory,
             CommandList commandList)
             where TTransform : IIteratorTransform<TIn, ArenaSegment>, new()
@@ -844,7 +844,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
         private static void Compact<TIn, TTransform>(
             Span<TIn> elements,
-            uint offset,
+            ulong offset,
             List<BufferCopyCommand> commands)
             where TTransform : IIteratorTransform<TIn, ArenaSegment>, new()
         {
@@ -852,7 +852,7 @@ namespace VoxelPizza.Client.Rendering.Voxels
 
             BufferCopyCommand command = default;
 
-            uint writeOffset = offset;
+            ulong writeOffset = offset;
 
             foreach (ref TIn usedSegment in elements)
             {

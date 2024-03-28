@@ -11,11 +11,11 @@ namespace VoxelPizza.Memory
         public ArenaAllocator Allocator { get; }
 
         public BufferUsage Usage => Buffer.Usage;
-        public uint ByteCapacity => Allocator.ElementCapacity;
+        public ulong ByteCapacity => Allocator.ElementCapacity;
         public uint SegmentsUsed => Allocator.SegmentsUsed;
         public uint SegmentsFree => Allocator.SegmentsFree;
-        public uint BytesUsed => Allocator.ElementsUsed;
-        public uint BytesFree => Allocator.ElementsFree;
+        public ulong BytesUsed => Allocator.ElementsUsed;
+        public ulong BytesFree => Allocator.ElementsFree;
 
         public GraphicsArenaAllocator(DeviceBuffer buffer, ArenaAllocator allocator)
         {
@@ -23,7 +23,7 @@ namespace VoxelPizza.Memory
             Allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
         }
 
-        public bool TryAlloc(uint size, uint alignment, out ArenaSegment segment)
+        public bool TryAlloc(ulong size, uint alignment, out ArenaSegment segment)
         {
             return Allocator.TryAlloc(size, alignment, out segment);
         }
@@ -33,9 +33,9 @@ namespace VoxelPizza.Memory
             Allocator.Free(segment);
         }
 
-        public static GraphicsArenaAllocator Create(ResourceFactory factory, uint byteCapacity, BufferUsage usage)
+        public static GraphicsArenaAllocator Create(ResourceFactory factory, ulong byteCapacity, BufferUsage usage)
         {
-            BufferDescription description = new(byteCapacity, usage, 0, rawBuffer: true);
+            BufferDescription description = new(checked((uint)byteCapacity), usage, 0, rawBuffer: true);
             DeviceBuffer buffer = factory.CreateBuffer(description);
             return new GraphicsArenaAllocator(buffer, new ArenaAllocator(byteCapacity));
         }

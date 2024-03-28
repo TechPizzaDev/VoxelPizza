@@ -83,10 +83,10 @@ namespace VoxelPizza.Client.Rendering.Voxels
             _regions.Clear();
         }
 
-        public (uint SumDense, uint SumSparse, uint DenseAvg, uint SparseAvg) GetBytesForMeshes()
+        public (ulong SumDense, ulong SumSparse, ulong DenseAvg, ulong SparseAvg) GetBytesForMeshes()
         {
-            uint sumDense = 0;
-            uint sumSparse = 0;
+            ulong sumDense = 0;
+            ulong sumSparse = 0;
             uint count = 0;
 
             lock (_regions)

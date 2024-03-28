@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Rendering.Voxels.Meshing
@@ -11,7 +10,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         public readonly ReadOnlySpan<CubeFaces> OppositeBlockingFaces;
         public readonly ReadOnlySpan<MeshProvider?> MeshProviders;
 
-        public readonly ReadOnlySpan<uint> Data;
+        public readonly ref uint Data;
         public readonly nuint RowStride;
         public readonly nuint LayerStride;
         public readonly nuint InnerSizeW;
@@ -23,11 +22,11 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         public nuint Y;
         public nuint Z;
 
-        public readonly ref uint CoreRow => ref Unsafe.Add(ref MemoryMarshal.GetReference(Data), Index);
-        public readonly ref uint TopRow => ref Unsafe.Add(ref MemoryMarshal.GetReference(Data), Index + LayerStride);
-        public readonly ref uint BottomRow => ref Unsafe.Add(ref MemoryMarshal.GetReference(Data), Index - LayerStride);
-        public readonly ref uint FrontRow => ref Unsafe.Add(ref MemoryMarshal.GetReference(Data), Index + RowStride);
-        public readonly ref uint BackRow => ref Unsafe.Add(ref MemoryMarshal.GetReference(Data), Index - RowStride);
+        public readonly ref uint CoreRow => ref Unsafe.Add(ref Data, Index);
+        public readonly ref uint TopRow => ref Unsafe.Add(ref Data, Index + LayerStride);
+        public readonly ref uint BottomRow => ref Unsafe.Add(ref Data, Index - LayerStride);
+        public readonly ref uint FrontRow => ref Unsafe.Add(ref Data, Index + RowStride);
+        public readonly ref uint BackRow => ref Unsafe.Add(ref Data, Index - RowStride);
 
         public readonly uint CoreId => Unsafe.Add(ref CoreRow, X);
 
@@ -35,7 +34,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             ReadOnlySpan<BlockVisualFeatures> visualFeatures,
             ReadOnlySpan<CubeFaces> oppositeBlockingFaces,
             ReadOnlySpan<MeshProvider?> meshProviders,
-            ReadOnlySpan<uint> data,
+            ref uint data,
             nuint rowStride,
             nuint layerStride,
             Size3 innerSize)
@@ -44,7 +43,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             OppositeBlockingFaces = oppositeBlockingFaces;
             MeshProviders = meshProviders;
 
-            Data = data;
+            Data = ref data;
             RowStride = rowStride;
             LayerStride = layerStride;
             InnerSizeW = innerSize.W;

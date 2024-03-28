@@ -82,7 +82,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
                     visualFeatures,
                     oppositeBlockingFaces,
                     meshProviders,
-                    worldSlice.Data,
+                    ref MemoryMarshal.GetReference(worldSlice.Data.AsSpan()),
                     rowStride,
                     layerStride,
                     innerSize);

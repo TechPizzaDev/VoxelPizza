@@ -51,38 +51,49 @@ namespace VoxelPizza
         }
 
         /// <summary>
-        /// Duplicates the contents of this <see cref="ByteStore{T}"/> by using a new heap.
+        /// Duplicates the contents of this <see cref="ByteStore{T}"/> by using a specific heap.
         /// </summary>
         /// <param name="heap">The new heap to use.</param>
-        /// <returns>A new <see cref="ByteStore{T}"/> using the specified <paramref name="heap"/>.</returns>
-        public ByteStore<T> Clone(MemoryHeap heap)
+        /// <param name="result">A new <see cref="ByteStore{T}"/> using the specified <paramref name="heap"/>.</param>
+        /// <returns>
+        /// <see langword="true"/> when memory allocation succeeded; 
+        /// <see langword="false"/> otherwise.
+        /// </returns>
+        public bool Clone(MemoryHeap heap, out ByteStore<T> result)
         {
             nuint byteCount = ByteCount;
             if (byteCount == 0)
             {
-                return new ByteStore<T>(heap);
+                result = new ByteStore<T>(heap);
+                return true;
             }
 
             void* newBuffer = heap.Alloc(byteCount, out nuint newByteCapacity);
             if (newBuffer == null)
             {
-                return new ByteStore<T>(heap);
+                result = default;
+                return false;
             }
 
             heap.Copy(Buffer, newBuffer, byteCount);
 
             ByteStore<T> newStore = new(heap, (T*)newBuffer, newByteCapacity);
             newStore._head = (T*)((byte*)newStore._head + byteCount);
-            return newStore;
+            result = newStore;
+            return true;
         }
 
         /// <summary>
         /// Duplicates the contents of this <see cref="ByteStore{T}"/>.
         /// </summary>
-        /// <returns>A new <see cref="ByteStore{T}"/> using the current <see cref="Heap"/>.</returns>
-        public ByteStore<T> Clone()
+        /// <param name="result">A new <see cref="ByteStore{T}"/> using the current <see cref="Heap"/>.</param>
+        /// <returns>
+        /// <see langword="true"/> when memory allocation succeeded; 
+        /// <see langword="false"/> otherwise.
+        /// </returns>
+        public bool Clone(out ByteStore<T> result)
         {
-            return Clone(Heap);
+            return Clone(Heap, out result);
         }
 
         public void Trim()
@@ -134,7 +145,7 @@ namespace VoxelPizza
             ByteCapacity = newByteCapacity;
             return true;
         }
-        
+
         /// <returns>
         /// <see langword="true"/> when memory allocation succeeded; 
         /// <see langword="false"/> otherwise.
@@ -149,7 +160,7 @@ namespace VoxelPizza
             }
             return true;
         }
-        
+
         /// <returns>
         /// <see langword="true"/> when memory allocation succeeded; 
         /// <see langword="false"/> otherwise.

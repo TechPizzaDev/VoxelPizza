@@ -51,7 +51,7 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         }
 
         [SkipLocalsInit]
-        public unsafe ChunkMeshResult Mesh(BlockMemory worldSlice)
+        public unsafe bool Mesh(BlockMemory worldSlice, out ChunkMeshResult result)
         {
             // TODO: chunk/draw layers (seperate mesh provider arrays per layer)?
             //       e.g. this could allow for vertices (including custom) for a "gas" or "fluid" layer 
@@ -102,7 +102,11 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
                             zOffset + z)
                             + xOffset;
 
-                        MeshRow(ref meshOutput, ref mesherState);
+                        if (!MeshRow(ref meshOutput, ref mesherState))
+                        {
+                            result = default;
+                            return false;
+                        }
                     }
                 }
 
@@ -110,13 +114,14 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
                     Heap,
                     _indexStore,
                     _spaceVertexStore,
-                    _paintVertexStore);
+                    _paintVertexStore,
+                    out result);
             }
         }
 
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        private static unsafe void MeshRow(
+        private static unsafe bool MeshRow(
             ref ChunkMeshOutput meshOutput,
             ref ChunkMesherState mesherState)
         {
@@ -160,20 +165,30 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
 
                     mesherState.X = x;
 
-                    Unsafe.As<FaceDependentMeshProvider>(meshProvider).GenerateFull(
+                    bool success = Unsafe.As<FaceDependentMeshProvider>(meshProvider).GenerateFull(
                         ref meshOutput,
                         ref mesherState,
                         (CubeFaces)faces);
+
+                    if (!success)
+                    {
+                        return false;
+                    }
 
                     continue;
                 }
 
                 mesherState.X = x;
 
-                meshProvider.GenerateFull(
+                if (!meshProvider.GenerateFull(
                     ref meshOutput,
-                    ref mesherState);
+                    ref mesherState))
+                {
+                    return false;
+                }
             }
+
+            return true;
         }
 
         public void Dispose()
@@ -183,4 +198,4 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             _paintVertexStore.Dispose();
         }
     }
-} 
+}

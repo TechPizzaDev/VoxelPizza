@@ -40,11 +40,12 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             _paintVertices = paintVertices;
         }
 
-        public static unsafe ChunkMeshResult CreateCopyFrom(
+        public static unsafe bool CreateCopyFrom(
             MemoryHeap heap,
             ByteStore<uint> indices,
             ByteStore<ChunkSpaceVertex> spaceVertices,
-            ByteStore<ChunkPaintVertex> paintVertices)
+            ByteStore<ChunkPaintVertex> paintVertices,
+            out ChunkMeshResult result)
         {
             if (heap == null)
                 throw new ArgumentNullException(nameof(heap));
@@ -55,7 +56,10 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
 
             nuint byteCount = indexByteCount + spaceByteCount + paintByteCount;
             if (byteCount == 0)
-                return default;
+            {
+                result = default;
+                return true;
+            }
 
             nuint indexBlockSize = heap.GetBlockSize(indexByteCount);
             nuint spaceBlockSize = heap.GetBlockSize(spaceByteCount);
@@ -66,7 +70,15 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             float sizeReductionFactor = totalBlockSize / (float)unifiedTotalBlockSize;
             if (sizeReductionFactor < 1)
             {
-                return new ChunkMeshResult(indices.Clone(), spaceVertices.Clone(), paintVertices.Clone());
+                if (indices.Clone(out ByteStore<uint> indicesClone) &&
+                    spaceVertices.Clone(out ByteStore<ChunkSpaceVertex> spaceVerticesClone) &&
+                    paintVertices.Clone(out ByteStore<ChunkPaintVertex> paintVerticesClone))
+                {
+                    result = new ChunkMeshResult(indicesClone, spaceVerticesClone, paintVerticesClone);
+                    return true;
+                }
+                result = default;
+                return false;
             }
 
             void* backingBuffer = heap.Alloc(byteCount, out nuint byteCapacity);
@@ -88,12 +100,13 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             ByteStore<ChunkPaintVertex> resultPaints = new(heap, paintPtr, paintByteCount);
             resultPaints.MoveByteHead(paintByteCount);
 
-            return new ChunkMeshResult(resultIndices, resultSpaces, resultPaints)
+            result = new ChunkMeshResult(resultIndices, resultSpaces, resultPaints)
             {
                 Heap = heap,
                 _backingBuffer = backingBuffer,
                 _backingByteCapacity = byteCapacity,
             };
+            return true;
         }
 
         public void Dispose()

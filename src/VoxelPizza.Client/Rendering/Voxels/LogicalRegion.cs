@@ -95,7 +95,12 @@ namespace VoxelPizza.Client.Rendering.Voxels
                     meshWatch.Start();
                     if (memoryState == BlockMemoryState.Filled)
                     {
-                        chunk.Mesh = mesher.Mesh(blockBuffer);
+                        if (!mesher.Mesh(blockBuffer, out chunk.Mesh))
+                        {
+                            cancelled = true;
+                            meshWatch.Stop();
+                            break;
+                        }
 
                         BytesForMesh += GetBytesForMesh(chunk.Mesh);
 

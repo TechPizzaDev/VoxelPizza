@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelPizza.Collections
+namespace VoxelPizza.Collections.Blocks
 {
     public sealed class BlockStorage8 : BlockStorage
     {
@@ -67,7 +67,7 @@ namespace VoxelPizza.Collections
             int index = GetIndex(0, y, 0);
             int length = Width * Depth;
             Span<byte> dst = _array.AsSpan(index, length);
-            
+
             Narrow(source, dst);
         }
 

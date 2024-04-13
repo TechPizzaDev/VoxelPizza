@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 
-namespace VoxelPizza.Collections
+namespace VoxelPizza.Collections.Blocks
 {
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
     public abstract partial class BlockStorage : IReadableBlockStorage, IWritableBlockStorage, IDisposable

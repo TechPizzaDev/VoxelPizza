@@ -1,5 +1,5 @@
 using System;
-using VoxelPizza.Collections;
+using VoxelPizza.Collections.Blocks;
 using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 

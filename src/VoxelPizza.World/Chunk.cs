@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using VoxelPizza.Collections;
+using VoxelPizza.Collections.Blocks;
 using VoxelPizza.Memory;
 using VoxelPizza.Numerics;
 

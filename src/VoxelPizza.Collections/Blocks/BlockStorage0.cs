@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 
-namespace VoxelPizza.Collections
+namespace VoxelPizza.Collections.Blocks
 {
     public sealed class BlockStorage0 : BlockStorage
     {

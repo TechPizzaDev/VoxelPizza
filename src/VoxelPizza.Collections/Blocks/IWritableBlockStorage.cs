@@ -1,6 +1,6 @@
 using System;
 
-namespace VoxelPizza.Collections
+namespace VoxelPizza.Collections.Blocks
 {
     public interface IWritableBlockStorage : IBlockStorage
     {

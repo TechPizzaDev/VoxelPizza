@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using VoxelPizza.Numerics;
 
-namespace VoxelPizza.Collections;
+namespace VoxelPizza.Collections.Blocks;
 
 public abstract partial class BlockStorage
 {

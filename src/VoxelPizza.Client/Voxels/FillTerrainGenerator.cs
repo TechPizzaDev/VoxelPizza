@@ -1,4 +1,4 @@
-using VoxelPizza.Collections;
+using VoxelPizza.Collections.Blocks;
 using VoxelPizza.Memory;
 
 namespace VoxelPizza.World;

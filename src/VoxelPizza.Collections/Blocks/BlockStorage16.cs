@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace VoxelPizza.Collections
+namespace VoxelPizza.Collections.Blocks
 {
     public sealed class BlockStorage16 : BlockStorage
     {
@@ -33,7 +33,7 @@ namespace VoxelPizza.Collections
             int index = GetIndex(x, y, z);
             int length = Math.Min(destination.Length, Width - x);
             ReadOnlySpan<ushort> src = _array.AsSpan(index, length);
-            
+
             Expand16To32(src, destination);
         }
 
@@ -42,7 +42,7 @@ namespace VoxelPizza.Collections
             int index = GetIndex(0, y, 0);
             int length = Math.Min(destination.Length, Width * Depth);
             ReadOnlySpan<ushort> src = _array.AsSpan(index, length);
-            
+
             Expand16To32(src, destination);
         }
 
@@ -58,7 +58,7 @@ namespace VoxelPizza.Collections
             int length = Math.Min(source.Length, Width - x);
             ReadOnlySpan<uint> src = source.Slice(0, length);
             Span<ushort> dst = _array.AsSpan(index, length);
-            
+
             Narrow(src, dst);
         }
 
@@ -67,7 +67,7 @@ namespace VoxelPizza.Collections
             int index = GetIndex(0, y, 0);
             int length = Width * Depth;
             Span<ushort> dst = _array.AsSpan(index, length);
-            
+
             Narrow(source, dst);
         }
 

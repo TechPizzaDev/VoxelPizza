@@ -193,11 +193,9 @@ namespace VoxelPizza.World
 
                 ref readonly ChunkBoxSlice chunkBox = ref chunkInfo.BoxSlice;
                 BlockPosition outerOrigin = chunkBox.Block - dimOrigin;
-                int outerSizeD = (int)outerSize.D;
-                int outerSizeW = (int)outerSize.W;
-                int innerSizeH = (int)chunkBox.Size.H;
-                int innerSizeD = (int)chunkBox.Size.D;
-                int innerSizeW = (int)chunkBox.Size.W;
+                uint boxSizeH = chunkBox.Size.H;
+                uint boxSizeD = chunkBox.Size.D;
+                uint boxSizeW = chunkBox.Size.W;
 
                 int innerOriginX = chunkBox.InnerOrigin.X;
                 int innerOriginY = chunkBox.InnerOrigin.Y;
@@ -205,23 +203,23 @@ namespace VoxelPizza.World
 
                 BlockStorage storage = chunk.GetBlockStorage();
 
-                for (int y = 0; y < innerSizeH; y++)
+                for (uint y = 0; y < boxSizeH; y++)
                 {
-                    for (int z = 0; z < innerSizeD; z++)
+                    for (uint z = 0; z < boxSizeD; z++)
                     {
-                        int outerBaseIndex = BlockMemory.GetIndexBase(
-                            outerSizeD,
-                            outerSizeW,
-                            y + outerOrigin.Y,
-                            z + outerOrigin.Z)
+                        int outerBaseIndex = (int)BlockMemory.GetIndexBase(
+                            outerSize.D,
+                            outerSize.W,
+                            y + (uint)outerOrigin.Y,
+                            z + (uint)outerOrigin.Z)
                             + outerOrigin.X;
 
-                        Span<uint> destination = bufferData.Slice(outerBaseIndex, innerSizeW);
+                        Span<uint> destination = bufferData.Slice(outerBaseIndex, (int)boxSizeW);
 
                         storage.GetBlockRow(
                             innerOriginX,
-                            y + innerOriginY,
-                            z + innerOriginZ,
+                            (int)y + innerOriginY,
+                            (int)z + innerOriginZ,
                             destination);
                     }
                 }

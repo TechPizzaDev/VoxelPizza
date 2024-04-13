@@ -5,7 +5,9 @@ namespace VoxelPizza.Collections
 {
     public sealed class BlockStorage0 : BlockStorage
     {
-        public override BlockStorageType StorageType => BlockStorageType.Null;
+        private uint _value;
+
+        public override BlockStorageType StorageType => BlockStorageType.Unsigned0;
 
         public BlockStorage0(int width, int height, int depth) : base(width, height, depth)
         {
@@ -27,7 +29,7 @@ namespace VoxelPizza.Collections
             {
                 ThrowIndexOutOfRange();
             }
-            return 0;
+            return _value;
         }
 
         public override void GetBlockRow(int x, int y, int z, Span<uint> destination)
@@ -40,7 +42,7 @@ namespace VoxelPizza.Collections
             {
                 ThrowIndexOutOfRange();
             }
-            dst.Clear();
+            dst.Fill(_value);
         }
 
         public override void GetBlockLayer(int y, Span<uint> destination)
@@ -53,7 +55,7 @@ namespace VoxelPizza.Collections
             {
                 ThrowIndexOutOfRange();
             }
-            dst.Clear();
+            dst.Fill(_value);
         }
 
         public override void SetBlock(int x, int y, int z, uint value)

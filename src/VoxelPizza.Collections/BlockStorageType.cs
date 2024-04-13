@@ -18,6 +18,11 @@ namespace VoxelPizza.Collections
         Specialized,
 
         /// <summary>
+        /// A single value represents the entire data.
+        /// </summary>
+        Unsigned0,
+
+        /// <summary>
         /// The data is stored in 8-bit unsigned integers.
         /// </summary>
         Unsigned8,

@@ -58,17 +58,17 @@ namespace VoxelPizza.Collections
             int length = Math.Min(source.Length, Width - x);
             ReadOnlySpan<uint> src = source.Slice(0, length);
             Span<ushort> dst = _array.AsSpan(index, length);
-
-            for (int i = 0; i < length; i++)
-            {
-                uint value = src[i];
-                dst[i] = (ushort)value;
-            }
+            
+            Narrow(src, dst);
         }
 
         public override void SetBlockLayer(int y, ReadOnlySpan<uint> source)
         {
-            base.SetBlockLayer(y, source);
+            int index = GetIndex(0, y, 0);
+            int length = Width * Depth;
+            Span<ushort> dst = _array.AsSpan(index, length);
+            
+            Narrow(source, dst);
         }
 
         public override void SetBlockRow(int x, int y, int z, uint value)

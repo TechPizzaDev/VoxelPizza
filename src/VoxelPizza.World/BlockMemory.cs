@@ -7,7 +7,7 @@ namespace VoxelPizza.World
     public class BlockMemory
     {
         public uint[] Data;
-
+        
         public Size3 InnerSize { get; }
         public Size3 OuterSize { get; }
         
@@ -28,6 +28,11 @@ namespace VoxelPizza.World
         }
 
         public static int GetIndexBase(int depth, int width, int y, int z)
+        {
+            return (y * depth + z) * width;
+        }
+
+        public static uint GetIndexBase(uint depth, uint width, uint y, uint z)
         {
             return (y * depth + z) * width;
         }

@@ -70,13 +70,13 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
                 Size3 outerSize = worldSlice.OuterSize;
                 Size3 innerSize = worldSlice.InnerSize;
 
-                nuint xOffset = (outerSize.W - innerSize.W) / 2;
-                nuint yOffset = (outerSize.H - innerSize.H) / 2;
-                nuint zOffset = (outerSize.D - innerSize.D) / 2;
+                uint xOffset = (outerSize.W - innerSize.W) / 2;
+                uint yOffset = (outerSize.H - innerSize.H) / 2;
+                uint zOffset = (outerSize.D - innerSize.D) / 2;
 
-                nuint depth = outerSize.D;
-                nuint rowStride = outerSize.W;
-                nuint layerStride = rowStride * depth;
+                uint depth = outerSize.D;
+                uint rowStride = outerSize.W;
+                uint layerStride = rowStride * depth;
 
                 ChunkMesherState mesherState = new(
                     visualFeatures,
@@ -87,22 +87,23 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
                     layerStride,
                     innerSize);
 
-                for (nuint y = 0; y < mesherState.InnerSizeH; y++)
+                for (uint y = 0; y < mesherState.InnerSizeH; y++)
                 {
                     mesherState.Y = y;
 
-                    for (nuint z = 0; z < mesherState.InnerSizeD; z++)
+                    for (uint z = 0; z < mesherState.InnerSizeD; z++)
                     {
                         mesherState.Z = z;
 
                         mesherState.Index = Chunk.GetIndexBase(
-                            outerSize.D,
+                            depth,
                             rowStride,
                             yOffset + y,
                             zOffset + z)
                             + xOffset;
 
-                        if (!MeshRow(ref meshOutput, ref mesherState))
+                        bool success = MeshRow(ref meshOutput, ref mesherState);
+                        if (!success)
                         {
                             result = default;
                             return false;
@@ -137,13 +138,17 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             ref uint frontRow = ref mesherState.FrontRow;
             ref uint backRow = ref mesherState.BackRow;
 
-            for (nuint x = 0; x < mesherState.InnerSizeW; x++)
+            for (uint x = 0; x < mesherState.InnerSizeW; x++)
             {
-                nuint coreId = Unsafe.Add(ref coreRow, x);
+                uint coreId = Unsafe.Add(ref coreRow, x);
 
                 MeshProvider? meshProvider = Unsafe.Add(ref meshProviders, coreId);
                 if (meshProvider == null)
+                {
                     continue;
+                }
+
+                bool success;
 
                 uint features = (uint)Unsafe.Add(ref visualFeatures, coreId);
 
@@ -165,24 +170,21 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
 
                     mesherState.X = x;
 
-                    bool success = Unsafe.As<FaceDependentMeshProvider>(meshProvider).GenerateFull(
+                    success = Unsafe.As<FaceDependentMeshProvider>(meshProvider).GenerateFull(
                         ref meshOutput,
                         ref mesherState,
                         (CubeFaces)faces);
+                }
+                else
+                {
+                    mesherState.X = x;
 
-                    if (!success)
-                    {
-                        return false;
-                    }
-
-                    continue;
+                    success = meshProvider.GenerateFull(
+                        ref meshOutput,
+                        ref mesherState);
                 }
 
-                mesherState.X = x;
-
-                if (!meshProvider.GenerateFull(
-                    ref meshOutput,
-                    ref mesherState))
+                if (!success)
                 {
                     return false;
                 }

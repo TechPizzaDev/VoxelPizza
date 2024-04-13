@@ -10,8 +10,8 @@ namespace VoxelPizza.World
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
     public partial class Chunk : IDestroyable
     {
-        public static BlockStorage0 EmptyStorage { get; } = new(Width, Height, Depth);
-        public static BlockStorage0 DestroyedStorage { get; } = new(Width, Height, Depth);
+        public static BlockStorage EmptyStorage { get; } = new BlockStorage0(Width, Height, Depth);
+        public static BlockStorage DestroyedStorage { get; } = new BlockStorage0(Width, Height, Depth);
 
         public const int Width = 16;
         public const int Depth = 16;

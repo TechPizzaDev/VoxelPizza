@@ -129,13 +129,13 @@ namespace VoxelPizza.Collections
                     (Vector128<uint> v1_32, Vector128<uint> v2_32) = Vector128.Widen(v1_16);
                     (Vector128<uint> v3_32, Vector128<uint> v4_32) = Vector128.Widen(v2_16);
 
-                    v1_32.StoreUnsafe(ref Unsafe.Add(ref dst, 0 * Vector128<uint>.Count));
-                    v2_32.StoreUnsafe(ref Unsafe.Add(ref dst, 1 * Vector128<uint>.Count));
-                    v3_32.StoreUnsafe(ref Unsafe.Add(ref dst, 2 * Vector128<uint>.Count));
-                    v4_32.StoreUnsafe(ref Unsafe.Add(ref dst, 3 * Vector128<uint>.Count));
+                    v1_32.StoreUnsafe(ref dst, (nuint)(0 * Vector128<uint>.Count));
+                    v2_32.StoreUnsafe(ref dst, (nuint)(1 * Vector128<uint>.Count));
+                    v3_32.StoreUnsafe(ref dst, (nuint)(2 * Vector128<uint>.Count));
+                    v4_32.StoreUnsafe(ref dst, (nuint)(3 * Vector128<uint>.Count));
 
-                    src = ref Unsafe.Add(ref Unsafe.AsRef(in src), 1 * Vector128<byte>.Count);
-                    dst = ref Unsafe.Add(ref dst, 4 * Vector128<uint>.Count);
+                    src = ref Unsafe.Add(ref Unsafe.AsRef(in src), Vector128<byte>.Count);
+                    dst = ref Unsafe.Add(ref dst, Vector128<byte>.Count);
                 }
                 len -= i;
             }
@@ -224,24 +224,12 @@ namespace VoxelPizza.Collections
             return (y * depth + z) * width;
         }
 
-        public static int GetElementSize(BlockStorageType inlineType)
-        {
-            return inlineType switch
-            {
-                BlockStorageType.Unsigned8 => 1,
-                BlockStorageType.Unsigned16 => 2,
-                BlockStorageType.Unsigned24 => 3,
-                BlockStorageType.Unsigned32 => 4,
-                _ => throw new ArgumentOutOfRangeException(nameof(inlineType))
-            };
-        }
-
         public string ToSimpleString()
         {
             string value = StorageType switch
             {
                 BlockStorageType.Undefined => "U",
-                BlockStorageType.Null => "N",
+                BlockStorageType.Unsigned0 => "U0",
                 BlockStorageType.Specialized => "S",
                 BlockStorageType.Unsigned8 => "U8",
                 BlockStorageType.Unsigned16 => "U16",

@@ -11,16 +11,16 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
         public readonly ReadOnlySpan<MeshProvider?> MeshProviders;
 
         public readonly ref uint Data;
-        public readonly nuint RowStride;
-        public readonly nuint LayerStride;
-        public readonly nuint InnerSizeW;
-        public readonly nuint InnerSizeH;
-        public readonly nuint InnerSizeD;
+        public readonly uint RowStride;
+        public readonly uint LayerStride;
+        public readonly uint InnerSizeW;
+        public readonly uint InnerSizeH;
+        public readonly uint InnerSizeD;
 
-        public nuint Index;
-        public nuint X;
-        public nuint Y;
-        public nuint Z;
+        public uint Index;
+        public uint X;
+        public uint Y;
+        public uint Z;
 
         public readonly ref uint CoreRow => ref Unsafe.Add(ref Data, Index);
         public readonly ref uint TopRow => ref Unsafe.Add(ref Data, Index + LayerStride);
@@ -35,8 +35,8 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             ReadOnlySpan<CubeFaces> oppositeBlockingFaces,
             ReadOnlySpan<MeshProvider?> meshProviders,
             ref uint data,
-            nuint rowStride,
-            nuint layerStride,
+            uint rowStride,
+            uint layerStride,
             Size3 innerSize)
         {
             VisualFeatures = visualFeatures;

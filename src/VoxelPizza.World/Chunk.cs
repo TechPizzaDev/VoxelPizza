@@ -10,8 +10,7 @@ namespace VoxelPizza.World
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
     public partial class Chunk : IDestroyable
     {
-        public static BlockStorage EmptyStorage { get; } = new BlockStorage0(Width, Height, Depth);
-        public static BlockStorage DestroyedStorage { get; } = new BlockStorage0(Width, Height, Depth);
+        public static BlockStorage<ChunkStorageDescriptor> DestroyedStorage { get; } = new BlockStorage0<ChunkStorageDescriptor>(0);
 
         public const int Width = 16;
         public const int Depth = 16;
@@ -20,7 +19,7 @@ namespace VoxelPizza.World
         public static Size3 Size => new(Width, Height, Depth);
 
         private ValueArc<ChunkRegion> _region;
-        private BlockStorage _storage;
+        private BlockStorage<ChunkStorageDescriptor> _storage;
 
         public event ChunkAction? Updated;
         public event ChunkAction? Destroyed;
@@ -40,7 +39,7 @@ namespace VoxelPizza.World
             _region = region.Wrap();
             Position = position;
 
-            _storage = EmptyStorage;
+            _storage = new DynamicBlockStorage<ChunkStorageDescriptor>();
         }
 
         public void InvokeUpdate()
@@ -48,15 +47,11 @@ namespace VoxelPizza.World
             Updated?.Invoke(this);
         }
 
-        public BlockStorage GetBlockStorage()
+        public BlockStorage<ChunkStorageDescriptor> GetBlockStorage()
         {
             if (_storage == DestroyedStorage)
             {
                 throw new InvalidOperationException();
-            }
-            if (_storage == EmptyStorage)
-            {
-                _storage = new BlockStorage8(Width, Height, Depth);
             }
             return _storage;
         }
@@ -123,7 +118,7 @@ namespace VoxelPizza.World
             return $"{nameof(Chunk)}<{_storage.ToSimpleString()}>({Position.ToNumericString()})";
         }
 
-        private void SwapStorage(BlockStorage newStorage)
+        private void SwapStorage(BlockStorage<ChunkStorageDescriptor> newStorage)
         {
             Debug.Assert(_storage != newStorage);
 

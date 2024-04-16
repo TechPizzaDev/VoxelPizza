@@ -2,28 +2,20 @@ using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics;
 
 namespace VoxelPizza.Collections.Blocks
 {
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-    public abstract partial class BlockStorage : IReadableBlockStorage, IWritableBlockStorage, IDisposable
+    public abstract partial class BlockStorage : IWritableBlockStorage, IReadableBlockStorage, IDisposable
     {
         public abstract BlockStorageType StorageType { get; }
 
-        public int Width { get; }
-        public int Height { get; }
-        public int Depth { get; }
+        public abstract int Width { get; }
+        public abstract int Height { get; }
+        public abstract int Depth { get; }
+
         public bool IsEmpty { get; protected set; }
         public bool IsDisposed { get; private set; }
-
-        public BlockStorage(int width, int height, int depth)
-        {
-            Width = width;
-            Height = height;
-            Depth = depth;
-        }
 
         public abstract bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType);
 
@@ -112,104 +104,6 @@ namespace VoxelPizza.Collections.Blocks
             {
                 SetBlockLayer(y, value);
             }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public static void Expand8To32(ref readonly byte src, ref uint dst, nuint len)
-        {
-            if (Vector128.IsHardwareAccelerated)
-            {
-                nuint i = 0;
-                for (; i + (nuint)Vector128<byte>.Count <= len; i += (nuint)Vector128<byte>.Count)
-                {
-                    Vector128<byte> v1_8 = Vector128.LoadUnsafe(in src);
-
-                    (Vector128<ushort> v1_16, Vector128<ushort> v2_16) = Vector128.Widen(v1_8);
-
-                    (Vector128<uint> v1_32, Vector128<uint> v2_32) = Vector128.Widen(v1_16);
-                    (Vector128<uint> v3_32, Vector128<uint> v4_32) = Vector128.Widen(v2_16);
-
-                    v1_32.StoreUnsafe(ref dst, (nuint)(0 * Vector128<uint>.Count));
-                    v2_32.StoreUnsafe(ref dst, (nuint)(1 * Vector128<uint>.Count));
-                    v3_32.StoreUnsafe(ref dst, (nuint)(2 * Vector128<uint>.Count));
-                    v4_32.StoreUnsafe(ref dst, (nuint)(3 * Vector128<uint>.Count));
-
-                    src = ref Unsafe.Add(ref Unsafe.AsRef(in src), Vector128<byte>.Count);
-                    dst = ref Unsafe.Add(ref dst, Vector128<byte>.Count);
-                }
-                len -= i;
-            }
-
-            (nuint loops, nuint rem) = Math.DivRem(len, 2);
-            for (nuint i = 0; i < loops; i++)
-            {
-                ushort s = Unsafe.ReadUnaligned<ushort>(in src);
-                ulong d = (s & 0xFFu) | ((s & 0xFF00uL) << 24);
-                Unsafe.WriteUnaligned(ref Unsafe.As<uint, byte>(ref dst), d);
-
-                src = ref Unsafe.Add(ref Unsafe.AsRef(in src), 2 * sizeof(byte));
-                dst = ref Unsafe.Add(ref dst, 2);
-            }
-
-            if (rem != 0)
-            {
-                dst = src;
-            }
-        }
-
-        public static void Expand8To32(ReadOnlySpan<byte> source, Span<uint> destination)
-        {
-            if (source.Length > destination.Length)
-            {
-                ThrowDstTooSmall();
-            }
-
-            ref byte byteSrc = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(source));
-            ref uint uintDst = ref MemoryMarshal.GetReference(destination);
-            Expand8To32(ref byteSrc, ref uintDst, (nuint)source.Length);
-        }
-
-        public static void Expand16To32(ref readonly byte src, ref uint dst, nuint len)
-        {
-            (nuint loops, nuint rem) = Math.DivRem(len, 2);
-            for (nuint i = 0; i < loops; i++)
-            {
-                uint s = Unsafe.ReadUnaligned<uint>(in src);
-                ulong d = (s & 0xFFFFu) | ((s & 0xFFFF0000uL) << 16);
-                Unsafe.WriteUnaligned(ref Unsafe.As<uint, byte>(ref dst), d);
-
-                src = ref Unsafe.Add(ref Unsafe.AsRef(in src), 2 * sizeof(ushort));
-                dst = ref Unsafe.Add(ref dst, 2);
-            }
-
-            if (rem != 0)
-            {
-                dst = Unsafe.ReadUnaligned<ushort>(in src);
-            }
-        }
-
-        public static void Expand16To32(ReadOnlySpan<ushort> source, ReadOnlySpan<uint> destination)
-        {
-            if (source.Length > destination.Length)
-            {
-                ThrowDstTooSmall();
-            }
-
-            ref byte byteSrc = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(source));
-            ref uint uintDst = ref MemoryMarshal.GetReference(destination);
-            Expand16To32(ref byteSrc, ref uintDst, (nuint)source.Length);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public nuint GetIndex(nuint x, nuint y, nuint z)
-        {
-            return GetIndexBase((uint)Depth, (uint)Width, y, z) + x;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int GetIndex(int x, int y, int z)
-        {
-            return GetIndexBase(Depth, Width, y, z) + x;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

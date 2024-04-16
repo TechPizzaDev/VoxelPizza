@@ -4,15 +4,16 @@ using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Collections.Blocks
 {
-    public sealed class BlockStorage24 : BlockStorage
+    public sealed class BlockStorage24<T> : BlockStorage<T>
+        where T : IBlockStorageDescriptor
     {
         private readonly UInt24[] _array;
 
         public override BlockStorageType StorageType => BlockStorageType.Unsigned24;
 
-        public BlockStorage24(int width, int height, int depth) : base(width, depth, height)
+        public BlockStorage24()
         {
-            _array = new UInt24[(long)height * depth * width];
+            _array = new UInt24[(long)Height * Depth * Width];
             IsEmpty = false;
         }
 

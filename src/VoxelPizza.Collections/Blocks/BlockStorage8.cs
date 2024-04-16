@@ -2,15 +2,16 @@ using System;
 
 namespace VoxelPizza.Collections.Blocks
 {
-    public sealed class BlockStorage8 : BlockStorage
+    public sealed class BlockStorage8<T> : BlockStorage<T>
+        where T : IBlockStorageDescriptor
     {
         private readonly byte[] _array;
 
         public override BlockStorageType StorageType => BlockStorageType.Unsigned8;
 
-        public BlockStorage8(int width, int height, int depth) : base(width, height, depth)
+        public BlockStorage8()
         {
-            _array = new byte[(long)height * depth * width];
+            _array = new byte[(long)Height * Depth * Width];
             IsEmpty = false;
         }
 

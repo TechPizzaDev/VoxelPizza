@@ -1,22 +1,25 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Collections.Blocks
 {
-    public sealed class BlockStorage0 : BlockStorage
+    public sealed class BlockStorage0<T> : BlockStorage<T>
+        where T : IBlockStorageDescriptor
     {
         private uint _value;
 
         public override BlockStorageType StorageType => BlockStorageType.Unsigned0;
 
-        public BlockStorage0(int width, int height, int depth) : base(width, height, depth)
+        public BlockStorage0(uint value)
         {
-            IsEmpty = true;
+            _value = value;
+            IsEmpty = value == 0;
         }
 
         public override bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType)
         {
-            inlineSpan = default;
+            inlineSpan = MemoryMarshal.AsBytes(new Span<uint>(ref _value));
             storageType = StorageType;
             return true;
         }

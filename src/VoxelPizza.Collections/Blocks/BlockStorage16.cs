@@ -3,15 +3,16 @@ using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Collections.Blocks
 {
-    public sealed class BlockStorage16 : BlockStorage
+    public sealed class BlockStorage16<T> : BlockStorage<T>
+        where T : IBlockStorageDescriptor
     {
         private readonly ushort[] _array;
 
         public override BlockStorageType StorageType => BlockStorageType.Unsigned16;
 
-        public BlockStorage16(int width, int height, int depth) : base(width, depth, height)
+        public BlockStorage16()
         {
-            _array = new ushort[(long)height * depth * width];
+            _array = new ushort[(long)Height * Depth * Width];
             IsEmpty = false;
         }
 

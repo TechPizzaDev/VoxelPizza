@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.World
@@ -6,17 +7,17 @@ namespace VoxelPizza.World
     {
         public static Int3 ToInt3(this BlockPosition position)
         {
-            return new Int3(position.X, position.Y, position.Z);
+            return Unsafe.BitCast<BlockPosition, Int3>(position);
         }
 
         public static Int3 ToInt3(this ChunkPosition position)
         {
-            return new Int3(position.X, position.Y, position.Z);
+            return Unsafe.BitCast<ChunkPosition, Int3>(position);
         }
 
         public static Int3 ToInt3(this ChunkRegionPosition position)
         {
-            return new Int3(position.X, position.Y, position.Z);
+            return Unsafe.BitCast<ChunkRegionPosition, Int3>(position);
         }
     }
 }

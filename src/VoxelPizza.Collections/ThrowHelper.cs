@@ -1,0 +1,71 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+
+namespace VoxelPizza.Collections;
+
+internal static class ThrowHelper
+{
+    [DoesNotReturn]
+    public static void ThrowKeyNotFoundException<T>(T key)
+    {
+        throw new KeyNotFoundException($"The given key '{key}' was not present in the dictionary.");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowInvalidOperationException_ConcurrentOperationsNotSupported()
+    {
+        throw new InvalidOperationException(
+            "Operations that change non-concurrent collections must have exclusive access. " +
+            "A concurrent update was performed on this collection and corrupted its state. " +
+            "The collection's state is no longer correct.");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowInvalidOperationException_EnumOpCantHappen()
+    {
+        throw new InvalidOperationException("Enumeration has either not started or has already finished.");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowInvalidOperationException_EnumFailedVersion()
+    {
+        throw new InvalidOperationException("Collection was modified; enumeration operation may not execute.");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowArgumentException_ArrayPlusOffTooSmall()
+    {
+        throw new ArgumentException(
+            "Destination array is not long enough to copy all the items in the collection. Check array index and length.");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowArgumentException_DstTooSmall()
+    {
+        throw new ArgumentException(
+            "Destination is not long enough to copy all the items in the collection.");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowArgumentException_AddingDuplicateWithKey<T>(T key)
+    {
+        throw new ArgumentException(
+            $"An item with the same key has already been added. Key: {key}");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowNotSupportedException_KeyCollectionSet()
+    {
+        throw new NotSupportedException("Mutating a key collection derived from a dictionary is not allowed.");
+    }
+
+    [DoesNotReturn]
+    public static void ThrowNotSupportedException_ValueCollectionSet()
+    {
+        throw new NotSupportedException("Mutating a value collection derived from a dictionary is not allowed.");
+    }
+}

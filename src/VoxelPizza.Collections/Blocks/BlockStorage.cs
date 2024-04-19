@@ -30,7 +30,7 @@ namespace VoxelPizza.Collections.Blocks
         public virtual uint GetBlock(int x, int y, int z)
         {
             uint result = 0;
-            GetBlocks(new Int3(x, y, z), new Size3(1, 1, 1), new Int3(0, 0, 0), new Size3(1, 1, 1), new Span<uint>(ref result));
+            GetBlocks(new Int3(x, y, z), new Size3(1), new Int3(0), new Size3(1), new Span<uint>(ref result));
             return result;
         }
 
@@ -38,7 +38,7 @@ namespace VoxelPizza.Collections.Blocks
 
         public virtual void SetBlock(int x, int y, int z, uint value)
         {
-            FillBlock(new Int3(x, y, z), new Size3(1, 1, 1), value);
+            FillBlock(new Int3(x, y, z), new Size3(1), value);
         }
 
         public abstract void SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan);

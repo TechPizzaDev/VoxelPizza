@@ -18,6 +18,13 @@ namespace VoxelPizza.Numerics
             Z = z;
         }
 
+        public Int3(int value)
+        {
+            X = value;
+            Y = value;
+            Z = value;
+        }
+
         public readonly bool IsNegative()
         {
             return X < 0 || Y < 0 || Z < 0;

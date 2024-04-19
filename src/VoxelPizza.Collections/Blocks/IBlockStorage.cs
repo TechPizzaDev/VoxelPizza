@@ -1,14 +1,17 @@
 using System;
+using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Collections.Blocks
 {
     public interface IBlockStorage
     {
         BlockStorageType StorageType { get; }
-
+        
         int Width { get; }
         int Height { get; }
         int Depth { get; }
+
+        Size3 Size { get; }
 
         bool IsEmpty { get; }
 

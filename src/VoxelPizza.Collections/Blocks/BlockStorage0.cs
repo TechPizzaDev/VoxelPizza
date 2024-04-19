@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Collections.Blocks
 {
@@ -24,93 +25,22 @@ namespace VoxelPizza.Collections.Blocks
             return true;
         }
 
-        public override uint GetBlock(int x, int y, int z)
+        public override void GetBlocks(Int3 offset, Size3 size, Int3 dstOffset, Size3 dstSize, Span<uint> dstSpan)
         {
-            int index = GetIndex(x, y, z);
-
-            if (index > Width * Height * Depth)
-            {
-                ThrowIndexOutOfRange();
-            }
-            return _value;
+            // TODO: validate ranges
+            Fill(dstOffset, size, _value, dstSize, dstSpan);
         }
 
-        public override void GetBlockRow(int x, int y, int z, Span<uint> destination)
+        public override void SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
         {
-            int index = GetIndex(x, y, z);
-            int length = Width - x;
-            Span<uint> dst = destination.Slice(0, length);
-
-            if (index + length > Width * Height * Depth)
-            {
-                ThrowIndexOutOfRange();
-            }
-            dst.Fill(_value);
+            //throw new NotSupportedException();
         }
 
-        public override void GetBlockLayer(int y, Span<uint> destination)
+        public override void FillBlock(Int3 offset, Size3 size, uint value)
         {
-            int index = GetIndex(0, y, 0);
-            int length = Width * Depth;
-            Span<uint> dst = destination.Slice(0, length);
-
-            if (index + dst.Length > Width * Height * Depth)
+            if (value != _value)
             {
-                ThrowIndexOutOfRange();
-            }
-            dst.Fill(_value);
-        }
-
-        public override void SetBlock(int x, int y, int z, uint value)
-        {
-            int index = GetIndex(x, y, z);
-
-            if (index > Width * Height * Depth)
-            {
-                ThrowIndexOutOfRange();
-            }
-        }
-
-        public override void SetBlockRow(int x, int y, int z, ReadOnlySpan<uint> source)
-        {
-            int index = GetIndex(x, y, z);
-            int length = Width - x;
-            ReadOnlySpan<uint> src = source.Slice(0, length);
-
-            if (index + src.Length > Width * Height * Depth)
-            {
-                ThrowIndexOutOfRange();
-            }
-        }
-
-        public override void SetBlockLayer(int y, ReadOnlySpan<uint> source)
-        {
-            int index = GetIndex(0, y, 0);
-            int length = Width * Depth;
-            ReadOnlySpan<uint> src = source.Slice(0, length);
-
-            if (index + src.Length > Width * Height * Depth)
-            {
-                ThrowIndexOutOfRange();
-            }
-        }
-
-        public override void SetBlockRow(int x, int y, int z, uint value)
-        {
-            int index = GetIndex(x, y, z);
-            int length = Width - x;
-
-            if (index + length > Width * Height * Depth)
-            {
-                ThrowIndexOutOfRange();
-            }
-        }
-
-        public override void SetBlockLayer(int y, uint value)
-        {
-            if (y > Height)
-            {
-                ThrowIndexOutOfRange();
+                //throw new NotSupportedException();
             }
         }
 

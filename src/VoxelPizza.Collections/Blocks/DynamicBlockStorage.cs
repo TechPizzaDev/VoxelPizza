@@ -1,4 +1,5 @@
 using System;
+using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Collections.Blocks;
 
@@ -21,11 +22,30 @@ public sealed class DynamicBlockStorage<T> : BlockStorage<T>
         return _storage.GetBlock(x, y, z);
     }
 
+    public override void GetBlocks(Int3 offset, Size3 size, Int3 dstOffset, Size3 dstSize, Span<uint> dstSpan)
+    {
+        _storage.GetBlocks(offset, size, dstOffset, dstSize, dstSpan);
+    }
+
     public override void SetBlock(int x, int y, int z, uint value)
     {
         PrepStorage(value);
 
         _storage.SetBlock(x, y, z, value);
+    }
+
+    public override void SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
+    {
+        PrepStorage(srcSpan);
+
+        _storage.SetBlocks(offset, size, srcOffset, srcSize, srcSpan);
+    }
+
+    public override void FillBlock(Int3 offset, Size3 size, uint value)
+    {
+        PrepStorage(value);
+
+        _storage.FillBlock(offset, size, value);
     }
 
     private void PrepStorage(ReadOnlySpan<uint> values)
@@ -34,7 +54,7 @@ public sealed class DynamicBlockStorage<T> : BlockStorage<T>
         {
             return;
         }
-
+        
         if (values.IndexOfAnyExcept(0u) != -1)
         {
             _storage = new BlockStorage8<T>();

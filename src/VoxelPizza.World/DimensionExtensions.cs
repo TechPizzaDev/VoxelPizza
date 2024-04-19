@@ -193,36 +193,12 @@ namespace VoxelPizza.World
 
                 ref readonly ChunkBoxSlice chunkBox = ref chunkInfo.BoxSlice;
                 BlockPosition outerOrigin = chunkBox.Block - dimOrigin;
-                uint boxSizeH = chunkBox.Size.H;
-                uint boxSizeD = chunkBox.Size.D;
-                uint boxSizeW = chunkBox.Size.W;
-
-                int innerOriginX = chunkBox.InnerOrigin.X;
-                int innerOriginY = chunkBox.InnerOrigin.Y;
-                int innerOriginZ = chunkBox.InnerOrigin.Z;
 
                 BlockStorage storage = chunk.GetBlockStorage();
 
-                for (uint y = 0; y < boxSizeH; y++)
-                {
-                    for (uint z = 0; z < boxSizeD; z++)
-                    {
-                        int outerBaseIndex = (int)BlockMemory.GetIndexBase(
-                            outerSize.D,
-                            outerSize.W,
-                            y + (uint)outerOrigin.Y,
-                            z + (uint)outerOrigin.Z)
-                            + outerOrigin.X;
-
-                        Span<uint> destination = bufferData.Slice(outerBaseIndex, (int)boxSizeW);
-
-                        storage.GetBlockRow(
-                            innerOriginX,
-                            (int)y + innerOriginY,
-                            (int)z + innerOriginZ,
-                            destination);
-                    }
-                }
+                storage.GetBlocks(
+                    chunkBox.InnerOrigin.ToInt3(), chunkBox.Size,
+                    outerOrigin.ToInt3(), outerSize, bufferData);
             }
 
             return (chunkCount, emptyChunkCount);

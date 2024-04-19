@@ -58,7 +58,7 @@ public abstract partial class BlockStorage
             ThrowDstTooSmall();
         }
 
-        ref byte byteSrc = ref MemoryMarshal.GetReference(MemoryMarshal.AsBytes(source));
+        ref byte byteSrc = ref MemoryMarshal.GetReference(source);
         ref uint uintDst = ref MemoryMarshal.GetReference(destination);
         Expand8To32(ref byteSrc, ref uintDst, (nuint)source.Length);
     }

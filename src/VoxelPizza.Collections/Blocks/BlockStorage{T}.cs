@@ -5,9 +5,9 @@ namespace VoxelPizza.Collections.Blocks;
 public abstract partial class BlockStorage<T> : BlockStorage
     where T : IBlockStorageDescriptor
 {
-    public override int Width => T.Width;
-    public override int Height => T.Height;
-    public override int Depth => T.Depth;
+    public override sealed int Width => T.Width;
+    public override sealed int Height => T.Height;
+    public override sealed int Depth => T.Depth;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static nuint GetIndex(nuint x, nuint y, nuint z)

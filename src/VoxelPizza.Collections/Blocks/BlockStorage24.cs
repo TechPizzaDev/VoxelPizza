@@ -27,25 +27,13 @@ namespace VoxelPizza.Collections.Blocks
         public override uint GetBlock(int x, int y, int z)
         {
             int index = GetIndex(x, y, z);
-            return _array[index];
+            UInt24 value = _array[index];
+            return value;
         }
 
-        public override void GetBlockRow(int x, int y, int z, Span<uint> destination)
+        public override void GetBlocks(Int3 offset, Size3 size, Int3 dstOffset, Size3 dstSize, Span<uint> dstSpan)
         {
-            int index = GetIndex(x, y, z);
-            int length = Math.Min(destination.Length, Width - x);
-            ReadOnlySpan<UInt24> src = _array.AsSpan(index, length);
-
-            Expand24To32(src, destination);
-        }
-
-        public override void GetBlockLayer(int y, Span<uint> destination)
-        {
-            int index = GetIndex(0, y, 0);
-            int length = Math.Min(destination.Length, Width * Depth);
-            ReadOnlySpan<UInt24> src = _array.AsSpan(index, length);
-
-            Expand24To32(src, destination);
+            Copy(offset, Size, new ReadOnlySpan<UInt24>(_array), dstOffset, dstSize, dstSpan, size);
         }
 
         public override void SetBlock(int x, int y, int z, uint value)
@@ -54,41 +42,14 @@ namespace VoxelPizza.Collections.Blocks
             _array[index] = (UInt24)value;
         }
 
-        public override void SetBlockRow(int x, int y, int z, ReadOnlySpan<uint> source)
+        public override void SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
         {
-            int index = GetIndex(x, y, z);
-            int length = Math.Min(source.Length, Width - x);
-            ReadOnlySpan<uint> src = source.Slice(0, length);
-            Span<UInt24> dst = _array.AsSpan(index, length);
-
-            for (int i = 0; i < length; i++)
-            {
-                uint value = src[i];
-                dst[i] = (UInt24)value;
-            }
+            Copy(srcOffset, srcSize, srcSpan, offset, Size, new Span<UInt24>(_array), size);
         }
 
-        public override void SetBlockLayer(int y, ReadOnlySpan<uint> source)
+        public override void FillBlock(Int3 offset, Size3 size, uint value)
         {
-            base.SetBlockLayer(y, source);
-        }
-
-        public override void SetBlockRow(int x, int y, int z, uint value)
-        {
-            int index = GetIndex(x, y, z);
-            int length = Width - x;
-            Span<UInt24> dst = _array.AsSpan(index, length);
-
-            dst.Fill((UInt24)value);
-        }
-
-        public override void SetBlockLayer(int y, uint value)
-        {
-            int index = GetIndex(0, y, 0);
-            int length = Width * Depth;
-            Span<UInt24> dst = _array.AsSpan(index, length);
-
-            dst.Fill((UInt24)value);
+            Fill(offset, size, (UInt24)value, Size, new Span<UInt24>(_array));
         }
     }
 }

@@ -43,7 +43,7 @@ public abstract partial class BlockStorage
             dst = ref Unsafe.Add(ref dst, 1);
         }
     }
-
+    
     public static void Narrow(ReadOnlySpan<uint> source, Span<byte> destination)
     {
         if (source.Length > destination.Length)

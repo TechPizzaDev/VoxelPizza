@@ -1,13 +1,12 @@
 using System;
+using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Collections.Blocks
 {
     public interface IReadableBlockStorage : IBlockStorage
     {
         uint GetBlock(int x, int y, int z);
-
-        void GetBlockRow(int x, int y, int z, Span<uint> destination);
-
-        void GetBlockLayer(int y, Span<uint> destination);
+        
+        void GetBlocks(Int3 offset, Size3 size, Int3 dstOffset, Size3 dstSize, Span<uint> dstSpan);
     }
 }

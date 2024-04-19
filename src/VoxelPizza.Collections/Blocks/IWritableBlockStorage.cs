@@ -1,4 +1,5 @@
 using System;
+using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Collections.Blocks
 {
@@ -6,16 +7,8 @@ namespace VoxelPizza.Collections.Blocks
     {
         void SetBlock(int x, int y, int z, uint value);
 
-        void SetBlockRow(int x, int y, int z, ReadOnlySpan<uint> source);
+        void SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan);
 
-        void SetBlockLayer(int y, ReadOnlySpan<uint> source);
-
-        void FillBlock(ReadOnlySpan<uint> source);
-
-        void SetBlockRow(int x, int y, int z, uint value);
-        
-        void SetBlockLayer(int y, uint value);
-
-        void FillBlock(uint value);
+        void FillBlock(Int3 offset, Size3 size, uint value);
     }
 }

@@ -29,7 +29,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
 
         _items = new T[capacity];
     }
-    
+
     /// <summary>
     /// Gets the item at the specified index.
     /// </summary>
@@ -291,6 +291,26 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
             _items[_count] = default!;
         }
         version++;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryRemoveLast([MaybeNullWhen(false)] out T item)
+    {
+        T[] array = _items;
+        int index = _count - 1;
+        if ((uint)index < (uint)array.Length)
+        {
+            version++;
+            _count = index;
+            item = array[index];
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                array[index] = default!;
+            }
+            return true;
+        }
+        item = default;
+        return false;
     }
 
     /// <summary>

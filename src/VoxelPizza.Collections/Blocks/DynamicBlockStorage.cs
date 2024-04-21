@@ -13,6 +13,7 @@ public sealed class DynamicBlockStorage<T> : BlockStorage<T>
     public DynamicBlockStorage()
     {
         _storage = EmptyStorage;
+        IsEmpty = true;
     }
 
     public override BlockStorageType StorageType => _storage.StorageType;
@@ -50,14 +51,15 @@ public sealed class DynamicBlockStorage<T> : BlockStorage<T>
 
     private void PrepStorage(ReadOnlySpan<uint> values)
     {
-        if (_storage != EmptyStorage)
+        if (_storage is BlockStorage0<T> storage0)
         {
-            return;
-        }
-        
-        if (values.IndexOfAnyExcept(0u) != -1)
-        {
-            _storage = new BlockStorage8<T>();
+            if (values.IndexOfAnyExcept(storage0.Value) == -1)
+            {
+                return;
+            }
+
+            _storage = new PaletteBlockStorage<T>();
+            IsEmpty = false;
         }
     }
 

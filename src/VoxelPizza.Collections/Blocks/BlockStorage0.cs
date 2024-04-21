@@ -12,10 +12,12 @@ namespace VoxelPizza.Collections.Blocks
 
         public override BlockStorageType StorageType => BlockStorageType.Unsigned0;
 
+        public uint Value => _value;
+
         public BlockStorage0(uint value)
         {
             _value = value;
-            IsEmpty = value == 0;
+            IsEmpty = _value == 0;
         }
 
         public override bool TryGetInline(out Span<byte> inlineSpan, out BlockStorageType storageType)

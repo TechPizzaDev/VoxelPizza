@@ -5,15 +5,22 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Collections;
 
+public class SortedList<T> : SortedList<T, IdentityComparer<T>>
+{
+}
+
 [DebuggerDisplay("Count = {Count}")]
-public class SortedList<T> : IList<T>, IReadOnlyList<T>
+public class SortedList<T, TComparer> : IList<T>, IReadOnlyList<T>
+    where TComparer : IComparer<T>
 {
     private T[] _items;
     private int _count;
-    private int version;
+    private int _version;
+    private TComparer? _comparer;
 
     private const int DefaultCapacity = 4;
 
@@ -23,11 +30,21 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
         _count = 0;
     }
 
+    public SortedList(TComparer? comparer) : this()
+    {
+        _comparer = comparer;
+    }
+
     public SortedList(int capacity)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(capacity);
 
         _items = new T[capacity];
+    }
+
+    public SortedList(int capacity, TComparer? comparer) : this(capacity)
+    {
+        _comparer = comparer;
     }
 
     /// <summary>
@@ -55,7 +72,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
     /// <returns><see langword="true"/> if the item didn't exist; <see langword="false"/> otherwise.</returns>
     public bool Add(T item)
     {
-        int i = Array.BinarySearch(_items, 0, _count, item);
+        int i = BinarySearch(item);
         int index = i < 0 ? ~i : i;
         Insert(index, item);
         return i >= 0;
@@ -69,7 +86,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
     /// <returns><see langword="true"/> if the item was added; <see langword="false"/> if the item already existed.</returns>
     public bool TryAdd(T item)
     {
-        int i = Array.BinarySearch(_items, 0, _count, item);
+        int i = BinarySearch(item);
         if (i < 0)
         {
             Insert(~i, item);
@@ -84,7 +101,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
     /// <returns><see langword="true"/> if the item is found; <see langword="false"/> otherwise.</returns>
     public bool Contains(T item)
     {
-        int index = IndexOf(item);
+        int index = BinarySearch(item);
         if (index >= 0)
         {
             return true;
@@ -100,7 +117,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
     /// </returns>
     public bool Remove(T item)
     {
-        int index = IndexOf(item);
+        int index = BinarySearch(item);
         if (index >= 0)
         {
             RemoveAt(index);
@@ -152,7 +169,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
     public void Clear()
     {
         // clear does not change the capacity
-        version++;
+        _version++;
         // Don't need to doc this but we clear the elements so that the gc can reclaim the references.
         if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
         {
@@ -204,6 +221,26 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
 
     IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable<T>)this).GetEnumerator();
 
+    /// <inheritdoc cref="BinarySearch(T[], int, int, T)"/>
+    public int BinarySearch(T item)
+    {
+        return BinarySearch(_items, 0, _count, item);
+    }
+
+    /// <inheritdoc cref="BinarySearch(T[], int, int, T)"/>
+    public int BinarySearch(int index, int count, T item)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+
+        if (_count - index < count)
+        {
+            ThrowHelper.ThrowArgumentException_InvalidOffLen();
+        }
+
+        return BinarySearch(_items, index, count, item);
+    }
+
     /// <summary>
     /// Finds the index of <paramref name="item"/> in the list.
     /// </summary>
@@ -212,10 +249,36 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
     /// otherwise, the bitwise complement of the index of the next element.
     /// If at the end, the bitwise complement of <see cref="Count"/>.
     /// </returns>
-    public int BinarySearch(T item)
+    private int BinarySearch(T[] array, int index, int count, T item)
     {
-        int ret = Array.BinarySearch(_items, 0, _count, item);
-        return ret;
+        if (array.Length - index < count)
+        {
+            ThrowHelper.ThrowArgumentException_InvalidOffLen();
+        }
+
+        ref T source = ref MemoryMarshal.GetArrayDataReference(array);
+        int lo = index;
+        int hi = index + count - 1;
+        while (lo <= hi)
+        {
+            int i = lo + ((hi - lo) >> 1);
+            ref T value = ref Unsafe.Add(ref source, i);
+
+            int order = _comparer != null ? _comparer.Compare(value, item) : Comparer<T>.Default.Compare(value, item);
+            if (order == 0)
+                return i;
+
+            if (order < 0)
+            {
+                lo = i + 1;
+            }
+            else
+            {
+                hi = i - 1;
+            }
+        }
+
+        return ~lo;
     }
 
     /// <summary>
@@ -223,8 +286,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
     /// </summary>
     /// <remarks>
     /// The item is located through a binary search, and thus the average execution
-    /// time of this method is proportional to Log2(size), where
-    /// size is the size of the list.
+    /// time of this method is proportional to Log2(size of list).
     /// </remarks>
     /// <returns>
     /// The index of the item, or -1 if the item is not found.
@@ -250,7 +312,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
         }
         _items[index] = item;
         _count++;
-        version++;
+        _version++;
     }
 
     void IList<T>.Insert(int index, T item) => throw new NotSupportedException();
@@ -261,7 +323,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
     /// <returns><see langword="true"/> if the item is found; <see langword="false"/> otherwise.</returns>
     public bool TryGetValue(T equalItem, [MaybeNullWhen(false)] out T actualItem)
     {
-        int i = IndexOf(equalItem);
+        int i = BinarySearch(equalItem);
         if (i >= 0)
         {
             actualItem = _items[i];
@@ -291,7 +353,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
         {
             _items[_count] = default!;
         }
-        version++;
+        _version++;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -301,7 +363,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
         int index = _count - 1;
         if ((uint)index < (uint)array.Length)
         {
-            version++;
+            _version++;
             _count = index;
             item = array[index];
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
@@ -339,15 +401,15 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
 
     public struct Enumerator : IEnumerator<T>, IEnumerator
     {
-        private readonly SortedList<T> _set;
+        private readonly SortedList<T, TComparer> _set;
         private readonly int _version;
         private int _index;
         private T? _current;
 
-        internal Enumerator(SortedList<T> set)
+        internal Enumerator(SortedList<T, TComparer> set)
         {
             _set = set;
-            _version = set.version;
+            _version = set._version;
         }
 
         public void Dispose()
@@ -356,7 +418,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
 
         public bool MoveNext()
         {
-            if (_version != _set.version)
+            if (_version != _set._version)
             {
                 ThrowHelper.ThrowInvalidOperationException_EnumFailedVersion();
             }
@@ -379,7 +441,7 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
 
         public void Reset()
         {
-            if (_version != _set.version)
+            if (_version != _set._version)
             {
                 ThrowHelper.ThrowInvalidOperationException_EnumFailedVersion();
             }

@@ -38,17 +38,18 @@ internal static class ThrowHelper
     }
 
     [DoesNotReturn]
-    public static void ThrowArgumentException_ArrayPlusOffTooSmall()
-    {
-        throw new ArgumentException(
-            "Destination array is not long enough to copy all the items in the collection. Check array index and length.");
-    }
-
-    [DoesNotReturn]
     public static void ThrowArgumentException_DstTooSmall()
     {
         throw new ArgumentException(
             "Destination is not long enough to copy all the items in the collection.");
+    }
+    
+    [DoesNotReturn]
+    public static void ThrowArgumentException_InvalidOffLen()
+    {
+        throw new ArgumentException(
+            "Offset and length were out of bounds for the array or " +
+            "count is greater than the number of elements from index to the end of the source collection.");
     }
 
     [DoesNotReturn]

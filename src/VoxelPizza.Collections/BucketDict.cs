@@ -12,6 +12,11 @@ using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Collections;
 
+public class BucketDict<TKey, TValue> : BucketDict<TKey, TValue, IdentityComparer<TKey>>
+    where TKey : notnull
+{
+}
+
 [DebuggerDisplay("Count = {Count}")]
 public class BucketDict<TKey, TValue, TComparer> : IDictionary<TKey, TValue>, IReadOnlyDictionary<TKey, TValue>
     where TKey : notnull
@@ -507,7 +512,7 @@ public class BucketDict<TKey, TValue, TComparer> : IDictionary<TKey, TValue>, IR
         // Assign member variables after both arrays allocated to guard against corruption from OOM if second fails
         _buckets = new int[newSize];
         _fastModMultiplier = HashHelpers.GetFastModMultiplier((uint)newSize);
-        
+
         TComparer? comparer = _comparer;
         for (int i = 0; i < count; i++)
         {

@@ -13,8 +13,9 @@ using System.Runtime.InteropServices;
 namespace VoxelPizza.Collections;
 
 [DebuggerDisplay("Count = {Count}")]
-public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDictionary<TKey, TValue>
+public class BucketDict<TKey, TValue, TComparer> : IDictionary<TKey, TValue>, IReadOnlyDictionary<TKey, TValue>
     where TKey : notnull
+    where TComparer : IEqualityComparer<TKey>
 {
     private int[]? _buckets;
     private Entry[]? _entries;
@@ -23,19 +24,17 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
     private int _freeList;
     private int _freeCount;
     private int _version;
-    private IEqualityComparer<TKey>? _comparer;
-    private KeyCollection? _keys;
-    private ValueCollection? _values;
+    private TComparer? _comparer;
 
     private const int StartOfFreeList = -3;
 
-    public BucketDict() : this(0, null) { }
+    public BucketDict() : this(0, default) { }
 
-    public BucketDict(int capacity) : this(capacity, null) { }
+    public BucketDict(int capacity) : this(capacity, default) { }
 
-    public BucketDict(IEqualityComparer<TKey>? comparer) : this(0, comparer) { }
+    public BucketDict(TComparer? comparer) : this(0, comparer) { }
 
-    public BucketDict(int capacity, IEqualityComparer<TKey>? comparer)
+    public BucketDict(int capacity, TComparer? comparer)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(capacity);
 
@@ -44,27 +43,12 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
             Initialize(capacity);
         }
 
-        // For reference types, we always want to store a comparer instance, either
-        // the one provided, or if one wasn't provided, the default (accessing
-        // EqualityComparer<TKey>.Default with shared generics on every dictionary
-        // access can add measurable overhead).  For value types, if no comparer is
-        // provided, or if the default is provided, we'd prefer to use
-        // EqualityComparer<TKey>.Default.Equals on every use, enabling the JIT to
-        // devirtualize and possibly inline the operation.
-        if (!typeof(TKey).IsValueType)
-        {
-            _comparer = comparer ?? EqualityComparer<TKey>.Default;
-        }
-        else if (comparer is not null && // first check for null to avoid forcing default comparer instantiation unnecessarily
-                 comparer != EqualityComparer<TKey>.Default)
-        {
-            _comparer = comparer;
-        }
+        _comparer = comparer;
     }
 
-    public BucketDict(IDictionary<TKey, TValue> dictionary) : this(dictionary, null) { }
+    public BucketDict(IDictionary<TKey, TValue> dictionary) : this(dictionary, default) { }
 
-    public BucketDict(IDictionary<TKey, TValue> dictionary, IEqualityComparer<TKey>? comparer) :
+    public BucketDict(IDictionary<TKey, TValue> dictionary, TComparer? comparer) :
         this(dictionary?.Count ?? 0, comparer)
     {
         ArgumentNullException.ThrowIfNull(dictionary);
@@ -72,10 +56,10 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
         AddRange(dictionary);
     }
 
-    public BucketDict(IEnumerable<KeyValuePair<TKey, TValue>> collection) : this(collection, null) { }
+    public BucketDict(IEnumerable<KeyValuePair<TKey, TValue>> collection) : this(collection, default) { }
 
-    public BucketDict(IEnumerable<KeyValuePair<TKey, TValue>> collection, IEqualityComparer<TKey>? comparer) :
-        this((collection as ICollection<KeyValuePair<TKey, TValue>>)?.Count ?? 0, comparer)
+    public BucketDict(IEnumerable<KeyValuePair<TKey, TValue>> collection, TComparer? comparer) :
+        this(collection.TryGetNonEnumeratedCount(out int count) ? count : 0, comparer)
     {
         ArgumentNullException.ThrowIfNull(collection);
 
@@ -88,9 +72,9 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
         // avoid the enumerator allocation and overhead by looping through the entries array directly.
         // We only do this when dictionary is Dictionary<TKey,TValue> and not a subclass, to maintain
         // back-compat with subclasses that may have overridden the enumerator behavior.
-        if (enumerable.GetType() == typeof(BucketDict<TKey, TValue>))
+        if (enumerable.GetType() == typeof(BucketDict<TKey, TValue, TComparer>))
         {
-            BucketDict<TKey, TValue> source = (BucketDict<TKey, TValue>)enumerable;
+            BucketDict<TKey, TValue, TComparer> source = (BucketDict<TKey, TValue, TComparer>)enumerable;
 
             if (source.Count == 0)
             {
@@ -106,7 +90,7 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
             Debug.Assert(_count == 0);
 
             Entry[] oldEntries = source._entries;
-            if (source._comparer == _comparer)
+            if (EqualityComparer<TComparer>.Default.Equals(source._comparer, _comparer))
             {
                 // If comparers are the same, we can copy _entries without rehashing.
                 CopyEntries(oldEntries, source._count);
@@ -154,13 +138,7 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
         }
     }
 
-    public IEqualityComparer<TKey> Comparer
-    {
-        get
-        {
-            return _comparer ?? EqualityComparer<TKey>.Default;
-        }
-    }
+    public TComparer? Comparer => _comparer;
 
     public int Count => _count - _freeCount;
 
@@ -169,13 +147,13 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
     /// </summary>
     public int Capacity => _entries?.Length ?? 0;
 
-    public KeyCollection Keys => _keys ??= new KeyCollection(this);
+    public KeyCollection Keys => new(this);
 
     ICollection<TKey> IDictionary<TKey, TValue>.Keys => Keys;
 
     IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => Keys;
 
-    public ValueCollection Values => _values ??= new ValueCollection(this);
+    public ValueCollection Values => new(this);
 
     ICollection<TValue> IDictionary<TKey, TValue>.Values => Values;
 
@@ -329,75 +307,39 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
         if (_buckets != null)
         {
             Debug.Assert(_entries != null, "expected entries to be != null");
-            IEqualityComparer<TKey>? comparer = _comparer;
-            if (typeof(TKey).IsValueType && // comparer can only be null for value types; enable JIT to eliminate entire if block for ref types
-                comparer == null)
+            TComparer? comparer = _comparer;
+
+            uint hashCode = (uint)key.GetHashCode();
+            int i = GetBucket(hashCode);
+            Entry[]? entries = _entries;
+            uint collisionCount = 0;
+
+            // ValueType: Devirtualize with EqualityComparer<TKey>.Default intrinsic
+            i--; // Value in _buckets is 1-based; subtract 1 from i. We do it here so it fuses with the following conditional.
+            do
             {
-                uint hashCode = (uint)key.GetHashCode();
-                int i = GetBucket(hashCode);
-                Entry[]? entries = _entries;
-                uint collisionCount = 0;
-
-                // ValueType: Devirtualize with EqualityComparer<TKey>.Default intrinsic
-                i--; // Value in _buckets is 1-based; subtract 1 from i. We do it here so it fuses with the following conditional.
-                do
+                // Test in if to drop range check for following array access
+                if ((uint)i >= (uint)entries.Length)
                 {
-                    // Test in if to drop range check for following array access
-                    if ((uint)i >= (uint)entries.Length)
-                    {
-                        goto ReturnNotFound;
-                    }
-
-                    entry = ref entries[i];
-                    if (EqualityComparer<TKey>.Default.Equals(entry.key, key))
-                    {
-                        entry.AssertHash(hashCode);
-                        goto ReturnFound;
-                    }
-
-                    i = entry.next;
-
-                    collisionCount++;
+                    goto ReturnNotFound;
                 }
-                while (collisionCount <= (uint)entries.Length);
 
-                // The chain of entries forms a loop; which means a concurrent update has happened.
-                // Break out of the loop and throw, rather than looping forever.
-                goto ConcurrentOperation;
-            }
-            else
-            {
-                Debug.Assert(comparer is not null);
-                uint hashCode = (uint)comparer.GetHashCode(key);
-                int i = GetBucket(hashCode);
-                Entry[]? entries = _entries;
-                uint collisionCount = 0;
-                i--; // Value in _buckets is 1-based; subtract 1 from i. We do it here so it fuses with the following conditional.
-                do
+                entry = ref entries[i];
+                if (Equals(entry.key, key, comparer))
                 {
-                    // Test in if to drop range check for following array access
-                    if ((uint)i >= (uint)entries.Length)
-                    {
-                        goto ReturnNotFound;
-                    }
-
-                    entry = ref entries[i];
-                    if (comparer.Equals(entry.key, key))
-                    {
-                        entry.AssertHash(hashCode);
-                        goto ReturnFound;
-                    }
-
-                    i = entry.next;
-
-                    collisionCount++;
+                    entry.AssertHash(hashCode);
+                    goto ReturnFound;
                 }
-                while (collisionCount <= (uint)entries.Length);
 
-                // The chain of entries forms a loop; which means a concurrent update has happened.
-                // Break out of the loop and throw, rather than looping forever.
-                goto ConcurrentOperation;
+                i = entry.next;
+
+                collisionCount++;
             }
+            while (collisionCount <= (uint)entries.Length);
+
+            // The chain of entries forms a loop; which means a concurrent update has happened.
+            // Break out of the loop and throw, rather than looping forever.
+            goto ConcurrentOperation;
         }
 
         goto ReturnNotFound;
@@ -432,9 +374,23 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
 
     private bool TryInsert(TKey key, TValue value, InsertionBehavior behavior)
     {
-        // NOTE: this method is mirrored in CollectionsMarshal.GetValueRefOrAddDefault below.
-        // If you make any changes here, make sure to keep that version in sync as well.
+        ref TValue? valueRef = ref GetValueRefOrAddDefault(key, out bool exists);
+        if (behavior == InsertionBehavior.OverwriteExisting)
+        {
+            valueRef = value;
+            return true;
+        }
 
+        if (exists && behavior == InsertionBehavior.ThrowOnExisting)
+        {
+            ThrowHelper.ThrowArgumentException_AddingDuplicateWithKey(key);
+        }
+
+        return false;
+    }
+
+    public ref TValue? GetValueRefOrAddDefault(TKey key, out bool exists)
+    {
         ArgumentNullException.ThrowIfNull(key);
 
         if (_buckets == null)
@@ -446,80 +402,31 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
         Entry[]? entries = _entries;
         Debug.Assert(entries != null, "expected entries to be non-null");
 
-        IEqualityComparer<TKey>? comparer = _comparer;
+        TComparer? comparer = _comparer;
         uint hashCode = GetHashCode(key, comparer);
 
         uint collisionCount = 0;
         ref int bucket = ref GetBucket(hashCode);
         int i = bucket - 1; // Value in _buckets is 1-based
 
-        if (typeof(TKey).IsValueType && // comparer can only be null for value types; enable JIT to eliminate entire if block for ref types
-            comparer == null)
+        while ((uint)i < (uint)entries.Length)
         {
-            // ValueType: Devirtualize with EqualityComparer<TKey>.Default intrinsic
-            while ((uint)i < (uint)entries.Length)
+            if (Equals(entries[i].key, key, comparer))
             {
-                if (EqualityComparer<TKey>.Default.Equals(entries[i].key, key))
-                {
-                    entries[i].AssertHash(hashCode);
+                entries[i].AssertHash(hashCode);
+                exists = true;
 
-                    if (behavior == InsertionBehavior.OverwriteExisting)
-                    {
-                        entries[i].value = value;
-                        return true;
-                    }
-
-                    if (behavior == InsertionBehavior.ThrowOnExisting)
-                    {
-                        ThrowHelper.ThrowArgumentException_AddingDuplicateWithKey(key);
-                    }
-
-                    return false;
-                }
-
-                i = entries[i].next;
-
-                collisionCount++;
-                if (collisionCount > (uint)entries.Length)
-                {
-                    // The chain of entries forms a loop; which means a concurrent update has happened.
-                    // Break out of the loop and throw, rather than looping forever.
-                    ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
-                }
+                return ref entries[i].value!;
             }
-        }
-        else
-        {
-            Debug.Assert(comparer is not null);
-            while ((uint)i < (uint)entries.Length)
+
+            i = entries[i].next;
+
+            collisionCount++;
+            if (collisionCount > (uint)entries.Length)
             {
-                if (comparer.Equals(entries[i].key, key))
-                {
-                    entries[i].AssertHash(hashCode);
-
-                    if (behavior == InsertionBehavior.OverwriteExisting)
-                    {
-                        entries[i].value = value;
-                        return true;
-                    }
-
-                    if (behavior == InsertionBehavior.ThrowOnExisting)
-                    {
-                        ThrowHelper.ThrowArgumentException_AddingDuplicateWithKey(key);
-                    }
-
-                    return false;
-                }
-
-                i = entries[i].next;
-
-                collisionCount++;
-                if (collisionCount > (uint)entries.Length)
-                {
-                    // The chain of entries forms a loop; which means a concurrent update has happened.
-                    // Break out of the loop and throw, rather than looping forever.
-                    ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
-                }
+                // The chain of entries forms a loop; which means a concurrent update has happened.
+                // Break out of the loop and throw, rather than looping forever.
+                ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
             }
         }
 
@@ -550,7 +457,7 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
 #endif
         entry.next = bucket - 1; // Value in _buckets is 1-based
         entry.key = key;
-        entry.value = value;
+        entry.value = default!;
         bucket = index + 1; // Value in _buckets is 1-based
         _version++;
 
@@ -564,146 +471,9 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
             Resize(entries.Length, true);
         }
 
-        return true;
-    }
+        exists = false;
 
-    /// <summary>
-    /// A helper class containing APIs exposed through <see cref="CollectionsMarshal"/>.
-    /// These methods are relatively niche and only used in specific scenarios, so adding them in a separate type avoids
-    /// the additional overhead on each <see cref="BucketDict{TKey, TValue}"/> instantiation, especially in AOT scenarios.
-    /// </summary>
-    internal static class CollectionsMarshalHelper
-    {
-        /// <inheritdoc cref="CollectionsMarshal.GetValueRefOrAddDefault{TKey, TValue}(Dictionary{TKey, TValue}, TKey, out bool)"/>
-        public static ref TValue? GetValueRefOrAddDefault(BucketDict<TKey, TValue> dictionary, TKey key, out bool exists)
-        {
-            // NOTE: this method is mirrored by Dictionary<TKey, TValue>.TryInsert above.
-            // If you make any changes here, make sure to keep that version in sync as well.
-
-            ArgumentNullException.ThrowIfNull(key);
-
-            if (dictionary._buckets == null)
-            {
-                dictionary.Initialize(0);
-            }
-            Debug.Assert(dictionary._buckets != null);
-
-            Entry[]? entries = dictionary._entries;
-            Debug.Assert(entries != null, "expected entries to be non-null");
-
-            IEqualityComparer<TKey>? comparer = dictionary._comparer;
-            uint hashCode = BucketDict<TKey, TValue>.GetHashCode(key, comparer);
-
-            uint collisionCount = 0;
-            ref int bucket = ref dictionary.GetBucket(hashCode);
-            int i = bucket - 1; // Value in _buckets is 1-based
-
-            if (typeof(TKey).IsValueType && // comparer can only be null for value types; enable JIT to eliminate entire if block for ref types
-                comparer == null)
-            {
-                // ValueType: Devirtualize with EqualityComparer<TKey>.Default intrinsic
-                while ((uint)i < (uint)entries.Length)
-                {
-                    if (EqualityComparer<TKey>.Default.Equals(entries[i].key, key))
-                    {
-                        entries[i].AssertHash(hashCode);
-                        exists = true;
-
-                        return ref entries[i].value!;
-                    }
-
-                    i = entries[i].next;
-
-                    collisionCount++;
-                    if (collisionCount > (uint)entries.Length)
-                    {
-                        // The chain of entries forms a loop; which means a concurrent update has happened.
-                        // Break out of the loop and throw, rather than looping forever.
-                        ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
-                    }
-                }
-            }
-            else
-            {
-                Debug.Assert(comparer is not null);
-                while ((uint)i < (uint)entries.Length)
-                {
-                    if (comparer.Equals(entries[i].key, key))
-                    {
-                        entries[i].AssertHash(hashCode);
-                        exists = true;
-
-                        return ref entries[i].value!;
-                    }
-
-                    i = entries[i].next;
-
-                    collisionCount++;
-                    if (collisionCount > (uint)entries.Length)
-                    {
-                        // The chain of entries forms a loop; which means a concurrent update has happened.
-                        // Break out of the loop and throw, rather than looping forever.
-                        ThrowHelper.ThrowInvalidOperationException_ConcurrentOperationsNotSupported();
-                    }
-                }
-            }
-
-            int index;
-            if (dictionary._freeCount > 0)
-            {
-                index = dictionary._freeList;
-                Debug.Assert((StartOfFreeList - entries[dictionary._freeList].next) >= -1, "shouldn't overflow because `next` cannot underflow");
-                dictionary._freeList = StartOfFreeList - entries[dictionary._freeList].next;
-                dictionary._freeCount--;
-            }
-            else
-            {
-                int count = dictionary._count;
-                if (count == entries.Length)
-                {
-                    dictionary.Resize();
-                    bucket = ref dictionary.GetBucket(hashCode);
-                }
-                index = count;
-                dictionary._count = count + 1;
-                entries = dictionary._entries;
-            }
-
-            ref Entry entry = ref entries![index];
-#if DEBUG
-            entry.hashCode = hashCode;
-#endif
-            entry.next = bucket - 1; // Value in _buckets is 1-based
-            entry.key = key;
-            entry.value = default!;
-            bucket = index + 1; // Value in _buckets is 1-based
-            dictionary._version++;
-
-            // Value types never rehash
-            if (!typeof(TKey).IsValueType &&
-                collisionCount > HashHelpers.HashCollisionThreshold &&
-                /*comparer is NonRandomizedStringEqualityComparer*/ false)
-            {
-                // If we hit the collision threshold we'll need to switch to the comparer which is using randomized string hashing
-                // i.e. EqualityComparer<string>.Default.
-                dictionary.Resize(entries.Length, true);
-
-                exists = false;
-
-                // At this point the entries array has been resized, so the current reference we have is no longer valid.
-                // We're forced to do a new lookup and return an updated reference to the new entry instance. This new
-                // lookup is guaranteed to always find a value though and it will never return a null reference here.
-                ref TValue? value = ref dictionary.FindValue(key)!;
-
-                Debug.Assert(!Unsafe.IsNullRef(ref value), "the lookup result cannot be a null ref here");
-
-                return ref value;
-            }
-
-            exists = false;
-
-            return ref entry.value!;
-        }
+        return ref entry.value!;
     }
 
     private void Resize() => Resize(HashHelpers.ExpandPrime(_count), false);
@@ -737,12 +507,13 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
         // Assign member variables after both arrays allocated to guard against corruption from OOM if second fails
         _buckets = new int[newSize];
         _fastModMultiplier = HashHelpers.GetFastModMultiplier((uint)newSize);
-
+        
+        TComparer? comparer = _comparer;
         for (int i = 0; i < count; i++)
         {
             if (entries[i].next >= -1)
             {
-                ref int bucket = ref GetBucket(GetHashCode(entries[i].key));
+                ref int bucket = ref GetBucket(GetHashCode(entries[i].key, comparer));
                 entries[i].next = bucket - 1; // Value in _buckets is 1-based
                 bucket = i + 1;
             }
@@ -764,7 +535,7 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
             Debug.Assert(_entries != null, "entries should be non-null");
             uint collisionCount = 0;
 
-            IEqualityComparer<TKey>? comparer = _comparer;
+            TComparer? comparer = _comparer;
             uint hashCode = GetHashCode(key, comparer);
 
             ref int bucket = ref GetBucket(hashCode);
@@ -775,7 +546,7 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
             {
                 ref Entry entry = ref entries[i];
 
-                if ((typeof(TKey).IsValueType && comparer == null ? EqualityComparer<TKey>.Default.Equals(entry.key, key) : comparer!.Equals(entry.key, key)))
+                if (Equals(entry.key, key, comparer))
                 {
                     entry.AssertHash(hashCode);
 
@@ -834,7 +605,7 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
             Debug.Assert(_entries != null, "entries should be non-null");
             uint collisionCount = 0;
 
-            IEqualityComparer<TKey>? comparer = _comparer;
+            TComparer? comparer = _comparer;
             uint hashCode = GetHashCode(key, comparer);
 
             ref int bucket = ref GetBucket(hashCode);
@@ -845,7 +616,7 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
             {
                 ref Entry entry = ref entries[i];
 
-                if ((typeof(TKey).IsValueType && comparer == null ? EqualityComparer<TKey>.Default.Equals(entry.key, key) : comparer!.Equals(entry.key, key)))
+                if (Equals(entry.key, key, comparer))
                 {
                     entry.AssertHash(hashCode);
 
@@ -989,12 +760,14 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
         Debug.Assert(_entries is not null);
 
         Entry[] newEntries = _entries;
+        TComparer? comparer = _comparer;
+
         int newCount = 0;
         for (int i = 0; i < count; i++)
         {
             if (entries[i].next >= -1)
             {
-                uint hashCode = GetHashCode(entries[i].key);
+                uint hashCode = GetHashCode(entries[i].key, comparer);
                 ref Entry entry = ref newEntries[newCount];
                 entry = entries[i];
                 ref int bucket = ref GetBucket(hashCode);
@@ -1023,16 +796,15 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint GetHashCode(TKey key)
+    private static uint GetHashCode(TKey key, TComparer? comparer)
     {
-        return GetHashCode(key, _comparer);
+        return (uint)((comparer == null) ? key.GetHashCode() : comparer.GetHashCode(key));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static uint GetHashCode(TKey key, IEqualityComparer<TKey>? comparer)
+    private static bool Equals(TKey x, TKey y, TComparer? comparer)
     {
-        Debug.Assert(typeof(TKey).IsValueType || comparer is not null);
-        return (uint)((typeof(TKey).IsValueType && comparer == null) ? key.GetHashCode() : comparer!.GetHashCode(key));
+        return comparer == null ? EqualityComparer<TKey>.Default.Equals(x, y) : comparer.Equals(x, y);
     }
 
     private struct Entry
@@ -1061,12 +833,12 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
 
     public struct Enumerator : IEnumerator<KeyValuePair<TKey, TValue>>
     {
-        private readonly BucketDict<TKey, TValue> _dictionary;
+        private readonly BucketDict<TKey, TValue, TComparer> _dictionary;
         private readonly int _version;
         private int _index;
         private KeyValuePair<TKey, TValue> _current;
 
-        internal Enumerator(BucketDict<TKey, TValue> dictionary)
+        internal Enumerator(BucketDict<TKey, TValue, TComparer> dictionary)
         {
             _dictionary = dictionary;
             _version = dictionary._version;
@@ -1118,11 +890,11 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
     }
 
     [DebuggerDisplay("Count = {Count}")]
-    public sealed class KeyCollection : ICollection<TKey>, IReadOnlyCollection<TKey>
+    public readonly struct KeyCollection : ICollection<TKey>, IReadOnlyCollection<TKey>
     {
-        private readonly BucketDict<TKey, TValue> _dictionary;
+        private readonly BucketDict<TKey, TValue, TComparer> _dictionary;
 
-        public KeyCollection(BucketDict<TKey, TValue> dictionary)
+        public KeyCollection(BucketDict<TKey, TValue, TComparer> dictionary)
         {
             ArgumentNullException.ThrowIfNull(dictionary);
 
@@ -1177,12 +949,12 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
 
         public struct Enumerator : IEnumerator<TKey>, IEnumerator
         {
-            private readonly BucketDict<TKey, TValue> _dictionary;
+            private readonly BucketDict<TKey, TValue, TComparer> _dictionary;
             private int _index;
             private readonly int _version;
             private TKey? _currentKey;
 
-            internal Enumerator(BucketDict<TKey, TValue> dictionary)
+            internal Enumerator(BucketDict<TKey, TValue, TComparer> dictionary)
             {
                 _dictionary = dictionary;
                 _version = dictionary._version;
@@ -1233,11 +1005,11 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
     }
 
     [DebuggerDisplay("Count = {Count}")]
-    public sealed class ValueCollection : ICollection<TValue>, IReadOnlyCollection<TValue>
+    public readonly struct ValueCollection : ICollection<TValue>, IReadOnlyCollection<TValue>
     {
-        private readonly BucketDict<TKey, TValue> _dictionary;
+        private readonly BucketDict<TKey, TValue, TComparer> _dictionary;
 
-        public ValueCollection(BucketDict<TKey, TValue> dictionary)
+        public ValueCollection(BucketDict<TKey, TValue, TComparer> dictionary)
         {
             ArgumentNullException.ThrowIfNull(dictionary);
 
@@ -1292,12 +1064,12 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
 
         public struct Enumerator : IEnumerator<TValue>, IEnumerator
         {
-            private readonly BucketDict<TKey, TValue> _dictionary;
+            private readonly BucketDict<TKey, TValue, TComparer> _dictionary;
             private int _index;
             private readonly int _version;
             private TValue? _currentValue;
 
-            internal Enumerator(BucketDict<TKey, TValue> dictionary)
+            internal Enumerator(BucketDict<TKey, TValue, TComparer> dictionary)
             {
                 _dictionary = dictionary;
                 _version = dictionary._version;

@@ -2,7 +2,7 @@
 namespace VoxelPizza.Collections;
 
 /// <summary>
-/// Used internally to control behavior of insertion into a <see cref="BucketDict{TKey, TValue}"/> or <see cref="BucketSet{T}"/>.
+/// Used internally to control behavior of insertion into a <see cref="BucketDict{TKey, TValue, TComparer}"/>.
 /// </summary>
 internal enum InsertionBehavior
 {

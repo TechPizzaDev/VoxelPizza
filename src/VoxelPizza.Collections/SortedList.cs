@@ -197,9 +197,10 @@ public class SortedList<T> : IList<T>, IReadOnlyList<T>
 
     public Enumerator GetEnumerator() => new(this);
 
-    IEnumerator<T> IEnumerable<T>.GetEnumerator() =>
-        Count == 0 ? Enumerable.Empty<T>().GetEnumerator() :
-        GetEnumerator();
+    IEnumerator<T> IEnumerable<T>.GetEnumerator()
+    {
+        return Count == 0 ? Enumerable.Empty<T>().GetEnumerator() : GetEnumerator();
+    }
 
     IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable<T>)this).GetEnumerator();
 

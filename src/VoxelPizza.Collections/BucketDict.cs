@@ -37,7 +37,7 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
 
     public BucketDict(int capacity, IEqualityComparer<TKey>? comparer)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 0);
+        ArgumentOutOfRangeException.ThrowIfNegative(capacity);
 
         if (capacity > 0)
         {
@@ -919,7 +919,7 @@ public class BucketDict<TKey, TValue> : IDictionary<TKey, TValue>, IReadOnlyDict
     /// </summary>
     public int EnsureCapacity(int capacity)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 0);
+        ArgumentOutOfRangeException.ThrowIfNegative(capacity);
 
         int currentCapacity = _entries == null ? 0 : _entries.Length;
         if (currentCapacity >= capacity)

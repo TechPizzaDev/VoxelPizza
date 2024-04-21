@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace VoxelPizza.Collections;
 
@@ -51,10 +52,30 @@ internal static class ThrowHelper
     }
 
     [DoesNotReturn]
-    public static void ThrowArgumentException_AddingDuplicateWithKey<T>(T key)
+    public static void ThrowArgumentException_AddingDuplicateWithKey<T>(
+        T key,
+        [CallerArgumentExpression(nameof(key))] string? paramName = null)
     {
         throw new ArgumentException(
-            $"An item with the same key has already been added. Key: {key}");
+            $"An item with the same key has already been added. Key: {key}", paramName);
+    }
+    
+    [DoesNotReturn]
+    public static void ThrowArgumentOutOfRange_SmallCapacity<T>(
+        T value, 
+        [CallerArgumentExpression(nameof(value))] string? paramName = null)
+    {
+        throw new ArgumentOutOfRangeException(paramName, value, "Capacity is less than the current size.");
+    }
+
+    
+    [DoesNotReturn]
+    public static void ThrowArgumentOutOfRange_IndexMustBeLess<T>(
+        T index, 
+        [CallerArgumentExpression(nameof(index))] string? paramName = null)
+    {
+        throw new ArgumentOutOfRangeException(
+            paramName, index, "Index was out of range. Must be non-negative and less than the size of the collection.");
     }
 
     [DoesNotReturn]

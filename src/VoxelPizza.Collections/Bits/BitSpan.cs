@@ -6,12 +6,12 @@ using System.Diagnostics;
 
 namespace VoxelPizza.Collections;
 
-internal readonly ref struct BitHelper
+internal readonly ref struct BitSpan
 {
     private const int IntSize = sizeof(int) * 8;
     private readonly Span<int> _span;
 
-    internal BitHelper(Span<int> span, bool clear)
+    internal BitSpan(Span<int> span, bool clear)
     {
         if (clear)
         {

@@ -10,6 +10,8 @@ namespace VoxelPizza.Numerics;
 
 public static class V128Helper
 {
+    public static bool IsVariableShiftAccelerated => Avx2.IsSupported || AdvSimd.IsSupported;
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector128<float> Remainder(Vector128<float> x, Vector128<float> y)
     {
@@ -105,4 +107,33 @@ public static class V128Helper
         }
         return result;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector128<uint> ShiftRightLogical(Vector128<uint> value, Vector128<uint> count)
+    {
+        if (Avx2.IsSupported)
+        {
+            return Avx2.ShiftRightLogicalVariable(value, count);
+        }
+        else if (AdvSimd.IsSupported)
+        {
+            return AdvSimd.ShiftLogical(value, -count.AsInt32());
+        }
+        else
+        {
+            return ShiftRightLogicalFallback(value, count);
+        }
+    }
+
+    private static Vector128<T> ShiftRightLogicalFallback<T>(Vector128<T> value, Vector128<T> count)
+        where T : INumberBase<T>, IShiftOperators<T, int, T>
+    {
+        Unsafe.SkipInit(out Vector128<T> result);
+        for (int i = 0; i < Vector128<T>.Count; i++)
+        {
+            result = result.WithElement(i, value.GetElement(i) >>> int.CreateTruncating(count.GetElement(i)));
+        }
+        return result;
+    }
+
 }

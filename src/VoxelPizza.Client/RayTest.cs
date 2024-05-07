@@ -18,7 +18,7 @@ namespace VoxelPizza.Client
 
             for (int i = 0; i < 10; i++)
             {
-                uint id = index % 2 == 0 ? 0u : 2;
+                uint id = index % 2 == 0 ? 0u : 1;
                 float t = index % 2 == 0 ? time : (time + MathF.PI);
 
                 Vector3 dir = new(
@@ -48,6 +48,7 @@ namespace VoxelPizza.Client
 
                                 using Dimension.BlockRayCast blockRay = new(dimension.Track());
                                 var chunk = ValueArc<Chunk>.Empty;
+                                bool changed = false;
                                 BlockRayCastStatus status;
                                 while ((status = blockRay.MoveNext(ref rayCast)) != BlockRayCastStatus.End)
                                 {
@@ -60,7 +61,11 @@ namespace VoxelPizza.Client
 
                                     if (status == BlockRayCastStatus.Chunk)
                                     {
-                                        chunk.TryGet()?.InvokeUpdate();
+                                        if (changed)
+                                        {
+                                            chunk.Get().InvokeUpdate();
+                                            changed = false;
+                                        }
                                         chunk.Dispose();
 
                                         chunk = blockRay.CurrentChunk.Track();
@@ -69,10 +74,13 @@ namespace VoxelPizza.Client
                                     {
                                         Chunk c = chunk.Get();
                                         Int3 p = current - c.Position.ToBlock().ToInt3();
-                                        c.GetBlockStorage().SetBlock(p.X, p.Y, p.Z, id);
+                                        changed |= c.GetBlockStorage().SetBlock(p.X, p.Y, p.Z, id);
                                     }
                                 }
-                                chunk.TryGet()?.InvokeUpdate();
+                                if (changed)
+                                {
+                                    chunk.Get().InvokeUpdate();
+                                }
                                 chunk.Dispose();
                             }
                         }

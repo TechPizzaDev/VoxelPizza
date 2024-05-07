@@ -84,6 +84,21 @@ public class SortedList<T, TComparer> : IList<T>, IReadOnlyList<T>
     /// Attempts to add <paramref name="item"/> to the list if it isn't already.
     /// </summary>
     /// <returns><see langword="true"/> if the item was added; <see langword="false"/> if the item already existed.</returns>
+    public bool TryAdd(T item, out int index)
+    {
+        int i = BinarySearch(item);
+        if (i < 0)
+        {
+            i = ~i;
+            index = i;
+            Insert(i, item);
+            return true;
+        }
+        index = i;
+        return false;
+    }
+
+    /// <inheritdoc cref="TryAdd(T, out int)"/>
     public bool TryAdd(T item)
     {
         int i = BinarySearch(item);

@@ -14,7 +14,7 @@ public abstract partial class BlockStorage<T> : BlockStorage
     {
         return GetIndexBase((uint)T.Depth, (uint)T.Width, y, z) + x;
     }
-
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetIndex(int x, int y, int z)
     {

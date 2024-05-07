@@ -35,20 +35,29 @@ namespace VoxelPizza.Collections.Blocks
             Copy(offset, Size, new ReadOnlySpan<byte>(_array), dstOffset, dstSize, dstSpan, size);
         }
 
-        public override void SetBlock(int x, int y, int z, uint value)
+        public override bool SetBlock(int x, int y, int z, uint value)
         {
             int index = GetIndex(x, y, z);
-            _array[index] = (byte)value;
+            ref byte slot = ref _array[index];
+            byte packed = (byte)value;
+            if (slot != packed)
+            {
+                slot = packed;
+                return true;
+            }
+            return false;
         }
 
-        public override void SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
+        public override uint SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
         {
             Copy(srcOffset, srcSize, srcSpan, offset, Size, new Span<byte>(_array), size);
+            return size.Volume; // TODO
         }
 
-        public override void FillBlock(Int3 offset, Size3 size, uint value)
+        public override uint FillBlock(Int3 offset, Size3 size, uint value)
         {
             Fill(offset, size, (byte)value, Size, new Span<byte>(_array));
+            return size.Volume; // TODO
         }
     }
 }

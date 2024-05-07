@@ -12,7 +12,7 @@ public class WavesTerrainGenerator : TerrainGenerator
         {
             return false;
         }
-        if (position.Y > 4)
+        if (position.Y > 6)
         {
             return false;
         }

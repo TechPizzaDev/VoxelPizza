@@ -1,6 +1,10 @@
 using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using VoxelPizza.Collections.Bits;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Collections.Blocks;
@@ -10,14 +14,14 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 {
     private IndexMap<uint> _palette;
 
-    private BlockStorage8<T> _tmpStorage;
+    private BitArray<ulong, int> _storage;
 
     public PaletteBlockStorage()
     {
         _palette = new IndexMap<uint>();
         _palette.Add(0);
 
-        _tmpStorage = new BlockStorage8<T>();
+        _storage = BitArray<ulong, int>.Allocate(Size.Volume, 1);
     }
 
     public override BlockStorageType StorageType => BlockStorageType.Specialized;
@@ -31,14 +35,20 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 
     public override uint GetBlock(int x, int y, int z)
     {
-        int index = (int)_tmpStorage.GetBlock(x, y, z);
-        return _palette.ValueForIndex(index);
+        int blockIndex = GetIndex(x, y, z);
+        return GetBlock(blockIndex);
+    }
+
+    public uint GetBlock(int blockIndex)
+    {
+        BitArray<ulong, int> storage = _storage;
+        BitArraySlot slot = storage.GetSlot(blockIndex);
+        int index = storage.Get(slot);
+        return _palette.Get(index);
     }
 
     public override void GetBlocks(Int3 offset, Size3 size, Int3 dstOffset, Size3 dstSize, Span<uint> dstSpan)
     {
-        _tmpStorage.GetBlocks(offset, size, dstOffset, dstSize, dstSpan);
-
         int dstWidth = (int)dstSize.W;
         int dstDepth = (int)dstSize.D;
 
@@ -46,153 +56,192 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         int height = (int)size.H;
         int depth = (int)size.D;
 
+        Span<int> buffer = stackalloc int[Width].Slice(0, width);
+
         for (int y = 0; y < height; y++)
         {
             for (int z = 0; z < depth; z++)
             {
-                int dstIdx = GetIndexBase(dstWidth, dstDepth, dstOffset.Y + y, dstOffset.Z + z);
+                int dstIdx = GetIndexBase(dstDepth, dstWidth, dstOffset.Y + y, dstOffset.Z + z);
                 Span<uint> dst = dstSpan.Slice(dstIdx + dstOffset.X, width);
 
-                for (int i = 0; i < dst.Length; i++)
-                {
-                    uint index = dst[i];
-                    uint value = _palette.ValueForIndex((int)index);
-                    dst[i] = value;
-                }
+                int srcIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z + z);
+                GetContiguousBlocks(srcIdx, dst, buffer);
             }
         }
     }
 
-    public override void SetBlock(int x, int y, int z, uint value)
+    private void GetContiguousBlocks(int srcIdx, Span<uint> dst, Span<int> buffer)
     {
-        PrepStorage(new Int3(x, y, z), new Size3(1), value);
+        Debug.Assert(buffer.Length == dst.Length);
 
-        int index = _palette.IndexForValue(value);
-        _tmpStorage.SetBlock(x, y, z, (uint)index);
+        // TODO: Add BitArray.IndexOfAnyExcept to reduce unpacking?
+
+        // Unpack block indices in bulk.
+        _storage.Get(srcIdx, buffer);
+
+        Span<int> src = buffer;
+        while (src.Length > 0)
+        {
+            int index = src[0];
+
+            // Move ahead while there are duplicates in the source.
+            int len = src.IndexOfAnyExcept(index);
+            if (len == -1)
+                len = src.Length; // Rest of source is same value.
+
+            // Fill block values in bulk.
+            Span<uint> values = dst.Slice(0, len);
+            uint value = _palette.Get(index);
+            values.Fill(value);
+
+            src = src.Slice(len);
+            dst = dst.Slice(len);
+        }
     }
 
-    public override void SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
+    public override bool SetBlock(int x, int y, int z, uint value)
     {
-        PrepStorage(offset, size, srcOffset, srcSize, srcSpan);
+        int blockIndex = GetIndex(x, y, z);
+        return SetBlock(blockIndex, value);
+    }
 
-        _tmpStorage.SetBlocks(offset, size, srcOffset, srcSize, srcSpan);
+    public bool SetBlock(int blockIndex, uint value)
+    {
+        BitArray<ulong, int> storage = _storage;
+        BitArraySlot slot = storage.GetSlot(blockIndex);
 
-        int count = (int)size.Volume;
-        uint[] buffer = ArrayPool<uint>.Shared.Rent(count);
-        Span<uint> span = buffer.AsSpan(0, count);
-
-        Copy(srcOffset, srcSize, srcSpan, new Int3(0), size, span, size);
-
-        for (int i = 0; i < span.Length; i++)
+        int prevIndex = storage.Get(slot);
+        uint prevValue = _palette.Get(prevIndex);
+        if (prevValue == value)
         {
-            uint value = span[i];
-            int index = _palette.IndexForValue(value);
-            span[i] = (uint)index;
+            return false;
         }
 
-        _tmpStorage.SetBlocks(offset, size, new Int3(0), size, buffer);
-
-        ArrayPool<uint>.Shared.Return(buffer);
-    }
-
-    public override void FillBlock(Int3 offset, Size3 size, uint value)
-    {
-        PrepStorage(offset, size, value);
-
-        int index = _palette.IndexForValue(value);
-        _tmpStorage.FillBlock(offset, size, (uint)index);
-    }
-
-    private void PrepStorage(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
-    {
-        ReturnAreaToPool(offset, size);
-
-        int srcWidth = (int)srcSize.W;
-        int srcDepth = (int)srcSize.D;
-
-        int width = (int)size.W;
-        int height = (int)size.H;
-        int depth = (int)size.D;
-
-        for (int y = 0; y < height; y++)
+        if (_palette.Add(value, out int index))
         {
-            for (int z = 0; z < depth; z++)
+            uint paletteCount = (uint)(_palette.Count - 1);
+            int bitsNeeded = sizeof(uint) * 8 - BitOperations.LeadingZeroCount(paletteCount);
+            if (storage.BitsPerElement != bitsNeeded)
             {
-                int srcIdx = GetIndexBase(srcWidth, srcDepth, srcOffset.Y + y, srcOffset.Z + z);
-                ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, width);
-
-                for (int i = 0; i < src.Length; i++)
-                {
-                    uint value = src[i];
-
-                    // Move ahead while there are duplicates
-                    while ((uint)(i + 1) < (uint)src.Length && value == src[i + 1])
-                    {
-                        i++;
-                    }
-
-                    _palette.Add(value);
-                }
-            }
-        }
-    }
-
-    private void PrepStorage(Int3 offset, Size3 size, uint value)
-    {
-        ReturnAreaToPool(offset, size);
-
-        _palette.Add(value);
-    }
-
-    private void ReturnAreaToPool(Int3 offset, Size3 size)
-    {
-        int count = (int)size.Volume;
-        uint[] buffer = ArrayPool<uint>.Shared.Rent(count);
-        Span<uint> span = buffer.AsSpan(0, count);
-
-        GetBlocks(offset, size, new Int3(0), size, span);
-
-        for (int i = 0; i < span.Length; i++)
-        {
-            uint value = span[i];
-
-            // Move ahead while there are duplicates
-            while ((uint)(i + 1) < (uint)span.Length && value == span[i + 1])
-            {
-                i++;
-            }
-
-            bool c = _palette.Contains(value);
-            Debug.Assert(c);
-        }
-
-        ArrayPool<uint>.Shared.Return(buffer);
-    }
-
-    private static bool EqualTo(Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan, uint value)
-    {
-        int srcWidth = (int)srcSize.W;
-        int srcDepth = (int)srcSize.D;
-
-        int width = (int)size.W;
-        int height = (int)size.H;
-        int depth = (int)size.D;
-
-        for (int y = 0; y < height; y++)
-        {
-            for (int z = 0; z < depth; z++)
-            {
-                int srcIdx = GetIndexBase(srcWidth, srcDepth, srcOffset.Y + y, srcOffset.Z + z);
-                ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, width);
-
-                int index = src.IndexOfAnyExcept(value);
-                if (index != -1)
-                {
-                    return false;
-                }
+                SetBlockWithResize(blockIndex, value, bitsNeeded);
+                return true;
             }
         }
 
+        storage.Set(slot, index);
         return true;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void SetBlockWithResize(int blockIndex, uint value, int bitsPerElement)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override uint SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
+    {
+        int srcWidth = (int)srcSize.W;
+        int srcDepth = (int)srcSize.D;
+
+        int width = (int)size.W;
+        int height = (int)size.H;
+        int depth = (int)size.D;
+
+        int[] buffer = ArrayPool<int>.Shared.Rent(width * depth);
+
+        uint changedCount = 0;
+
+        for (int y = 0; y < height; y++)
+        {
+            if (depth == srcDepth && depth == Depth)
+            {
+                int srcIdx = GetIndexBase(srcDepth, srcWidth, srcOffset.Y + y, srcOffset.Z);
+                ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, width * depth);
+
+                int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z);
+                changedCount += SetContiguousBlocks(dstIdx, src, buffer.AsSpan(0, width * depth));
+            }
+            else
+            {
+                for (int z = 0; z < depth; z++)
+                {
+                    int srcIdx = GetIndexBase(srcDepth, srcWidth, srcOffset.Y + y, srcOffset.Z + z);
+                    ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, width);
+
+                    int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z + z);
+                    changedCount += SetContiguousBlocks(dstIdx, src, buffer.AsSpan(0, width));
+                }
+            }
+        }
+
+        ArrayPool<int>.Shared.Return(buffer);
+
+        return changedCount;
+    }
+
+    private uint SetContiguousBlocks(int dstIdx, ReadOnlySpan<uint> source, Span<int> buffer)
+    {
+        Span<int> buf = buffer.Slice(0, source.Length);
+
+        // Unpack block indices in bulk.
+        _storage.Get(dstIdx, buf);
+
+        uint changedCount = 0;
+
+        Span<int> dst = buf;
+        while (source.Length > 0)
+        {
+            uint value = source[0];
+            _palette.Add(value, out int index);
+
+            // Move ahead while there are duplicates in the source.
+            int len = source.IndexOfAnyExcept(value);
+            if (len == -1)
+                len = source.Length; // Rest of source is same value.
+
+            Span<int> indices = dst.Slice(0, len);
+
+            // Copy block indices in bulk (while counting changed blocks).
+            if (Vector128.IsHardwareAccelerated)
+            {
+                Vector128<int> newIndices = Vector128.Create(index);
+
+                while (indices.Length >= Vector128<int>.Count)
+                {
+                    Vector128<int> oldIndices = Vector128.Create((ReadOnlySpan<int>)indices);
+                    newIndices.CopyTo(indices);
+
+                    Vector128<int> equal = Vector128.Equals(oldIndices, newIndices);
+                    changedCount += (uint)Vector128<int>.Count - equal.ExtractMostSignificantBits();
+
+                    indices = indices.Slice(Vector128<int>.Count);
+                }
+            }
+
+            // Copy remainder of block indices.
+            for (int i = 0; i < indices.Length; i++)
+            {
+                if (indices[i] != index)
+                {
+                    indices[i] = index;
+
+                    changedCount++;
+                }
+            }
+
+            source = source.Slice(len);
+            dst = dst.Slice(len);
+        }
+
+        // Pack block indices in bulk.
+        _storage.Set(dstIdx, buf);
+
+        return changedCount;
+    }
+
+    public override uint FillBlock(Int3 offset, Size3 size, uint value)
+    {
+        throw new NotImplementedException();
     }
 }

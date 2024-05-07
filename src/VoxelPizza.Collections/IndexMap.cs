@@ -9,7 +9,9 @@ public class IndexMap<T>
         _map = new SortedList<T>();
     }
 
-    public int IndexForValue(T value)
+    public int Count => _map.Count;
+
+    public int IndexOf(T value)
     {
         int index = _map.BinarySearch(value);
         if (index < 0)
@@ -19,9 +21,14 @@ public class IndexMap<T>
         return index;
     }
 
-    public T ValueForIndex(int index)
+    public T Get(int index)
     {
         return _map[index];
+    }
+
+    public bool Add(T value, out int index)
+    {
+        return _map.TryAdd(value, out index);
     }
 
     public bool Add(T value)

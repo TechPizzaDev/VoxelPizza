@@ -74,13 +74,27 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
     private void GetContiguousBlocks(int srcIdx, Span<uint> dst, Span<int> buffer)
     {
         Debug.Assert(buffer.Length == dst.Length);
+        
+        BitArray<ulong, int> storage = _storage;
+        ReadOnlySpan<uint> palette = _palette.AsSpan();
+        Span<int> src = buffer;
 
         // TODO: Add BitArray.IndexOfAnyExcept to reduce unpacking?
 
         // Unpack block indices in bulk.
-        _storage.Get(srcIdx, buffer);
+        storage.Get(srcIdx, src);
 
-        Span<int> src = buffer;
+        if (src.Length <= 4)
+        {
+            for (int i = 0; i < src.Length; i++)
+            {
+                int index = src[i];
+                uint value = palette[index];
+                dst[i] = value;
+            }
+            return;
+        }
+
         while (src.Length > 0)
         {
             int index = src[0];
@@ -92,7 +106,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 
             // Fill block values in bulk.
             Span<uint> values = dst.Slice(0, len);
-            uint value = _palette.Get(index);
+            uint value = palette[index];
             values.Fill(value);
 
             src = src.Slice(len);

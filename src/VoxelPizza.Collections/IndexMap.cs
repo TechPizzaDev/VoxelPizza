@@ -1,3 +1,5 @@
+using System;
+
 namespace VoxelPizza.Collections;
 
 public class IndexMap<T>
@@ -44,5 +46,10 @@ public class IndexMap<T>
     public bool Contains(T value)
     {
         return _map.Contains(value);
+    }
+
+    public ReadOnlySpan<T> AsSpan()
+    {
+        return _map.AsSpan();
     }
 }

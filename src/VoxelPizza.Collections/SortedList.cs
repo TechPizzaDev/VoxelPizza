@@ -66,6 +66,11 @@ public class SortedList<T, TComparer> : IList<T>, IReadOnlyList<T>
         set => throw new NotSupportedException();
     }
 
+    public ReadOnlySpan<T> AsSpan()
+    {
+        return _items.AsSpan(0, _count);
+    }
+
     /// <summary>
     /// Adds <paramref name="item"/> to the list.
     /// </summary>

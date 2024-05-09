@@ -80,12 +80,30 @@ public static partial class BitHelper
 
         if (startRem != 0)
         {
-            int headCount = Math.Min(elementsPerPart - (int)startRem, (int)count);
-            P headPart = PackBody<P, E>(ref src, headCount, bitsPerElement);
+            int remElementsInPart = elementsPerPart - (int)startRem;
             int insertShiftHead = (int)startRem * bitsPerElement;
-            headPart <<= insertShiftHead;
-            dst &= ~headPart;
-            dst |= headPart;
+            
+            int headCount = (int)count;
+            if (headCount < remElementsInPart)
+            {
+                // Replacing portion of the part:
+                //   x = existing bit, R = new bit, M = mid-point 
+                //  part bits: [ xxRRRMxxxx ]
+            }
+            else
+            {
+                // Replacing everything after mid-point:
+                //  part bits: [ RRRRRMxxxx ]
+                headCount = remElementsInPart;
+            }
+
+            int headBitLen = headCount * bitsPerElement;
+            P clearMask = ~(P.AllBitsSet << headBitLen);
+            P part = dst & ~(clearMask << insertShiftHead);
+
+            P headPart = PackBody<P, E>(ref src, headCount, bitsPerElement);
+            headPart >>= (sizeof(P) * 8 - headBitLen) - insertShiftHead;
+            dst = part | headPart;
 
             dst = ref Unsafe.Add(ref dst, 1);
             src = ref Unsafe.Add(ref src, headCount);
@@ -106,9 +124,13 @@ public static partial class BitHelper
 
         if (count > 0)
         {
+            int tailBitLen = (int)count * bitsPerElement;
+            P clearMask = P.AllBitsSet << tailBitLen;
+            P part = dst & clearMask;
+
             P tailPart = PackBody<P, E>(ref src, (int)count, bitsPerElement);
-            dst &= ~tailPart;
-            dst |= tailPart;
+            tailPart >>= sizeof(P) * 8 - tailBitLen;
+            dst = part | tailPart;
         }
     }
 
@@ -143,7 +165,7 @@ public static partial class BitHelper
                 Vector128<sbyte> m = V128Helper.NarrowSaturate(a << 15, b << 15);
                 uint mask = m.ExtractMostSignificantBits();
 
-                int insertShift = 64 - 16;
+                int insertShift = sizeof(ulong) * 8 - 16;
                 part >>= 16;
                 part |= (ulong)mask << insertShift;
 
@@ -166,7 +188,7 @@ public static partial class BitHelper
             od |= Unsafe.Add(ref src, 06) << 06;
             ev |= Unsafe.Add(ref src, 07) << 07;
 
-            int insertShift = 64 - 8;
+            int insertShift = sizeof(ulong) * 8 - 8;
             part >>= 8;
             part |= (ulong)(od | ev) << insertShift;
 

@@ -54,10 +54,10 @@ public static partial class BitHelper
         if ((uint)partIndex < (uint)destination.Length)
         {
             P part = destination[partIndex];
-            P clearMask = P.CreateTruncating(elementMask) << elementOffset;
-            P setMask = P.CreateTruncating(value & elementMask) << elementOffset;
-            part &= ~clearMask;
-            part |= setMask;
+            P clearMask = P.CreateTruncating(elementMask);
+            P setMask = P.CreateTruncating(value & elementMask);
+            part &= ~(clearMask << elementOffset);
+            part |= setMask << elementOffset;
             destination[partIndex] = part;
         }
     }

@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using VoxelPizza.Collections.Bits;
 using VoxelPizza.Numerics;
@@ -16,14 +17,14 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 
     private IndexMap<uint> _palette;
 
-    private BitArray<ulong, int> _storage;
+    private BitArray<ulong> _storage;
 
     public PaletteBlockStorage()
     {
         _palette = new IndexMap<uint>();
         _palette.Add(0);
 
-        _storage = BitArray<ulong, int>.Allocate(Size.Volume, 1);
+        _storage = BitArray<ulong>.Allocate(Size.Volume, 1);
     }
 
     public override BlockStorageType StorageType => BlockStorageType.Specialized;
@@ -43,9 +44,9 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 
     public uint GetBlock(int blockIndex)
     {
-        BitArray<ulong, int> storage = _storage;
+        BitArray<ulong> storage = _storage;
         BitArraySlot slot = storage.GetSlot(blockIndex);
-        int index = storage.Get(slot);
+        int index = storage.Get<int>(slot);
         return _palette.Get(index);
     }
 
@@ -63,7 +64,11 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         int stride = width;
         Span<int> bufSpan = stride <= StackThreshold
             ? stackalloc int[StackThreshold] : bufArray = ArrayPool<int>.Shared.Rent(stride);
-        Span<int> buffer = bufSpan.Slice(0, stride);
+
+        Span<int> buffer32 = bufSpan.Slice(0, stride);
+        Span<short> buffer16 = MemoryMarshal.Cast<int, short>(buffer32).Slice(0, buffer32.Length);
+        Span<byte> buffer08 = MemoryMarshal.AsBytes(buffer32).Slice(0, buffer32.Length);
+        int bitsPerElement = _storage.BitsPerElement;
 
         for (int y = 0; y < height; y++)
         {
@@ -73,35 +78,41 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
                 Span<uint> dst = dstSpan.Slice(dstIdx + dstOffset.X, stride);
 
                 int srcIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z + z);
-                GetContiguousBlocks(srcIdx, dst, buffer);
+                switch (bitsPerElement)
+                {
+                    case <= 08: GetContiguousBlocks(srcIdx, dst, buffer08); break;
+                    case <= 16: GetContiguousBlocks(srcIdx, dst, buffer16); break;
+                    case <= 32: GetContiguousBlocks(srcIdx, dst, buffer32); break;
+                }
             }
         }
-        
+
         if (bufArray != null)
         {
             ArrayPool<int>.Shared.Return(bufArray);
         }
     }
 
-    private void GetContiguousBlocks(int srcIdx, Span<uint> dst, Span<int> buffer)
+    private void GetContiguousBlocks<E>(int srcIdx, Span<uint> dst, Span<E> buffer)
+        where E : unmanaged, IBinaryInteger<E>
     {
         Debug.Assert(buffer.Length == dst.Length);
 
-        BitArray<ulong, int> storage = _storage;
+        BitArray<ulong> storage = _storage;
         ReadOnlySpan<uint> palette = _palette.AsSpan();
-        Span<int> src = buffer;
+        Span<E> src = buffer;
 
         // TODO: Add BitArray.IndexOfAnyExcept to reduce unpacking?
 
         // Unpack block indices in bulk.
-        storage.Get(srcIdx, src);
+        storage.GetRange(srcIdx, src);
 
-        if (src.Length <= 4)
+        if (src.Length < Vector128<E>.Count)
         {
             for (int i = 0; i < src.Length; i++)
             {
-                int index = src[i];
-                uint value = palette[index];
+                E index = src[i];
+                uint value = palette[int.CreateTruncating(index)];
                 dst[i] = value;
             }
             return;
@@ -109,7 +120,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 
         while (src.Length > 0)
         {
-            int index = src[0];
+            E index = src[0];
 
             // Move ahead while there are duplicates in the source.
             int len = src.IndexOfAnyExcept(index);
@@ -118,7 +129,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 
             // Fill block values in bulk.
             Span<uint> values = dst.Slice(0, len);
-            uint value = palette[index];
+            uint value = palette[int.CreateTruncating(index)];
             values.Fill(value);
 
             src = src.Slice(len);
@@ -134,10 +145,10 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 
     public bool SetBlock(int blockIndex, uint value)
     {
-        BitArray<ulong, int> storage = _storage;
+        BitArray<ulong> storage = _storage;
         BitArraySlot slot = storage.GetSlot(blockIndex);
 
-        int prevIndex = storage.Get(slot);
+        int prevIndex = storage.Get<int>(slot);
         uint prevValue = _palette.Get(prevIndex);
         if (prevValue == value)
         {
@@ -178,29 +189,36 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         int[]? bufArray = null;
         uint changedCount = 0;
 
+        int stride = (depth == srcDepth && depth == Depth) ? (width * depth) : width;
+
+        Span<int> bufSpan = stride <= StackThreshold
+            ? stackalloc int[StackThreshold] : bufArray = ArrayPool<int>.Shared.Rent(stride);
+        Span<int> buffer = bufSpan.Slice(0, stride);
+
+        Span<int> buffer32 = bufSpan.Slice(0, stride);
+        Span<short> buffer16 = MemoryMarshal.Cast<int, short>(buffer32).Slice(0, buffer32.Length);
+        Span<byte> buffer08 = MemoryMarshal.AsBytes(buffer32).Slice(0, buffer32.Length);
+        int bitsPerElement = _storage.BitsPerElement;
+
         if (depth == srcDepth && depth == Depth)
         {
-            int stride = width * depth;
-            Span<int> bufSpan = stride <= StackThreshold
-                ? stackalloc int[StackThreshold] : bufArray = ArrayPool<int>.Shared.Rent(stride);
-            Span<int> buffer = bufSpan.Slice(0, stride);
-
             for (int y = 0; y < height; y++)
             {
                 int srcIdx = GetIndexBase(srcDepth, srcWidth, srcOffset.Y + y, srcOffset.Z);
                 ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, stride);
 
                 int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z);
-                changedCount += SetContiguousBlocks(dstIdx, src, buffer);
+                changedCount += bitsPerElement switch
+                {
+                    <= 08 => SetContiguousBlocks(dstIdx, src, buffer08),
+                    <= 16 => SetContiguousBlocks(dstIdx, src, buffer16),
+                    <= 32 => SetContiguousBlocks(dstIdx, src, buffer32),
+                    _ => 0,
+                };
             }
         }
         else
         {
-            int stride = width;
-            Span<int> bufSpan = stride <= StackThreshold
-                ? stackalloc int[StackThreshold] : bufArray = ArrayPool<int>.Shared.Rent(stride);
-            Span<int> buffer = bufSpan.Slice(0, stride);
-
             for (int y = 0; y < height; y++)
             {
                 for (int z = 0; z < depth; z++)
@@ -209,7 +227,13 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
                     ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, stride);
 
                     int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z + z);
-                    changedCount += SetContiguousBlocks(dstIdx, src, buffer);
+                    changedCount += bitsPerElement switch
+                    {
+                        <= 08 => SetContiguousBlocks(dstIdx, src, buffer08),
+                        <= 16 => SetContiguousBlocks(dstIdx, src, buffer16),
+                        <= 32 => SetContiguousBlocks(dstIdx, src, buffer32),
+                        _ => 0,
+                    };
                 }
             }
         }
@@ -221,45 +245,47 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         return changedCount;
     }
 
-    private uint SetContiguousBlocks(int dstIdx, ReadOnlySpan<uint> source, Span<int> buffer)
+    private uint SetContiguousBlocks<E>(int dstIdx, ReadOnlySpan<uint> source, Span<E> buffer)
+        where E : unmanaged, IBinaryInteger<E>
     {
         Debug.Assert(buffer.Length == source.Length);
 
-        BitArray<ulong, int> storage = _storage;
+        BitArray<ulong> storage = _storage;
         IndexMap<uint> palette = _palette;
 
         // Unpack block indices in bulk.
-        storage.Get(dstIdx, buffer);
+        storage.GetRange(dstIdx, buffer);
 
         uint changedCount = 0;
 
-        Span<int> dst = buffer;
+        Span<E> dst = buffer;
         while (source.Length > 0)
         {
             uint value = source[0];
-            palette.Add(value, out int index);
+            palette.Add(value, out int palIndex);
+            E index = E.CreateTruncating(palIndex);
 
             // Move ahead while there are duplicates in the source.
             int len = source.IndexOfAnyExcept(value);
             if (len == -1)
                 len = source.Length; // Rest of source is same value.
 
-            Span<int> indices = dst.Slice(0, len);
+            Span<E> indices = dst.Slice(0, len);
 
             // Copy block indices in bulk (while counting changed blocks).
             if (Vector128.IsHardwareAccelerated)
             {
-                Vector128<int> newIndices = Vector128.Create(index);
+                Vector128<E> newIndices = Vector128.Create(index);
 
-                while (indices.Length >= Vector128<int>.Count)
+                while (indices.Length >= Vector128<E>.Count)
                 {
-                    Vector128<int> oldIndices = Vector128.Create((ReadOnlySpan<int>)indices);
+                    Vector128<E> oldIndices = Vector128.Create<E>(indices);
                     newIndices.CopyTo(indices);
 
-                    Vector128<int> equal = Vector128.Equals(oldIndices, newIndices);
-                    changedCount += (uint)Vector128<int>.Count - equal.ExtractMostSignificantBits();
+                    Vector128<E> equal = Vector128.Equals(oldIndices, newIndices);
+                    changedCount += (uint)Vector128<E>.Count - equal.ExtractMostSignificantBits();
 
-                    indices = indices.Slice(Vector128<int>.Count);
+                    indices = indices.Slice(Vector128<E>.Count);
                 }
             }
 
@@ -279,7 +305,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         }
 
         // Pack block indices in bulk.
-        storage.Set(dstIdx, buffer);
+        storage.SetRange<E>(dstIdx, buffer);
 
         return changedCount;
     }

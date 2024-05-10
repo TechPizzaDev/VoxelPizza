@@ -6,59 +6,43 @@ namespace VoxelPizza.Collections.Bits;
 
 public readonly record struct BitArraySlot(int Part, int Element, ushort BitsPerElement);
 
-public readonly struct BitArray<P, E>
+public readonly struct BitArray<P>
     where P : unmanaged, IBinaryInteger<P>
-    where E : unmanaged, IBinaryInteger<E>
 {
     private readonly P[] _store;
-    private readonly E _elementMask;
     private readonly ushort _elementsPerPart;
     private readonly ushort _bitsPerElement;
 
     public P[] Store => _store;
-    public E ElementMask => _elementMask;
     public int ElementsPerPart => _elementsPerPart;
     public int BitsPerElement => _bitsPerElement;
 
     public nint Length => (nint)_store.LongLength * _elementsPerPart;
 
-    public E this[int index]
-    {
-        get => Get(GetSlot(index));
-        set => Set(GetSlot(index), value);
-    }
-
-    public E this[nint index]
-    {
-        get => Get(GetSlot(index));
-        set => Set(GetSlot(index), value);
-    }
-
     public unsafe BitArray(P[] store, int bitsPerElement)
     {
         ArgumentNullException.ThrowIfNull(store);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(bitsPerElement, sizeof(E) * 8u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(bitsPerElement, sizeof(P) * 8u);
 
         _store = store;
-        _elementMask = BitHelper.GetElementMask<E>(bitsPerElement);
         _elementsPerPart = (ushort)BitHelper.GetElementsPerPart<P>(bitsPerElement);
         _bitsPerElement = (ushort)bitsPerElement;
     }
 
-    public static BitArray<P, E> Allocate(
+    public static BitArray<P> Allocate(
         nuint count, int bitsPerElement, bool pinned = false)
     {
         nuint partCount = BitHelper.GetPartCount<P>(count, bitsPerElement);
         P[] array = GC.AllocateArray<P>(checked((int)partCount), pinned);
-        return new BitArray<P, E>(array, bitsPerElement);
+        return new BitArray<P>(array, bitsPerElement);
     }
 
-    public static BitArray<P, E> AllocateUninitialized(
+    public static BitArray<P> AllocateUninitialized(
         nuint count, int bitsPerElement, bool pinned = false)
     {
         nuint partCount = BitHelper.GetPartCount<P>(count, bitsPerElement);
         P[] array = GC.AllocateUninitializedArray<P>(checked((int)partCount), pinned);
-        return new BitArray<P, E>(array, bitsPerElement);
+        return new BitArray<P>(array, bitsPerElement);
     }
 
     public BitArraySlot GetSlot(int index)
@@ -73,36 +57,42 @@ public readonly struct BitArray<P, E>
         return new BitArraySlot((int)part, (int)element * _bitsPerElement, _bitsPerElement);
     }
 
-    public E Get(BitArraySlot slot)
+    public E Get<E>(BitArraySlot slot)
+        where E : unmanaged, IBinaryInteger<E>
     {
         Debug.Assert(slot.BitsPerElement == _bitsPerElement);
 
-        return BitHelper.Get((ReadOnlySpan<P>)Store, slot.Part, slot.Element, _elementMask);
+        return BitHelper.Get((ReadOnlySpan<P>)Store, slot.Part, slot.Element, BitHelper.GetElementMask<E>(BitsPerElement));
     }
 
-    public void Set(BitArraySlot slot, E value)
+    public void Set<E>(BitArraySlot slot, E value)
+        where E : unmanaged, IBinaryInteger<E>
     {
         Debug.Assert(slot.BitsPerElement == _bitsPerElement);
 
-        BitHelper.Set((Span<P>)Store, slot.Part, slot.Element, value, _elementMask);
+        BitHelper.Set((Span<P>)Store, slot.Part, slot.Element, value, BitHelper.GetElementMask<E>(BitsPerElement));
     }
 
-    public void Fill(nint start, nint count, E value)
+    public void Fill<E>(nint start, nint count, E value)
+        where E : unmanaged, IBinaryInteger<E>
     {
         BitHelper.Fill((Span<P>)Store, start, count, value, BitsPerElement);
     }
 
-    public void Fill(E value)
+    public void Fill<E>(E value)
+        where E : unmanaged, IBinaryInteger<E>
     {
         Fill(0, Length, value);
     }
 
-    public void Get(nint start, Span<E> destination)
+    public void GetRange<E>(nint start, Span<E> destination)
+        where E : unmanaged, IBinaryInteger<E>
     {
         BitHelper.Unpack(destination, (ReadOnlySpan<P>)Store, start, BitsPerElement);
     }
 
-    public void Set(nint start, ReadOnlySpan<E> source)
+    public void SetRange<E>(nint start, ReadOnlySpan<E> source)
+        where E : unmanaged, IBinaryInteger<E>
     {
         BitHelper.Pack((Span<P>)Store, start, source, BitsPerElement);
     }

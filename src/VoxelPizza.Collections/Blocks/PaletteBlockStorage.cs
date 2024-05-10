@@ -12,6 +12,8 @@ namespace VoxelPizza.Collections.Blocks;
 public sealed class PaletteBlockStorage<T> : BlockStorage<T>
     where T : IBlockStorageDescriptor
 {
+    private const int StackThreshold = 256;
+
     private IndexMap<uint> _palette;
 
     private BitArray<ulong, int> _storage;
@@ -47,6 +49,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         return _palette.Get(index);
     }
 
+    [SkipLocalsInit]
     public override void GetBlocks(Int3 offset, Size3 size, Int3 dstOffset, Size3 dstSize, Span<uint> dstSpan)
     {
         int dstWidth = (int)dstSize.W;
@@ -56,25 +59,34 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         int height = (int)size.H;
         int depth = (int)size.D;
 
-        Span<int> buffer = stackalloc int[Width].Slice(0, width);
+        int[]? bufArray = null;
+        int stride = width;
+        Span<int> bufSpan = stride <= StackThreshold
+            ? stackalloc int[StackThreshold] : bufArray = ArrayPool<int>.Shared.Rent(stride);
+        Span<int> buffer = bufSpan.Slice(0, stride);
 
         for (int y = 0; y < height; y++)
         {
             for (int z = 0; z < depth; z++)
             {
                 int dstIdx = GetIndexBase(dstDepth, dstWidth, dstOffset.Y + y, dstOffset.Z + z);
-                Span<uint> dst = dstSpan.Slice(dstIdx + dstOffset.X, width);
+                Span<uint> dst = dstSpan.Slice(dstIdx + dstOffset.X, stride);
 
                 int srcIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z + z);
                 GetContiguousBlocks(srcIdx, dst, buffer);
             }
+        }
+        
+        if (bufArray != null)
+        {
+            ArrayPool<int>.Shared.Return(bufArray);
         }
     }
 
     private void GetContiguousBlocks(int srcIdx, Span<uint> dst, Span<int> buffer)
     {
         Debug.Assert(buffer.Length == dst.Length);
-        
+
         BitArray<ulong, int> storage = _storage;
         ReadOnlySpan<uint> palette = _palette.AsSpan();
         Span<int> src = buffer;
@@ -153,6 +165,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         throw new NotImplementedException();
     }
 
+    [SkipLocalsInit]
     public override uint SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
     {
         int srcWidth = (int)srcSize.W;
@@ -162,52 +175,69 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         int height = (int)size.H;
         int depth = (int)size.D;
 
-        int[] buffer = ArrayPool<int>.Shared.Rent(width * depth);
-
+        int[]? bufArray = null;
         uint changedCount = 0;
 
-        for (int y = 0; y < height; y++)
+        if (depth == srcDepth && depth == Depth)
         {
-            if (depth == srcDepth && depth == Depth)
+            int stride = width * depth;
+            Span<int> bufSpan = stride <= StackThreshold
+                ? stackalloc int[StackThreshold] : bufArray = ArrayPool<int>.Shared.Rent(stride);
+            Span<int> buffer = bufSpan.Slice(0, stride);
+
+            for (int y = 0; y < height; y++)
             {
                 int srcIdx = GetIndexBase(srcDepth, srcWidth, srcOffset.Y + y, srcOffset.Z);
-                ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, width * depth);
+                ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, stride);
 
                 int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z);
-                changedCount += SetContiguousBlocks(dstIdx, src, buffer.AsSpan(0, width * depth));
+                changedCount += SetContiguousBlocks(dstIdx, src, buffer);
             }
-            else
+        }
+        else
+        {
+            int stride = width;
+            Span<int> bufSpan = stride <= StackThreshold
+                ? stackalloc int[StackThreshold] : bufArray = ArrayPool<int>.Shared.Rent(stride);
+            Span<int> buffer = bufSpan.Slice(0, stride);
+
+            for (int y = 0; y < height; y++)
             {
                 for (int z = 0; z < depth; z++)
                 {
                     int srcIdx = GetIndexBase(srcDepth, srcWidth, srcOffset.Y + y, srcOffset.Z + z);
-                    ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, width);
+                    ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, stride);
 
                     int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z + z);
-                    changedCount += SetContiguousBlocks(dstIdx, src, buffer.AsSpan(0, width));
+                    changedCount += SetContiguousBlocks(dstIdx, src, buffer);
                 }
             }
         }
 
-        ArrayPool<int>.Shared.Return(buffer);
-
+        if (bufArray != null)
+        {
+            ArrayPool<int>.Shared.Return(bufArray);
+        }
         return changedCount;
     }
 
     private uint SetContiguousBlocks(int dstIdx, ReadOnlySpan<uint> source, Span<int> buffer)
     {
-        Span<int> buf = buffer.Slice(0, source.Length);
+        Debug.Assert(buffer.Length == source.Length);
+
+        BitArray<ulong, int> storage = _storage;
+        IndexMap<uint> palette = _palette;
 
         // Unpack block indices in bulk.
-        _storage.Get(dstIdx, buf);
+        storage.Get(dstIdx, buffer);
 
         uint changedCount = 0;
 
-        Span<int> dst = buf;
+        Span<int> dst = buffer;
         while (source.Length > 0)
         {
             uint value = source[0];
-            _palette.Add(value, out int index);
+            palette.Add(value, out int index);
 
             // Move ahead while there are duplicates in the source.
             int len = source.IndexOfAnyExcept(value);
@@ -249,7 +279,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         }
 
         // Pack block indices in bulk.
-        _storage.Set(dstIdx, buf);
+        storage.Set(dstIdx, buffer);
 
         return changedCount;
     }

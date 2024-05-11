@@ -62,7 +62,8 @@ public readonly struct BitArray<P>
     {
         Debug.Assert(slot.BitsPerElement == _bitsPerElement);
 
-        return BitHelper.Get((ReadOnlySpan<P>)Store, slot.Part, slot.Element, BitHelper.GetElementMask<E>(BitsPerElement));
+        E mask = BitHelper.GetElementMask<E>(BitsPerElement);
+        return BitHelper.Get((ReadOnlySpan<P>)Store, slot.Part, slot.Element, mask);
     }
 
     public void Set<E>(BitArraySlot slot, E value)
@@ -70,7 +71,8 @@ public readonly struct BitArray<P>
     {
         Debug.Assert(slot.BitsPerElement == _bitsPerElement);
 
-        BitHelper.Set((Span<P>)Store, slot.Part, slot.Element, value, BitHelper.GetElementMask<E>(BitsPerElement));
+        E mask = BitHelper.GetElementMask<E>(BitsPerElement);
+        BitHelper.Set((Span<P>)Store, slot.Part, slot.Element, value, mask);
     }
 
     public void Fill<E>(nint start, nint count, E value)

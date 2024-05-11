@@ -10,10 +10,8 @@ public static partial class BitHelper
     public static unsafe E GetElementMask<E>(int bitsPerElement)
         where E : unmanaged, IBinaryInteger<E>
     {
-        if (bitsPerElement == sizeof(E) * 8)
-            return E.AllBitsSet;
-        else
-            return ~(E.AllBitsSet << bitsPerElement);
+        int shift = sizeof(E) * 8 - bitsPerElement;
+        return E.AllBitsSet >>> shift;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

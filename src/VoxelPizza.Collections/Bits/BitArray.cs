@@ -22,7 +22,7 @@ public readonly struct BitArray<P>
     public unsafe BitArray(P[] store, int bitsPerElement)
     {
         ArgumentNullException.ThrowIfNull(store);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(bitsPerElement, sizeof(P) * 8u);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan((uint)bitsPerElement, sizeof(P) * 8u);
 
         _store = store;
         _elementsPerPart = (ushort)BitHelper.GetElementsPerPart<P>(bitsPerElement);

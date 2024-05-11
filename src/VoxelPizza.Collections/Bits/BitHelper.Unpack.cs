@@ -62,6 +62,8 @@ public static partial class BitHelper
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
     {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan((uint)bitsPerElement, sizeof(E) * 8u);
+
         int elementsPerPart = GetElementsPerPart<P>(bitsPerElement);
         (nint srcIndex, nint startRem) = Math.DivRem(start, elementsPerPart);
 

@@ -46,8 +46,8 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
     {
         BitArray<ulong> storage = _storage;
         BitArraySlot slot = storage.GetSlot(blockIndex);
-        int index = storage.Get<int>(slot);
-        return _palette.Get(index);
+        uint index = storage.Get<uint>(slot);
+        return _palette.Get((int)index);
     }
 
     [SkipLocalsInit]
@@ -60,13 +60,13 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         int height = (int)size.H;
         int depth = (int)size.D;
 
-        int[]? bufArray = null;
+        uint[]? bufArray = null;
         int stride = width;
-        Span<int> bufSpan = stride <= StackThreshold
-            ? stackalloc int[StackThreshold] : bufArray = ArrayPool<int>.Shared.Rent(stride);
+        Span<uint> bufSpan = stride <= StackThreshold
+            ? stackalloc uint[StackThreshold] : bufArray = ArrayPool<uint>.Shared.Rent(stride);
 
-        Span<int> buffer32 = bufSpan.Slice(0, stride);
-        Span<short> buffer16 = MemoryMarshal.Cast<int, short>(buffer32).Slice(0, buffer32.Length);
+        Span<uint> buffer32 = bufSpan.Slice(0, stride);
+        Span<ushort> buffer16 = MemoryMarshal.Cast<uint, ushort>(buffer32).Slice(0, buffer32.Length);
         Span<byte> buffer08 = MemoryMarshal.AsBytes(buffer32).Slice(0, buffer32.Length);
         int bitsPerElement = _storage.BitsPerElement;
 
@@ -89,7 +89,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 
         if (bufArray != null)
         {
-            ArrayPool<int>.Shared.Return(bufArray);
+            ArrayPool<uint>.Shared.Return(bufArray);
         }
     }
 
@@ -148,8 +148,8 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         BitArray<ulong> storage = _storage;
         BitArraySlot slot = storage.GetSlot(blockIndex);
 
-        int prevIndex = storage.Get<int>(slot);
-        uint prevValue = _palette.Get(prevIndex);
+        uint prevIndex = storage.Get<uint>(slot);
+        uint prevValue = _palette.Get((int)prevIndex);
         if (prevValue == value)
         {
             return false;
@@ -166,7 +166,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
             }
         }
 
-        storage.Set(slot, index);
+        storage.Set(slot, (uint)index);
         return true;
     }
 
@@ -186,17 +186,17 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         int height = (int)size.H;
         int depth = (int)size.D;
 
-        int[]? bufArray = null;
+        uint[]? bufArray = null;
         uint changedCount = 0;
 
         int stride = (depth == srcDepth && depth == Depth) ? (width * depth) : width;
 
-        Span<int> bufSpan = stride <= StackThreshold
-            ? stackalloc int[StackThreshold] : bufArray = ArrayPool<int>.Shared.Rent(stride);
-        Span<int> buffer = bufSpan.Slice(0, stride);
+        Span<uint> bufSpan = stride <= StackThreshold
+            ? stackalloc uint[StackThreshold] : bufArray = ArrayPool<uint>.Shared.Rent(stride);
+        Span<uint> buffer = bufSpan.Slice(0, stride);
 
-        Span<int> buffer32 = bufSpan.Slice(0, stride);
-        Span<short> buffer16 = MemoryMarshal.Cast<int, short>(buffer32).Slice(0, buffer32.Length);
+        Span<uint> buffer32 = bufSpan.Slice(0, stride);
+        Span<ushort> buffer16 = MemoryMarshal.Cast<uint, ushort>(buffer32).Slice(0, buffer32.Length);
         Span<byte> buffer08 = MemoryMarshal.AsBytes(buffer32).Slice(0, buffer32.Length);
         int bitsPerElement = _storage.BitsPerElement;
 
@@ -240,7 +240,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
 
         if (bufArray != null)
         {
-            ArrayPool<int>.Shared.Return(bufArray);
+            ArrayPool<uint>.Shared.Return(bufArray);
         }
         return changedCount;
     }
@@ -263,7 +263,7 @@ public sealed class PaletteBlockStorage<T> : BlockStorage<T>
         {
             uint value = source[0];
             palette.Add(value, out int palIndex);
-            E index = E.CreateTruncating(palIndex);
+            E index = E.CreateTruncating((uint)palIndex);
 
             // Move ahead while there are duplicates in the source.
             int len = source.IndexOfAnyExcept(value);

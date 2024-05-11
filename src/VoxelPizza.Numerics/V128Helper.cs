@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
@@ -10,7 +11,29 @@ namespace VoxelPizza.Numerics;
 
 public static class V128Helper
 {
-    public static bool IsVariableShiftAccelerated => Avx2.IsSupported || AdvSimd.IsSupported;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector128<T> CreateIncrement<T>([ConstantExpected] T start, [ConstantExpected] T step)
+        where T : unmanaged, INumberBase<T>
+    {
+        Unsafe.SkipInit(out Vector128<T> vec);
+        for (int i = 0; i < Vector128<T>.Count; i++)
+        {
+            vec = vec.WithElement(i, start + step * T.CreateTruncating(i));
+        }
+        return vec;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector128<T> CreateIncrementPow2<T>([ConstantExpected] int start, [ConstantExpected] int step)
+        where T : unmanaged, INumberBase<T>, IShiftOperators<T, int, T>
+    {
+        Unsafe.SkipInit(out Vector128<T> vec);
+        for (int i = 0; i < Vector128<T>.Count; i++)
+        {
+            vec = vec.WithElement(i, T.One << (start + i * step));
+        }
+        return vec;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector128<float> Remainder(Vector128<float> x, Vector128<float> y)
@@ -109,20 +132,56 @@ public static class V128Helper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector128<uint> ShiftRightLogical(Vector128<uint> value, Vector128<uint> count)
+    public static unsafe bool IsAcceleratedShiftRightLogical<T>()
+        where T : unmanaged
     {
+        if (Avx512BW.VL.IsSupported)
+        {
+            if (sizeof(T) == sizeof(short))
+                return true;
+        }
+
         if (Avx2.IsSupported)
         {
-            return Avx2.ShiftRightLogicalVariable(value, count);
+            if (sizeof(T) == sizeof(int) ||
+                sizeof(T) == sizeof(long))
+                return true;
         }
-        else if (AdvSimd.IsSupported)
+
+        return AdvSimd.IsSupported;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe Vector128<T> ShiftRightLogical<T>(Vector128<T> value, Vector128<T> count)
+        where T : unmanaged, INumberBase<T>, IShiftOperators<T, int, T>
+    {
+        if (Avx512BW.VL.IsSupported)
         {
-            return AdvSimd.ShiftLogical(value, -count.AsInt32());
+            if (sizeof(T) == sizeof(short))
+                return Avx512BW.VL.ShiftRightLogicalVariable(value.AsInt16(), count.AsUInt16()).As<short, T>();
         }
-        else
+
+        if (Avx2.IsSupported)
         {
-            return ShiftRightLogicalFallback(value, count);
+            if (sizeof(T) == sizeof(int))
+                return Avx2.ShiftRightLogicalVariable(value.AsInt32(), count.AsUInt32()).As<int, T>();
+            if (sizeof(T) == sizeof(long))
+                return Avx2.ShiftRightLogicalVariable(value.AsInt64(), count.AsUInt64()).As<long, T>();
         }
+
+        if (AdvSimd.IsSupported)
+        {
+            return sizeof(T) switch
+            {
+                sizeof(byte) => AdvSimd.ShiftLogical(value.AsByte(), -count.AsSByte()).As<byte, T>(),
+                sizeof(short) => AdvSimd.ShiftLogical(value.AsInt16(), -count.AsInt16()).As<short, T>(),
+                sizeof(int) => AdvSimd.ShiftLogical(value.AsInt32(), -count.AsInt32()).As<int, T>(),
+                sizeof(long) => AdvSimd.ShiftLogical(value.AsInt64(), -count.AsInt64()).As<long, T>(),
+                _ => ShiftRightLogicalFallback(value, count),
+            };
+        }
+
+        return ShiftRightLogicalFallback(value, count);
     }
 
     private static Vector128<T> ShiftRightLogicalFallback<T>(Vector128<T> value, Vector128<T> count)
@@ -135,5 +194,4 @@ public static class V128Helper
         }
         return result;
     }
-
 }

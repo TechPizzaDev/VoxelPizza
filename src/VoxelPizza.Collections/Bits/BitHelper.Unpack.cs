@@ -30,21 +30,19 @@ public static partial class BitHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void UnpackPart<P, E>(ref E dst, P part, int count, E mask, int bitsPerElement)
+    private static unsafe void UnpackPart<P, E>(ref E dst, P part, int count, E mask, int bitsPerElement)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
     {
         int i = 0;
 
-        if (Unsafe.SizeOf<P>() == sizeof(ulong) && Unsafe.SizeOf<E>() == sizeof(uint) && count >= 8)
+        if (count >= 4)
         {
-            ref uint iDst = ref Unsafe.As<E, uint>(ref dst);
-            ulong iPart = Unsafe.BitCast<P, ulong>(part);
             int rem = count;
 
             if (bitsPerElement == 1)
             {
-                rem = Unpack1Special(ref iDst, iPart, count);
+                rem = Unpack1Special(ref dst, part, count);
             }
 
             i = count - rem;
@@ -123,63 +121,91 @@ public static partial class BitHelper
         UnpackCore(destination, source, start, 1);
     }
 
-    private static int Unpack1Special(ref uint dst, ulong part, int count)
+    private static unsafe int Unpack1Special<P, E>(ref E dst, P part, int count)
+        where P : unmanaged, IBinaryInteger<P>
+        where E : unmanaged, IBinaryInteger<E>
     {
-        const uint mask = 0b1;
-
-        if (Avx512F.IsSupported)
+        if (Bmi2.X64.IsSupported && sizeof(E) == 1)
         {
-            while (count >= 16)
+            while (count >= 8)
             {
-                uint quarter = (uint)part;
-                part >>= 16;
+                ulong mask = Bmi2.X64.ParallelBitDeposit(ulong.CreateTruncating(part), 0x01_01_01_01_01_01_01_01);
+                part >>= 8;
+                Unsafe.WriteUnaligned(ref Unsafe.As<E, byte>(ref dst), mask);
 
-                Vector512<uint> vh = Vector512.Create(quarter);
-                Vector512<uint> vm = Vector512.Create(mask);
+                dst = ref Unsafe.Add(ref dst, 8);
+                count -= 8;
+            }
+        }
 
-                Vector512<uint> sc = Vector512.Create(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15u);
-                Vector512<uint> v0 = Avx512F.ShiftRightLogicalVariable(vh, sc);
+        if (Bmi2.IsSupported && sizeof(E) == 1)
+        {
+            while (count >= 4)
+            {
+                uint mask = Bmi2.ParallelBitDeposit(uint.CreateTruncating(part), 0x01_01_01_01);
+                part >>= 4;
+                Unsafe.WriteUnaligned(ref Unsafe.As<E, byte>(ref dst), mask);
+
+                dst = ref Unsafe.Add(ref dst, 4);
+                count -= 4;
+            }
+
+            return count;
+        }
+
+        E elementMask = E.CreateTruncating(0b1);
+        
+        if (V128Helper.IsAcceleratedShiftRightLogical<E>() && sizeof(E) >= 2)
+        {
+            while (count >= Vector128<E>.Count)
+            {
+                E slice = E.CreateTruncating(part);
+                part >>= Vector128<E>.Count;
+
+                Vector128<E> vh = Vector128.Create(slice);
+                Vector128<E> vm = Vector128.Create(elementMask);
+
+                Vector128<E> sc = V128Helper.CreateIncrement(E.Zero, E.One);
+                Vector128<E> v0 = V128Helper.ShiftRightLogical(vh, sc);
                 (v0 & vm).StoreUnsafe(ref dst);
 
-                dst = ref Unsafe.Add(ref dst, 16);
-                count -= 16;
+                dst = ref Unsafe.Add(ref dst, Vector128<E>.Count);
+                count -= Vector128<E>.Count;
+            }
+        }
+
+        if (V64Helper.IsAcceleratedShiftRightLogical<E>())
+        {
+            while (count >= Vector64<E>.Count)
+            {
+                E slice = E.CreateTruncating(part);
+                part >>= Vector64<E>.Count;
+
+                Vector64<E> vh = Vector64.Create(slice);
+                Vector64<E> vm = Vector64.Create(elementMask);
+
+                Vector64<E> sc = V64Helper.CreateIncrement(E.Zero, E.One);
+                Vector64<E> v0 = V64Helper.ShiftRightLogical(vh, sc);
+                (v0 & vm).StoreUnsafe(ref dst);
+
+                dst = ref Unsafe.Add(ref dst, Vector64<E>.Count);
+                count -= Vector64<E>.Count;
             }
         }
 
         while (count >= 8)
         {
-            uint octal = (uint)part;
+            E slice = E.CreateTruncating(part);
             part >>= 8;
 
-            if (Avx2.IsSupported)
-            {
-                Vector256<uint> vh = Vector256.Create(octal);
-                Vector256<uint> vm = Vector256.Create(mask);
-
-                Vector256<uint> v0 = Avx2.ShiftRightLogicalVariable(vh, Vector256.Create(0, 1, 2, 3, 4, 5, 6, 7u));
-                (v0 & vm).StoreUnsafe(ref dst);
-            }
-            else if (V128Helper.IsVariableShiftAccelerated)
-            {
-                Vector128<uint> vh = Vector128.Create(octal);
-                Vector128<uint> vm = Vector128.Create(mask);
-
-                Vector128<uint> v0 = V128Helper.ShiftRightLogical(vh, Vector128.Create(0, 1, 2, 3u));
-                (v0 & vm).StoreUnsafe(ref dst, 0);
-                Vector128<uint> v1 = V128Helper.ShiftRightLogical(vh, Vector128.Create(4, 5, 6, 7u));
-                (v1 & vm).StoreUnsafe(ref dst, 4);
-            }
-            else
-            {
-                Unsafe.Add(ref dst, 00) = (octal >> 00) & mask;
-                Unsafe.Add(ref dst, 01) = (octal >> 01) & mask;
-                Unsafe.Add(ref dst, 02) = (octal >> 02) & mask;
-                Unsafe.Add(ref dst, 03) = (octal >> 03) & mask;
-                Unsafe.Add(ref dst, 04) = (octal >> 04) & mask;
-                Unsafe.Add(ref dst, 05) = (octal >> 05) & mask;
-                Unsafe.Add(ref dst, 06) = (octal >> 06) & mask;
-                Unsafe.Add(ref dst, 07) = (octal >> 07) & mask;
-            }
+            Unsafe.Add(ref dst, 0) = (slice >> 0) & elementMask;
+            Unsafe.Add(ref dst, 1) = (slice >> 1) & elementMask;
+            Unsafe.Add(ref dst, 2) = (slice >> 2) & elementMask;
+            Unsafe.Add(ref dst, 3) = (slice >> 3) & elementMask;
+            Unsafe.Add(ref dst, 4) = (slice >> 4) & elementMask;
+            Unsafe.Add(ref dst, 5) = (slice >> 5) & elementMask;
+            Unsafe.Add(ref dst, 6) = (slice >> 6) & elementMask;
+            Unsafe.Add(ref dst, 7) = (slice >> 7) & elementMask;
 
             dst = ref Unsafe.Add(ref dst, 8);
             count -= 8;

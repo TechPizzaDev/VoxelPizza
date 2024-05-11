@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Collections.Bits;
@@ -36,20 +37,18 @@ public static partial class BitHelper
         P part = P.Zero;
         int i = 0;
 
-        if (Unsafe.SizeOf<P>() == sizeof(ulong) && Unsafe.SizeOf<E>() == sizeof(uint) && count >= 8)
+        if (count >= 4)
         {
-            ref uint iSrc = ref Unsafe.As<E, uint>(ref src);
-            ulong iPart = 0;
             int rem = count;
 
             if (bitsPerElement == 1)
             {
-                iPart = Pack1Special(ref iSrc, count, out rem);
+                part = Pack1Special<P, E>(ref src, count, out rem);
             }
 
             i = count - rem;
             int insertShiftPart = sizeof(P) * 8 - i * bitsPerElement;
-            part = P.CreateChecked(iPart << insertShiftPart);
+            part <<= insertShiftPart;
         }
 
         int insertShiftElem = sizeof(P) * 8 - bitsPerElement;
@@ -82,7 +81,7 @@ public static partial class BitHelper
         {
             int remElementsInPart = elementsPerPart - (int)startRem;
             int insertShiftHead = (int)startRem * bitsPerElement;
-            
+
             int headCount = (int)count;
             if (headCount < remElementsInPart)
             {
@@ -150,24 +149,61 @@ public static partial class BitHelper
         PackCore(destination, start, source, 1);
     }
 
-    private static ulong Pack1Special(ref uint src, int count, out int rem)
+    private static unsafe P Pack1Special<P, E>(ref E src, int count, out int rem)
+        where P : unmanaged, IBinaryInteger<P>
+        where E : unmanaged, IBinaryInteger<E>
     {
-        ulong part = 0;
+        P part = P.Zero;
 
-        if (Vector128.IsHardwareAccelerated)
+        if (Bmi2.X64.IsSupported && sizeof(E) == 1)
+        {
+            while (count >= 8)
+            {
+                ulong data = Unsafe.ReadUnaligned<ulong>(ref Unsafe.As<E, byte>(ref src));
+                ulong mask = Bmi2.X64.ParallelBitExtract(data, 0x01_01_01_01_01_01_01_01);
+                
+                int insertShift = sizeof(P) * 8 - 8;
+                part >>= 8;
+                part |= P.CreateTruncating(mask) << insertShift;
+        
+                src = ref Unsafe.Add(ref src, 8);
+                count -= 8;
+            }
+        }
+        
+        if (Bmi2.IsSupported && sizeof(E) == 1)
+        {
+            while (count >= 4)
+            {
+                uint data = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<E, byte>(ref src));
+                uint mask = Bmi2.ParallelBitExtract(data, 0x01_01_01_01);
+                
+                int insertShift = sizeof(P) * 8 - 4;
+                part >>= 4;
+                part |= P.CreateTruncating(mask) << insertShift;
+        
+                src = ref Unsafe.Add(ref src, 4);
+                count -= 4;
+            }
+        
+            rem = count;
+            return part;
+        }
+
+        if (Vector128.IsHardwareAccelerated && sizeof(E) == 4)
         {
             while (count >= 16)
             {
-                ref int data = ref Unsafe.As<uint, int>(ref src);
+                ref int data = ref Unsafe.As<E, int>(ref src);
 
                 Vector128<short> a = V128Helper.NarrowSaturate(Vector128.LoadUnsafe(ref data, 00), Vector128.LoadUnsafe(ref data, 04));
                 Vector128<short> b = V128Helper.NarrowSaturate(Vector128.LoadUnsafe(ref data, 08), Vector128.LoadUnsafe(ref data, 12));
                 Vector128<sbyte> m = V128Helper.NarrowSaturate(a << 15, b << 15);
                 uint mask = m.ExtractMostSignificantBits();
 
-                int insertShift = sizeof(ulong) * 8 - 16;
+                int insertShift = sizeof(P) * 8 - 16;
                 part >>= 16;
-                part |= (ulong)mask << insertShift;
+                part |= P.CreateTruncating(mask) << insertShift;
 
                 src = ref Unsafe.Add(ref src, 16);
                 count -= 16;
@@ -176,8 +212,8 @@ public static partial class BitHelper
 
         while (count >= 8)
         {
-            uint od = 0;
-            uint ev = 0;
+            E od = E.Zero;
+            E ev = E.Zero;
 
             od |= Unsafe.Add(ref src, 00) << 00;
             ev |= Unsafe.Add(ref src, 01) << 01;
@@ -188,9 +224,9 @@ public static partial class BitHelper
             od |= Unsafe.Add(ref src, 06) << 06;
             ev |= Unsafe.Add(ref src, 07) << 07;
 
-            int insertShift = sizeof(ulong) * 8 - 8;
+            int insertShift = sizeof(P) * 8 - 8;
             part >>= 8;
-            part |= (ulong)(od | ev) << insertShift;
+            part |= P.CreateTruncating(od | ev) << insertShift;
 
             src = ref Unsafe.Add(ref src, 8);
             count -= 8;

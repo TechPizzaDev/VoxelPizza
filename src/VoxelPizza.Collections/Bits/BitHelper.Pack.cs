@@ -2,9 +2,7 @@ using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
-using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Collections.Bits;
 
@@ -30,33 +28,33 @@ public static partial class BitHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe P PackBody<P, E>(ref E src, int count, int bitsPerElement)
+    private static unsafe P PackBody<P, E>(ref E src, int count, int bitsPerElement, P extractMask)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
     {
         P part = P.Zero;
-        int i = 0;
 
-        if (count >= 4)
+        int rem;
+        if (Bmi2.X64.IsSupported && UseBmi2X64<E>())
         {
-            int rem = count;
-
-            if (bitsPerElement == 1)
-            {
-                part = Pack1Special<P, E>(ref src, count, out rem);
-            }
-
-            i = count - rem;
-            int insertShiftPart = sizeof(P) * 8 - i * bitsPerElement;
-            part <<= insertShiftPart;
+            rem = PackBmi2X64(ref src, count, ref part, bitsPerElement, extractMask);
+        }
+        else if (Bmi2.IsSupported && UseBmi2<E>())
+        {
+            rem = PackBmi2(ref src, count, ref part, bitsPerElement, extractMask);
+        }
+        else
+        {
+            rem = PackScalar(ref src, count, ref part, bitsPerElement);
         }
 
-        int insertShiftElem = sizeof(P) * 8 - bitsPerElement;
-        for (; i < count; i++)
+        int insertShift = sizeof(P) * 8 - bitsPerElement;
+
+        for (int i = count - rem; i < count; i++)
         {
             E element = Unsafe.Add(ref src, i);
-            part >>= bitsPerElement;
-            part |= P.CreateTruncating(element) << insertShiftElem;
+            part >>>= bitsPerElement;
+            part |= P.CreateTruncating(element) << insertShift;
         }
 
         return part;
@@ -78,6 +76,9 @@ public static partial class BitHelper
 
         ref E src = ref MemoryMarshal.GetReference(source);
         ref P dst = ref Unsafe.Add(ref MemoryMarshal.GetReference(destination), dstIndex);
+
+        E elementMask = GetElementMask<E>(bitsPerElement);
+        P extractMask = GetParallelMask<P, E>(elementMask);
 
         if (startRem != 0)
         {
@@ -102,8 +103,8 @@ public static partial class BitHelper
             P clearMask = ~(P.AllBitsSet << headBitLen);
             P part = dst & ~(clearMask << insertShiftHead);
 
-            P headPart = PackBody<P, E>(ref src, headCount, bitsPerElement);
-            headPart >>= (sizeof(P) * 8 - headBitLen) - insertShiftHead;
+            P headPart = PackBody(ref src, headCount, bitsPerElement, extractMask);
+            headPart >>>= (sizeof(P) * 8 - headBitLen) - insertShiftHead;
             dst = part | headPart;
 
             dst = ref Unsafe.Add(ref dst, 1);
@@ -114,7 +115,7 @@ public static partial class BitHelper
         nint midCount = count / elementsPerPart;
         for (nint j = 0; j < midCount; j++)
         {
-            P part = PackBody<P, E>(ref src, elementsPerPart, bitsPerElement);
+            P part = PackBody(ref src, elementsPerPart, bitsPerElement, extractMask);
             Unsafe.Add(ref dst, j) = part;
 
             src = ref Unsafe.Add(ref src, elementsPerPart);
@@ -129,8 +130,8 @@ public static partial class BitHelper
             P clearMask = P.AllBitsSet << tailBitLen;
             P part = dst & clearMask;
 
-            P tailPart = PackBody<P, E>(ref src, (int)count, bitsPerElement);
-            tailPart >>= sizeof(P) * 8 - tailBitLen;
+            P tailPart = PackBody(ref src, (int)count, bitsPerElement, extractMask);
+            tailPart >>>= sizeof(P) * 8 - tailBitLen;
             dst = part | tailPart;
         }
     }
@@ -151,91 +152,89 @@ public static partial class BitHelper
         PackCore(destination, start, source, 1);
     }
 
-    private static unsafe P Pack1Special<P, E>(ref E src, int count, out int rem)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe int PackBmi2X64<P, E>(ref E src, int count, ref P part, int bitsPerElement, P extractMask)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
     {
-        P part = P.Zero;
+        int stride = Math.Min(sizeof(ulong), sizeof(P)) / sizeof(E);
+        int bitStride = stride * bitsPerElement;
+        int insertShift = sizeof(P) * 8 - bitStride;
 
-        if (Bmi2.X64.IsSupported && sizeof(E) == 1)
+        while (count >= stride)
         {
-            while (count >= 8)
-            {
-                ulong data = Unsafe.ReadUnaligned<ulong>(ref Unsafe.As<E, byte>(ref src));
-                ulong mask = Bmi2.X64.ParallelBitExtract(data, 0x01_01_01_01_01_01_01_01);
-                
-                int insertShift = sizeof(P) * 8 - 8;
-                part >>= 8;
-                part |= P.CreateTruncating(mask) << insertShift;
-        
-                src = ref Unsafe.Add(ref src, 8);
-                count -= 8;
-            }
-        }
-        
-        if (Bmi2.IsSupported && sizeof(E) == 1)
-        {
-            while (count >= 4)
-            {
-                uint data = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<E, byte>(ref src));
-                uint mask = Bmi2.ParallelBitExtract(data, 0x01_01_01_01);
-                
-                int insertShift = sizeof(P) * 8 - 4;
-                part >>= 4;
-                part |= P.CreateTruncating(mask) << insertShift;
-        
-                src = ref Unsafe.Add(ref src, 4);
-                count -= 4;
-            }
-        
-            rem = count;
-            return part;
+            ulong data = Unsafe.ReadUnaligned<ulong>(ref Unsafe.As<E, byte>(ref src));
+            ulong mask = Bmi2.X64.ParallelBitExtract(data, ulong.CreateTruncating(extractMask));
+
+            part >>>= bitStride;
+            part |= P.CreateTruncating(mask) << insertShift;
+
+            src = ref Unsafe.Add(ref src, stride);
+            count -= stride;
         }
 
-        if (Vector128.IsHardwareAccelerated && sizeof(E) == 4)
+        if (UseBmi2<E>())
         {
-            while (count >= 16)
-            {
-                ref int data = ref Unsafe.As<E, int>(ref src);
-
-                Vector128<short> a = V128Helper.NarrowSaturate(Vector128.LoadUnsafe(ref data, 00), Vector128.LoadUnsafe(ref data, 04));
-                Vector128<short> b = V128Helper.NarrowSaturate(Vector128.LoadUnsafe(ref data, 08), Vector128.LoadUnsafe(ref data, 12));
-                Vector128<sbyte> m = V128Helper.NarrowSaturate(a << 15, b << 15);
-                uint mask = m.ExtractMostSignificantBits();
-
-                int insertShift = sizeof(P) * 8 - 16;
-                part >>= 16;
-                part |= P.CreateTruncating(mask) << insertShift;
-
-                src = ref Unsafe.Add(ref src, 16);
-                count -= 16;
-            }
+            // `Bmi2.IsSupported` must be true if `Bmi2.X64.IsSupported` is true.
+            count = PackBmi2(ref src, count, ref part, bitsPerElement, extractMask);
         }
+
+        return count;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe int PackBmi2<P, E>(ref E src, int count, ref P part, int bitsPerElement, P extractMask)
+        where P : unmanaged, IBinaryInteger<P>
+        where E : unmanaged, IBinaryInteger<E>
+    {
+        int stride = Math.Min(sizeof(uint), sizeof(P)) / sizeof(E);
+        int bitStride = stride * bitsPerElement;
+        int insertShift = sizeof(P) * 8 - bitStride;
+
+        while (count >= stride)
+        {
+            uint data = Unsafe.ReadUnaligned<uint>(ref Unsafe.As<E, byte>(ref src));
+            uint mask = Bmi2.ParallelBitExtract(data, uint.CreateTruncating(extractMask));
+
+            part >>>= bitStride;
+            part |= P.CreateTruncating(mask) << insertShift;
+
+            src = ref Unsafe.Add(ref src, stride);
+            count -= stride;
+        }
+        return count;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static unsafe int PackScalar<P, E>(ref E src, int count, ref P part, int bitsPerElement)
+        where P : unmanaged, IBinaryInteger<P>
+        where E : unmanaged, IBinaryInteger<E>
+    {
+        int bitStride = 8 * bitsPerElement;
+        int insertShift = sizeof(P) * 8 - bitStride;
 
         while (count >= 8)
         {
-            E od = E.Zero;
-            E ev = E.Zero;
+            P od = P.Zero;
+            P ev = P.Zero;
 
-            od |= Unsafe.Add(ref src, 00) << 00;
-            ev |= Unsafe.Add(ref src, 01) << 01;
-            od |= Unsafe.Add(ref src, 02) << 02;
-            ev |= Unsafe.Add(ref src, 03) << 03;
-            od |= Unsafe.Add(ref src, 04) << 04;
-            ev |= Unsafe.Add(ref src, 05) << 05;
-            od |= Unsafe.Add(ref src, 06) << 06;
-            ev |= Unsafe.Add(ref src, 07) << 07;
+            od |= P.CreateTruncating(Unsafe.Add(ref src, 0)) << (0 * bitsPerElement);
+            ev |= P.CreateTruncating(Unsafe.Add(ref src, 1)) << (1 * bitsPerElement);
+            od |= P.CreateTruncating(Unsafe.Add(ref src, 2)) << (2 * bitsPerElement);
+            ev |= P.CreateTruncating(Unsafe.Add(ref src, 3)) << (3 * bitsPerElement);
+            od |= P.CreateTruncating(Unsafe.Add(ref src, 4)) << (4 * bitsPerElement);
+            ev |= P.CreateTruncating(Unsafe.Add(ref src, 5)) << (5 * bitsPerElement);
+            od |= P.CreateTruncating(Unsafe.Add(ref src, 6)) << (6 * bitsPerElement);
+            ev |= P.CreateTruncating(Unsafe.Add(ref src, 7)) << (7 * bitsPerElement);
 
-            int insertShift = sizeof(P) * 8 - 8;
-            part >>= 8;
-            part |= P.CreateTruncating(od | ev) << insertShift;
+            part >>>= bitStride;
+            part |= od << insertShift;
+            part |= ev << insertShift;
 
             src = ref Unsafe.Add(ref src, 8);
             count -= 8;
         }
-
-        rem = count;
-        return part;
+        return count;
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -22,12 +22,28 @@ public static partial class BitHelper
         return elementsPerPart;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static nuint GetPartCount<P>(nuint elementCount, int bitsPerElement)
         where P : unmanaged
     {
         nuint elementsPerPart = (uint)GetElementsPerPart<P>(bitsPerElement);
         nuint longCount = (elementCount + elementsPerPart - 1) / elementsPerPart;
         return longCount;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe P GetParallelMask<P, E>(E elementMask)
+        where E : unmanaged, IBinaryInteger<E>
+        where P : unmanaged, IBinaryInteger<P>
+    {
+        P parallelMask = P.Zero;
+        int count = sizeof(P) / sizeof(E);
+        for (int i = 0; i < count; i++)
+        {
+            parallelMask <<= sizeof(E) * 8;
+            parallelMask |= P.CreateTruncating(elementMask);
+        }
+        return parallelMask;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

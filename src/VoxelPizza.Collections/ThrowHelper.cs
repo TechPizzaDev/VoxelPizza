@@ -11,6 +11,12 @@ namespace VoxelPizza.Collections;
 internal static class ThrowHelper
 {
     [DoesNotReturn]
+    public static void ThrowArgumentOutOfRangeException()
+    {
+        throw new ArgumentOutOfRangeException();
+    }
+
+    [DoesNotReturn]
     public static void ThrowKeyNotFoundException<T>(T key)
     {
         throw new KeyNotFoundException($"The given key '{key}' was not present in the dictionary.");

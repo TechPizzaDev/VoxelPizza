@@ -58,7 +58,8 @@ public sealed class DynamicBlockStorage<T> : BlockStorage<T>
                 return;
             }
 
-            _storage = new PaletteBlockStorage<T>();
+            IndexMap<uint> palette = new(values);
+            _storage = new PaletteBlockStorage<T>(palette);
             IsEmpty = false;
         }
     }

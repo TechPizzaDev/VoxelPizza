@@ -11,6 +11,13 @@ namespace VoxelPizza.Collections;
 
 public class SortedList<T> : SortedList<T, IdentityComparer<T>>
 {
+    public SortedList()
+    {
+    }
+
+    public SortedList(int capacity) : base(capacity, default)
+    {
+    }
 }
 
 [DebuggerDisplay("Count = {Count}")]

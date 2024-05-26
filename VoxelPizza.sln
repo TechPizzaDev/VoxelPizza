@@ -62,6 +62,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.World", "src\Vox
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoxelPizza.World.Test", "test\VoxelPizza.World.Test\VoxelPizza.World.Test.csproj", "{A21850FD-F79A-4542-86B4-69148C1C9B6C}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "submodules", "submodules", "{0857F607-2E72-4481-95F0-E59A2FF3269E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SharpFastNoise2", "submodules\SharpFastNoise2\SharpFastNoise2\SharpFastNoise2.csproj", "{149BB6D0-F06C-4A92-993E-0CF7B926BAE5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -152,6 +156,10 @@ Global
 		{A21850FD-F79A-4542-86B4-69148C1C9B6C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A21850FD-F79A-4542-86B4-69148C1C9B6C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A21850FD-F79A-4542-86B4-69148C1C9B6C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{149BB6D0-F06C-4A92-993E-0CF7B926BAE5}.Debug|Any CPU.ActiveCfg = Release|Any CPU
+		{149BB6D0-F06C-4A92-993E-0CF7B926BAE5}.Debug|Any CPU.Build.0 = Release|Any CPU
+		{149BB6D0-F06C-4A92-993E-0CF7B926BAE5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{149BB6D0-F06C-4A92-993E-0CF7B926BAE5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -178,6 +186,7 @@ Global
 		{9F062281-ED15-4673-B970-6350C29F0271} = {789B1001-F064-4978-BD5D-7C1AAAF0ADEB}
 		{CC245437-4125-4A3B-8B05-D7D1BBA2347B} = {789B1001-F064-4978-BD5D-7C1AAAF0ADEB}
 		{A21850FD-F79A-4542-86B4-69148C1C9B6C} = {7E6DA5B2-3FDC-4DF1-B204-616747DC50D4}
+		{149BB6D0-F06C-4A92-993E-0CF7B926BAE5} = {0857F607-2E72-4481-95F0-E59A2FF3269E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {1B0DC0DC-14D7-4206-8728-62E24FA288B0}

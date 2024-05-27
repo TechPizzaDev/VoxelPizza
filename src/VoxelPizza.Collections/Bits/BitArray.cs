@@ -93,18 +93,6 @@ public readonly struct BitArray<P>
         BitHelper.Set((Span<P>)Store, slot.Part, slot.Element, value, mask);
     }
 
-    public void Fill<E>(nint start, nint count, E value)
-        where E : unmanaged, IBinaryInteger<E>
-    {
-        BitHelper.Fill((Span<P>)Store, start, count, value, BitsPerElement);
-    }
-
-    public void Fill<E>(E value)
-        where E : unmanaged, IBinaryInteger<E>
-    {
-        Fill(0, Length, value);
-    }
-
     public void GetRange<E>(nint start, Span<E> destination)
         where E : unmanaged, IBinaryInteger<E>
     {

@@ -1,10 +1,11 @@
 using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace VoxelPizza.Collections.Bits;
 
-public readonly ref struct BitSpan<P>
+public readonly ref partial struct BitSpan<P>
     where P : unmanaged, IBinaryInteger<P>
 {
     private readonly ref P _data;
@@ -44,7 +45,7 @@ public readonly ref struct BitSpan<P>
 
     public int Length => (int)_length;
 
-    public nint LongLength => _length;
+    public nint NativeLength => _length;
 
     public int BitsPerElement => _bitsPerElement;
 
@@ -62,7 +63,7 @@ public readonly ref struct BitSpan<P>
         get => Get<P>(index);
         set => Set(index, value);
     }
-    
+
     public void CopyTo<E>(BitSpan<E> span)
         where E : unmanaged, IBinaryInteger<E>
     {
@@ -70,6 +71,14 @@ public readonly ref struct BitSpan<P>
     }
 
     public ref P GetReference() => ref _data;
+    
+    public Span<P> GetSpan(out nint startRemainder)
+    {
+        (nint start, startRemainder) = Math.DivRem(_start, _elementsPerPart);
+        nint length = (_length + _elementsPerPart - 1) / _elementsPerPart;
+        Span<P> span = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref _data, start), checked((int)length));
+        return span;
+    }
 
     /// <summary>
     /// Gets the element at the specified index.
@@ -77,14 +86,13 @@ public readonly ref struct BitSpan<P>
     /// <param name="index">The index of the element within the span.</param>
     /// <returns>The element at to the specified index.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The specified index is out of range.</exception>
-    /// <exception cref="OverflowException"></exception>
     public E Get<E>(nint index, E elementMask)
         where E : unmanaged, IBinaryInteger<E>
     {
-        if ((nuint)checked(_start + index) >= (nuint)_length)
+        if ((nuint)index >= (nuint)_length)
             ThrowHelper.ThrowArgumentOutOfRange_IndexMustBeLess(index);
 
-        (nint partIndex, nint elementIndex) = Math.DivRem(index, _elementsPerPart);
+        (nint partIndex, nint elementIndex) = Math.DivRem(_start + index, _elementsPerPart);
         int elementOffset = (int)elementIndex * _bitsPerElement;
 
         P part = Unsafe.Add(ref _data, partIndex);
@@ -105,14 +113,13 @@ public readonly ref struct BitSpan<P>
     /// </summary>
     /// <param name="index">The index of the element within the span.</param>
     /// <exception cref="ArgumentOutOfRangeException">The specified index is out of range.</exception>
-    /// <exception cref="OverflowException"></exception>
     public void Set<E>(nint index, E value, E elementMask)
         where E : unmanaged, IBinaryInteger<E>
     {
-        if ((nuint)checked(_start + index) >= (nuint)_length)
+        if ((nuint)index >= (nuint)_length)
             ThrowHelper.ThrowArgumentOutOfRange_IndexMustBeLess(index);
 
-        (nint partIndex, nint elementIndex) = Math.DivRem(index, _elementsPerPart);
+        (nint partIndex, nint elementIndex) = Math.DivRem(_start + index, _elementsPerPart);
         int elementOffset = (int)elementIndex * _bitsPerElement;
 
         ref P part = ref Unsafe.Add(ref _data, partIndex);
@@ -128,6 +135,13 @@ public readonly ref struct BitSpan<P>
     {
         E mask = BitHelper.GetElementMask<E>(_bitsPerElement);
         Set(index, value, mask);
+    }
+
+    public void Fill<E>(E value)
+        where E : unmanaged, IBinaryInteger<E>
+    {
+        Span<P> span = GetSpan(out nint startRem);
+        BitHelper.Fill(span, startRem, _length, value, _bitsPerElement);
     }
 
     /// <summary>
@@ -151,7 +165,7 @@ public readonly ref struct BitSpan<P>
             return new BitSpan<P>(ref _data, newStart, _length - start, _bitsPerElement, _elementsPerPart);
         }
     }
-    
+
     /// <inheritdoc cref="Slice(nint)"/>
     public BitSpan<P> Slice(int start) => Slice((nint)start);
 
@@ -168,12 +182,14 @@ public readonly ref struct BitSpan<P>
     public BitSpan<P> Slice(nint start, nint length)
     {
         nint newStart = checked(_start + start);
-        nint newLength = _length - start;
 
-        if (newStart < _start || (nuint)length > (nuint)newLength)
+        if ((nuint)newStart > (nuint)_length ||
+            (nuint)length > (nuint)(_length - newStart))
+        {
             ThrowHelper.ThrowArgumentOutOfRangeException();
+        }
 
-        return new BitSpan<P>(ref _data, newStart, newLength, _bitsPerElement, _elementsPerPart);
+        return new BitSpan<P>(ref _data, newStart, length, _bitsPerElement, _elementsPerPart);
     }
 
     /// <inheritdoc cref="Slice(nint, nint)"/>

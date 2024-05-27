@@ -199,7 +199,7 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
     {
         BitArray<ulong> newStorage = BitArray<ulong>.AllocateUninitialized(Size.Volume, bitsPerElement);
 
-        _storage.AsSpan().CopyTo(newStorage.AsSpan());
+        _storage.AsBitSpan().CopyTo(newStorage.AsBitSpan());
 
         _storage = newStorage;
     }
@@ -407,8 +407,8 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
     private uint FillContiguousBlocks<E>(int dstIdx, int count, E value)
         where E : unmanaged, IBinaryInteger<E>
     {
-        _storage.Fill(dstIdx, count, value);
-        return (uint)count;
+        _storage.AsBitSpan(dstIdx, count).Fill(value);
+        return (uint)count; // TODO
     }
 
     [DoesNotReturn]

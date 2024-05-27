@@ -108,22 +108,6 @@ public static partial class BitHelper
         }
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void UnpackN<P, E>(Span<E> destination, ReadOnlySpan<P> source, nint start, int bitsPerElement)
-        where P : unmanaged, IBinaryInteger<P>
-        where E : unmanaged, IBinaryInteger<E>
-    {
-        UnpackCore(destination, source, start, bitsPerElement);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Unpack1<P, E>(Span<E> destination, ReadOnlySpan<P> source, nint start)
-        where P : unmanaged, IBinaryInteger<P>
-        where E : unmanaged, IBinaryInteger<E>
-    {
-        UnpackCore(destination, source, start, 1);
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static unsafe int UnpackBmi2X64<P, E>(ref E dst, P part, int count, int bitsPerElement, P depositMask)
         where P : unmanaged, IBinaryInteger<P>
@@ -190,6 +174,22 @@ public static partial class BitHelper
             count -= 8;
         }
         return count;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void UnpackN<P, E>(Span<E> destination, ReadOnlySpan<P> source, nint start, int bitsPerElement)
+        where P : unmanaged, IBinaryInteger<P>
+        where E : unmanaged, IBinaryInteger<E>
+    {
+        UnpackCore(destination, source, start, bitsPerElement);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void Unpack1<P, E>(Span<E> destination, ReadOnlySpan<P> source, nint start)
+        where P : unmanaged, IBinaryInteger<P>
+        where E : unmanaged, IBinaryInteger<E>
+    {
+        UnpackCore(destination, source, start, 1);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

@@ -105,8 +105,18 @@ public readonly struct BitArray<P>
         BitHelper.Pack((Span<P>)Store, start, source, BitsPerElement);
     }
     
-    public BitSpan<P> AsSpan()
+    public BitSpan<P> AsBitSpan()
     {
         return new BitSpan<P>(ref MemoryMarshal.GetArrayDataReference(Store), 0, Length, _bitsPerElement, _elementsPerPart);
+    }
+    
+    public BitSpan<P> AsBitSpan(nint start)
+    {
+        return AsBitSpan().Slice(start);
+    }
+    
+    public BitSpan<P> AsBitSpan(nint start, nint count)
+    {
+        return AsBitSpan().Slice(start, count);
     }
 }

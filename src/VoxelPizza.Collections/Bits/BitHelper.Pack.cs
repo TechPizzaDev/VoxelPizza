@@ -100,12 +100,12 @@ public static partial class BitHelper
             }
 
             int headBitLen = headCount * bitsPerElement;
-            P clearMask = ~(P.AllBitsSet << headBitLen);
-            P part = dst & ~(clearMask << insertShiftHead);
+            P dataMask = ~(P.AllBitsSet << headBitLen) << insertShiftHead;
+            dst &= ~dataMask;
 
             P headPart = PackBody(ref src, headCount, bitsPerElement, extractMask);
             headPart >>>= (sizeof(P) * 8 - headBitLen) - insertShiftHead;
-            dst = part | headPart;
+            dst |= headPart;
 
             dst = ref Unsafe.Add(ref dst, 1);
             src = ref Unsafe.Add(ref src, headCount);
@@ -128,28 +128,12 @@ public static partial class BitHelper
         {
             int tailBitLen = (int)count * bitsPerElement;
             P clearMask = P.AllBitsSet << tailBitLen;
-            P part = dst & clearMask;
+            dst &= clearMask;
 
             P tailPart = PackBody(ref src, (int)count, bitsPerElement, extractMask);
             tailPart >>>= sizeof(P) * 8 - tailBitLen;
-            dst = part | tailPart;
+            dst |= tailPart;
         }
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void PackN<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source, int bitsPerElement)
-        where P : unmanaged, IBinaryInteger<P>
-        where E : unmanaged, IBinaryInteger<E>
-    {
-        PackCore(destination, start, source, bitsPerElement);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Pack1<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source)
-        where P : unmanaged, IBinaryInteger<P>
-        where E : unmanaged, IBinaryInteger<E>
-    {
-        PackCore(destination, start, source, 1);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -218,23 +202,39 @@ public static partial class BitHelper
             P od = P.Zero;
             P ev = P.Zero;
 
-            od |= P.CreateTruncating(Unsafe.Add(ref src, 0)) << (0 * bitsPerElement);
-            ev |= P.CreateTruncating(Unsafe.Add(ref src, 1)) << (1 * bitsPerElement);
-            od |= P.CreateTruncating(Unsafe.Add(ref src, 2)) << (2 * bitsPerElement);
-            ev |= P.CreateTruncating(Unsafe.Add(ref src, 3)) << (3 * bitsPerElement);
-            od |= P.CreateTruncating(Unsafe.Add(ref src, 4)) << (4 * bitsPerElement);
-            ev |= P.CreateTruncating(Unsafe.Add(ref src, 5)) << (5 * bitsPerElement);
-            od |= P.CreateTruncating(Unsafe.Add(ref src, 6)) << (6 * bitsPerElement);
-            ev |= P.CreateTruncating(Unsafe.Add(ref src, 7)) << (7 * bitsPerElement);
+            od |= P.CreateTruncating(Unsafe.Add(ref src, 0)) << (0 * bitsPerElement + insertShift);
+            ev |= P.CreateTruncating(Unsafe.Add(ref src, 1)) << (1 * bitsPerElement + insertShift);
+            od |= P.CreateTruncating(Unsafe.Add(ref src, 2)) << (2 * bitsPerElement + insertShift);
+            ev |= P.CreateTruncating(Unsafe.Add(ref src, 3)) << (3 * bitsPerElement + insertShift);
+            od |= P.CreateTruncating(Unsafe.Add(ref src, 4)) << (4 * bitsPerElement + insertShift);
+            ev |= P.CreateTruncating(Unsafe.Add(ref src, 5)) << (5 * bitsPerElement + insertShift);
+            od |= P.CreateTruncating(Unsafe.Add(ref src, 6)) << (6 * bitsPerElement + insertShift);
+            ev |= P.CreateTruncating(Unsafe.Add(ref src, 7)) << (7 * bitsPerElement + insertShift);
 
             part >>>= bitStride;
-            part |= od << insertShift;
-            part |= ev << insertShift;
+            part |= od;
+            part |= ev;
 
             src = ref Unsafe.Add(ref src, 8);
             count -= 8;
         }
         return count;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void PackN<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source, int bitsPerElement)
+        where P : unmanaged, IBinaryInteger<P>
+        where E : unmanaged, IBinaryInteger<E>
+    {
+        PackCore(destination, start, source, bitsPerElement);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void Pack1<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source)
+        where P : unmanaged, IBinaryInteger<P>
+        where E : unmanaged, IBinaryInteger<E>
+    {
+        PackCore(destination, start, source, 1);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

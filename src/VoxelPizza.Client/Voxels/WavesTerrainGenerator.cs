@@ -55,7 +55,7 @@ public class WavesTerrainGenerator : TerrainGenerator
             BlockStorage blockStorage = chunk.GetBlockStorage();
 
             Span<int> layerBuffer = stackalloc int[Chunk.Width * Chunk.Depth];
-
+            
             for (int y = 0; y < Chunk.Height; y++)
             {
                 if (IsStopRequested)
@@ -63,7 +63,12 @@ public class WavesTerrainGenerator : TerrainGenerator
                     return State;
                 }
 
-                if (Avx2Functions.IsSupported)
+                if (Avx512Functions.IsSupported)
+                {
+                    GenLayerBody<Vector512<uint>, Vector512<float>, Vector512<int>, Avx512Functions> body = new(blockOrigin, y);
+                    RunBody(body, layerBuffer);
+                }
+                else if (Avx2Functions.IsSupported)
                 {
                     GenLayerBody<Vector256<uint>, Vector256<float>, Vector256<int>, Avx2Functions> body = new(blockOrigin, y);
                     RunBody(body, layerBuffer);

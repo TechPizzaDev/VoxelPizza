@@ -38,12 +38,14 @@ namespace VoxelPizza.Collections.Blocks
 
         public virtual bool SetBlock(int x, int y, int z, uint value)
         {
-            return FillBlock(new Int3(x, y, z), new Size3(1), value) != 0;
+            return FillBlock(new Int3(x, y, z), new Size3(1), value, ChangeTracking.Any) != 0;
         }
 
-        public abstract uint SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan);
+        public abstract uint SetBlocks(
+            Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan, ChangeTracking changeTracking);
 
-        public abstract uint FillBlock(Int3 offset, Size3 size, uint value);
+        public abstract uint FillBlock(
+            Int3 offset, Size3 size, uint value, ChangeTracking changeTracking);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static nuint GetIndexBase(nuint depth, nuint width, nuint y, nuint z)

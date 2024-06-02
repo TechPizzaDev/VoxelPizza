@@ -8,7 +8,8 @@ namespace VoxelPizza.Collections.Bits;
 public static partial class BitHelper
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Fill<P, E>(
+    public static T Fill<P, E, T>(
+        this T tracker,
         Span<P> destination,
         nint start,
         nint count,
@@ -16,14 +17,15 @@ public static partial class BitHelper
         int bitsPerElement)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        switch (bitsPerElement)
+        return bitsPerElement switch
         {
-            case 01: Fill1(destination, start, count, value); break;
-            case 02: Fill2(destination, start, count, value); break;
-            case 03: Fill3(destination, start, count, value); break;
-            case 04: Fill4(destination, start, count, value); break;
-            default: FillN(destination, start, count, value, bitsPerElement); break;
+            1 => Fill1(tracker, destination, start, count, value),
+            2 => Fill2(tracker, destination, start, count, value),
+            3 => Fill3(tracker, destination, start, count, value),
+            4 => Fill4(tracker, destination, start, count, value),
+            _ => FillN(tracker, destination, start, count, value, bitsPerElement),
         };
     }
 
@@ -48,7 +50,8 @@ public static partial class BitHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe void FillCore<P, E>(
+    private static unsafe T FillCore<P, E, T>(
+        T tracker,
         Span<P> destination,
         nint start,
         nint count,
@@ -56,6 +59,7 @@ public static partial class BitHelper
         int bitsPerElement)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan((uint)bitsPerElement, sizeof(E) * 8u);
 
@@ -66,6 +70,8 @@ public static partial class BitHelper
         ArgumentOutOfRangeException.ThrowIfGreaterThan((nuint)count, (nuint)dstLength);
 
         ref P dst = ref Unsafe.Add(ref MemoryMarshal.GetReference(destination), dstIndex);
+
+        tracker.Setup(bitsPerElement, elementsPerPart);
 
         P fullPart = FillBody<P, E>(value, elementsPerPart, bitsPerElement);
 
@@ -90,19 +96,33 @@ public static partial class BitHelper
 
             int headBitLen = headCount * bitsPerElement;
             P dataMask = ~(P.AllBitsSet << headBitLen) << insertShiftHead;
-            dst &= ~dataMask;
-
             P headPart = fullPart & dataMask;
-            dst |= headPart;
+            
+            P prevPart = dst;
+            P nextPart = prevPart & ~dataMask;
+            nextPart |= headPart;
+
+            tracker.PartChanged(prevPart, nextPart, bitsPerElement);
+            dst = nextPart;
 
             dst = ref Unsafe.Add(ref dst, 1);
             count -= headCount;
         }
 
         nint midCount = count / elementsPerPart;
-        for (nint j = 0; j < midCount; j++)
+        if (T.ReportChanges)
         {
-            Unsafe.Add(ref dst, j) = fullPart;
+            for (nint j = 0; j < midCount; j++)
+            {
+                P prevPart = Unsafe.Add(ref dst, j);
+
+                tracker.PartChanged(prevPart, fullPart, bitsPerElement);
+                Unsafe.Add(ref dst, j) = fullPart;
+            }
+        }
+        else
+        {
+            MemoryMarshal.CreateSpan(ref dst, (int)midCount).Fill(fullPart);
         }
 
         dst = ref Unsafe.Add(ref dst, midCount);
@@ -112,11 +132,16 @@ public static partial class BitHelper
         {
             int tailBitLen = (int)count * bitsPerElement;
             P clearMask = P.AllBitsSet << tailBitLen;
-            dst &= clearMask;
-
             P tailPart = fullPart & ~clearMask;
-            dst |= tailPart;
+            
+            P prevPart = dst;
+            P nextPart = (prevPart & clearMask) | tailPart;
+
+            tracker.PartChanged(prevPart, nextPart, bitsPerElement);
+            dst = nextPart;
         }
+
+        return tracker;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -143,42 +168,48 @@ public static partial class BitHelper
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void FillN<P, E>(Span<P> destination, nint start, nint count, E value, int bitsPerElement)
+    private static T FillN<P, E, T>(
+        T tracker, Span<P> destination, nint start, nint count, E value, int bitsPerElement)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        FillCore(destination, start, count, value, bitsPerElement);
+        return FillCore(tracker, destination, start, count, value, bitsPerElement);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Fill1<P, E>(Span<P> destination, nint start, nint count, E value)
+    private static T Fill1<P, E, T>(T tracker, Span<P> destination, nint start, nint count, E value)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        FillCore(destination, start, count, value, 1);
+        return FillCore(tracker, destination, start, count, value, 1);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Fill2<P, E>(Span<P> destination, nint start, nint count, E value)
+    private static T Fill2<P, E, T>(T tracker, Span<P> destination, nint start, nint count, E value)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        FillCore(destination, start, count, value, 2);
+        return FillCore(tracker, destination, start, count, value, 2);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Fill3<P, E>(Span<P> destination, nint start, nint count, E value)
+    private static T Fill3<P, E, T>(T tracker, Span<P> destination, nint start, nint count, E value)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        FillCore(destination, start, count, value, 3);
+        return FillCore(tracker, destination, start, count, value, 3);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Fill4<P, E>(Span<P> destination, nint start, nint count, E value)
+    private static T Fill4<P, E, T>(T tracker, Span<P> destination, nint start, nint count, E value)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        FillCore(destination, start, count, value, 4);
+        return FillCore(tracker, destination, start, count, value, 4);
     }
 }

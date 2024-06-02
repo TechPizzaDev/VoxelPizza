@@ -1,6 +1,5 @@
 using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
@@ -216,30 +215,31 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
         }
     }
 
-    public override uint SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
+    public override uint SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan, ChangeTracking changeTracking)
     {
         uint firstValue = srcSpan[0];
         int runLength = srcSpan.IndexOfAnyExcept(firstValue);
         if (runLength == -1)
         {
-            return FillBlock(offset, size, firstValue);
+            return FillBlock(offset, size, firstValue, changeTracking);
         }
 
         int addedCountEstimate = srcSpan.Length - runLength;
         int bitsNeededEstimate = GetStorageBitsForPalette(_palette.Count + addedCountEstimate);
 
-        uint changedCount = bitsNeededEstimate switch
+        nint changedCount = bitsNeededEstimate switch
         {
-            <= 08 => SetBlocksCore<byte>(offset, size, srcOffset, srcSize, srcSpan),
-            <= 16 => SetBlocksCore<ushort>(offset, size, srcOffset, srcSize, srcSpan),
-            <= 32 => SetBlocksCore<uint>(offset, size, srcOffset, srcSize, srcSpan),
+            <= 08 => SetBlocksCore<byte>(offset, size, srcOffset, srcSize, srcSpan, changeTracking),
+            <= 16 => SetBlocksCore<ushort>(offset, size, srcOffset, srcSize, srcSpan, changeTracking),
+            <= 32 => SetBlocksCore<uint>(offset, size, srcOffset, srcSize, srcSpan, changeTracking),
             _ => ThrowUnsupportedElementSize(),
         };
-        return changedCount;
+        return (uint)(nuint)changedCount;
     }
 
     [SkipLocalsInit]
-    private unsafe uint SetBlocksCore<E>(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
+    private unsafe nint SetBlocksCore<E>(
+        Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan, ChangeTracking changeTracking)
         where E : unmanaged, IBinaryInteger<E>
     {
         int srcWidth = (int)srcSize.W;
@@ -249,7 +249,7 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
         int height = (int)size.H;
         int depth = (int)size.D;
 
-        uint changedCount = 0;
+        nint changedCount = 0;
 
         int stride = (depth == srcDepth && depth == Depth) ? (width * depth) : width;
         int threshold = StackThreshold / sizeof(E);
@@ -266,7 +266,7 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
                 ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, stride);
 
                 int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z);
-                changedCount += SetContiguousBlocks(dstIdx, src, indexBuffer);
+                changedCount += SetContiguousBlocks(dstIdx, src, indexBuffer, changeTracking);
             }
         }
         else
@@ -279,7 +279,7 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
                     ReadOnlySpan<uint> src = srcSpan.Slice(srcIdx + srcOffset.X, stride);
 
                     int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z + z);
-                    changedCount += SetContiguousBlocks(dstIdx, src, indexBuffer);
+                    changedCount += SetContiguousBlocks(dstIdx, src, indexBuffer, changeTracking);
                 }
             }
         }
@@ -290,7 +290,8 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
         return changedCount;
     }
 
-    private uint SetContiguousBlocks<E>(int dstIdx, ReadOnlySpan<uint> source, Span<E> indexBuffer)
+    private nint SetContiguousBlocks<E>(
+        int dstIdx, ReadOnlySpan<uint> source, Span<E> indexBuffer, ChangeTracking changeTracking)
         where E : unmanaged, IBinaryInteger<E>
     {
         Debug.Assert(indexBuffer.Length == source.Length);
@@ -299,8 +300,6 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
 
         // Unpack block indices in bulk.
         storage.GetRange(dstIdx, indexBuffer);
-
-        uint changedCount = 0;
 
         Span<E> dst = indexBuffer;
         while (source.Length > 0)
@@ -317,66 +316,41 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
 
             Span<E> indices = dst.Slice(0, len);
 
-            // Copy block indices in bulk (while counting changed blocks).
-            if (Vector128.IsHardwareAccelerated)
-            {
-                Vector128<E> newIndices = Vector128.Create(index);
-
-                while (indices.Length >= Vector128<E>.Count)
-                {
-                    Vector128<E> oldIndices = Vector128.Create<E>(indices);
-                    newIndices.CopyTo(indices);
-
-                    Vector128<E> equal = Vector128.Equals(oldIndices, newIndices);
-                    changedCount += (uint)Vector128<E>.Count - equal.ExtractMostSignificantBits();
-
-                    indices = indices.Slice(Vector128<E>.Count);
-                }
-            }
-
-            // Copy remainder of block indices.
-            for (int i = 0; i < indices.Length; i++)
-            {
-                if (indices[i] != index)
-                {
-                    indices[i] = index;
-
-                    changedCount++;
-                }
-            }
+            // Copy block indices in bulk.
+            indices.Fill(index);
 
             source = source.Slice(len);
             dst = dst.Slice(len);
         }
 
         // Pack block indices in bulk.
-        storage.SetRange<E>(dstIdx, indexBuffer);
+        nint changedCount = storage.SetRange<E>(dstIdx, indexBuffer, changeTracking);
 
         return changedCount;
     }
 
-    public override uint FillBlock(Int3 offset, Size3 size, uint value)
+    public override uint FillBlock(Int3 offset, Size3 size, uint value, ChangeTracking changeTracking)
     {
         TryAddPaletteValue(value, out int palIndex);
 
-        uint changedCount = _storage.BitsPerElement switch
+        nint changedCount = _storage.BitsPerElement switch
         {
-            <= 08 => FillBlockCore<byte>(offset, size, palIndex),
-            <= 16 => FillBlockCore<ushort>(offset, size, palIndex),
-            <= 32 => FillBlockCore<uint>(offset, size, palIndex),
+            <= 08 => FillBlockCore<byte>(offset, size, palIndex, changeTracking),
+            <= 16 => FillBlockCore<ushort>(offset, size, palIndex, changeTracking),
+            <= 32 => FillBlockCore<uint>(offset, size, palIndex, changeTracking),
             _ => ThrowUnsupportedElementSize(),
         };
-        return changedCount;
+        return (uint)(nuint)changedCount;
     }
 
-    private uint FillBlockCore<E>(Int3 offset, Size3 size, int paletteIndex)
+    private nint FillBlockCore<E>(Int3 offset, Size3 size, int paletteIndex, ChangeTracking changeTracking)
         where E : unmanaged, IBinaryInteger<E>
     {
         int width = (int)size.W;
         int height = (int)size.H;
         int depth = (int)size.D;
 
-        uint changedCount = 0;
+        nint changedCount = 0;
         E index = E.CreateChecked(paletteIndex);
 
         if (depth == Depth)
@@ -385,7 +359,7 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
             for (int y = 0; y < height; y++)
             {
                 int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z);
-                changedCount += FillContiguousBlocks(dstIdx, stride, index);
+                changedCount += FillContiguousBlocks(dstIdx, stride, index, changeTracking);
             }
         }
         else
@@ -396,7 +370,7 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
                 for (int z = 0; z < depth; z++)
                 {
                     int dstIdx = offset.X + GetIndexBase(Depth, Width, offset.Y + y, offset.Z + z);
-                    changedCount += FillContiguousBlocks(dstIdx, stride, index);
+                    changedCount += FillContiguousBlocks(dstIdx, stride, index, changeTracking);
                 }
             }
         }
@@ -404,13 +378,13 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
         return changedCount;
     }
 
-    private uint FillContiguousBlocks<E>(int dstIdx, int count, E value)
+    private nint FillContiguousBlocks<E>(int dstIdx, int count, E value, ChangeTracking changeTracking)
         where E : unmanaged, IBinaryInteger<E>
     {
-        _storage.AsBitSpan(dstIdx, count).Fill(value);
-        return (uint)count; // TODO
+        nint changeCount = _storage.AsBitSpan(dstIdx, count).Fill(value, changeTracking);
+        return changeCount;
     }
 
     [DoesNotReturn]
-    private static uint ThrowUnsupportedElementSize() => throw new NotSupportedException();
+    private static nint ThrowUnsupportedElementSize() => throw new NotSupportedException();
 }

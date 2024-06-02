@@ -71,7 +71,7 @@ public readonly ref partial struct BitSpan<P>
     }
 
     public ref P GetReference() => ref _data;
-    
+
     public Span<P> GetSpan(out nint startRemainder)
     {
         (nint start, startRemainder) = Math.DivRem(_start, _elementsPerPart);
@@ -137,11 +137,19 @@ public readonly ref partial struct BitSpan<P>
         Set(index, value, mask);
     }
 
-    public void Fill<E>(E value)
+    public nint Fill<E>(E value, ChangeTracking changeTracking)
         where E : unmanaged, IBinaryInteger<E>
     {
         Span<P> span = GetSpan(out nint startRem);
-        BitHelper.Fill(span, startRem, _length, value, _bitsPerElement);
+        int bpe = _bitsPerElement;
+
+        return changeTracking switch
+        {
+            ChangeTracking.None => new BitTrackerNone<P>().Fill(span, startRem, _length, value, bpe).ChangeCount,
+            ChangeTracking.Any => new BitTrackerAny<P>().Fill(span, startRem, _length, value, bpe).ChangeCount,
+            ChangeTracking.All => new BitTrackerAll<P>().Fill(span, startRem, _length, value, bpe).ChangeCount,
+            _ => ThrowHelper.ThrowArgumentOutOfRangeException(changeTracking, 0)
+        };
     }
 
     /// <summary>
@@ -160,7 +168,7 @@ public readonly ref partial struct BitSpan<P>
             nint newStart = checked(_start + start);
 
             if ((nuint)newStart > (nuint)_length)
-                ThrowHelper.ThrowArgumentOutOfRangeException();
+                ThrowHelper.ThrowArgumentOutOfRangeException(start);
 
             return new BitSpan<P>(ref _data, newStart, _length - start, _bitsPerElement, _elementsPerPart);
         }

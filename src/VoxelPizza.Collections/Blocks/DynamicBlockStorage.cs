@@ -35,18 +35,20 @@ public sealed class DynamicBlockStorage<T> : BlockStorage<T>
         return _storage.SetBlock(x, y, z, value);
     }
 
-    public override uint SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
+    public override uint SetBlocks(
+        Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan, ChangeTracking changeTracking)
     {
         PrepStorage(srcSpan);
 
-        return _storage.SetBlocks(offset, size, srcOffset, srcSize, srcSpan);
+        return _storage.SetBlocks(offset, size, srcOffset, srcSize, srcSpan, changeTracking);
     }
 
-    public override uint FillBlock(Int3 offset, Size3 size, uint value)
+    public override uint FillBlock(
+        Int3 offset, Size3 size, uint value, ChangeTracking changeTracking)
     {
         PrepStorage(value);
 
-        return _storage.FillBlock(offset, size, value);
+        return _storage.FillBlock(offset, size, value, changeTracking);
     }
 
     private void PrepStorage(ReadOnlySpan<uint> values)

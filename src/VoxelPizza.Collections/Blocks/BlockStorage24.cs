@@ -49,13 +49,15 @@ namespace VoxelPizza.Collections.Blocks
             return false;
         }
 
-        public override uint SetBlocks(Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan)
+        public override uint SetBlocks(
+            Int3 offset, Size3 size, Int3 srcOffset, Size3 srcSize, ReadOnlySpan<uint> srcSpan, ChangeTracking changeTracking)
         {
             Copy(srcOffset, srcSize, srcSpan, offset, Size, new Span<UInt24>(_array), size);
             return size.Volume; // TODO
         }
 
-        public override uint FillBlock(Int3 offset, Size3 size, uint value)
+        public override uint FillBlock(
+            Int3 offset, Size3 size, uint value, ChangeTracking changeTracking)
         {
             Fill(offset, size, (UInt24)value, Size, new Span<UInt24>(_array));
             return size.Volume; // TODO

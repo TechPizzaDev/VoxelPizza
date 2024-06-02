@@ -15,6 +15,23 @@ internal static class ThrowHelper
     {
         throw new ArgumentOutOfRangeException();
     }
+    
+    [DoesNotReturn]
+    public static void ThrowArgumentOutOfRangeException<T>(
+        T paramValue, 
+        [CallerArgumentExpression(nameof(paramValue))] string? paramName = null)
+    {
+        throw new ArgumentOutOfRangeException(paramName, paramValue, null);
+    }
+
+    [DoesNotReturn]
+    public static R ThrowArgumentOutOfRangeException<T, R>(
+        T paramValue, 
+        R returnValue, 
+        [CallerArgumentExpression(nameof(paramValue))] string? paramName = null)
+    {
+        throw new ArgumentOutOfRangeException(paramName, paramValue, null);
+    }
 
     [DoesNotReturn]
     public static void ThrowKeyNotFoundException<T>(T key)

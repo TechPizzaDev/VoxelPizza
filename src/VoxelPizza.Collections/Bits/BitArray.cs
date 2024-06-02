@@ -99,22 +99,31 @@ public readonly struct BitArray<P>
         BitHelper.Unpack(destination, (ReadOnlySpan<P>)Store, start, BitsPerElement);
     }
 
-    public void SetRange<E>(nint start, ReadOnlySpan<E> source)
+    public nint SetRange<E>(nint start, ReadOnlySpan<E> source, ChangeTracking changeTracking)
         where E : unmanaged, IBinaryInteger<E>
     {
-        BitHelper.Pack((Span<P>)Store, start, source, BitsPerElement);
+        Span<P> store = Store;
+        int bpe = BitsPerElement;
+
+        return changeTracking switch
+        {
+            ChangeTracking.None => new BitTrackerNone<P>().Pack(store, start, source, bpe).ChangeCount,
+            ChangeTracking.Any => new BitTrackerAny<P>().Pack(store, start, source, bpe).ChangeCount,
+            ChangeTracking.All => new BitTrackerAll<P>().Pack(store, start, source, bpe).ChangeCount,
+            _ => ThrowHelper.ThrowArgumentOutOfRangeException(changeTracking, 0)
+        };
     }
-    
+
     public BitSpan<P> AsBitSpan()
     {
         return new BitSpan<P>(ref MemoryMarshal.GetArrayDataReference(Store), 0, Length, _bitsPerElement, _elementsPerPart);
     }
-    
+
     public BitSpan<P> AsBitSpan(nint start)
     {
         return AsBitSpan().Slice(start);
     }
-    
+
     public BitSpan<P> AsBitSpan(nint start, nint count)
     {
         return AsBitSpan().Slice(start, count);

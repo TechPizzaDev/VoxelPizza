@@ -9,21 +9,23 @@ namespace VoxelPizza.Collections.Bits;
 public static partial class BitHelper
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Pack<P, E>(
+    public static T Pack<P, E, T>(
+        this T tracker,
         Span<P> destination,
         nint start,
         ReadOnlySpan<E> source,
         int bitsPerElement)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        switch (bitsPerElement)
+        return bitsPerElement switch
         {
-            case 01: Pack1(destination, start, source); break;
-            case 02: Pack2(destination, start, source); break;
-            case 03: Pack3(destination, start, source); break;
-            case 04: Pack4(destination, start, source); break;
-            default: PackN(destination, start, source, bitsPerElement); break;
+            1 => Pack1(tracker, destination, start, source),
+            2 => Pack2(tracker, destination, start, source),
+            3 => Pack3(tracker, destination, start, source),
+            4 => Pack4(tracker, destination, start, source),
+            _ => PackN(tracker, destination, start, source, bitsPerElement),
         };
     }
 
@@ -61,9 +63,11 @@ public static partial class BitHelper
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static unsafe void PackCore<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source, int bitsPerElement)
+    private static unsafe T PackCore<P, E, T>(
+        T tracker, Span<P> destination, nint start, ReadOnlySpan<E> source, int bitsPerElement)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan((uint)bitsPerElement, sizeof(E) * 8u);
 
@@ -79,6 +83,8 @@ public static partial class BitHelper
 
         E elementMask = GetElementMask<E>(bitsPerElement);
         P extractMask = GetParallelMask<P, E>(elementMask);
+
+        tracker.Setup(bitsPerElement, elementsPerPart);
 
         if (startRem != 0)
         {
@@ -101,11 +107,15 @@ public static partial class BitHelper
 
             int headBitLen = headCount * bitsPerElement;
             P dataMask = ~(P.AllBitsSet << headBitLen) << insertShiftHead;
-            dst &= ~dataMask;
 
             P headPart = PackBody(ref src, headCount, bitsPerElement, extractMask);
             headPart >>>= (sizeof(P) * 8 - headBitLen) - insertShiftHead;
-            dst |= headPart;
+
+            P prevPart = dst;
+            P nextPart = (prevPart & ~dataMask) | headPart;
+
+            tracker.PartChanged(prevPart, nextPart, bitsPerElement);
+            dst = nextPart;
 
             dst = ref Unsafe.Add(ref dst, 1);
             src = ref Unsafe.Add(ref src, headCount);
@@ -115,8 +125,11 @@ public static partial class BitHelper
         nint midCount = count / elementsPerPart;
         for (nint j = 0; j < midCount; j++)
         {
-            P part = PackBody(ref src, elementsPerPart, bitsPerElement, extractMask);
-            Unsafe.Add(ref dst, j) = part;
+            P prevPart = Unsafe.Add(ref dst, j);
+            P nextPart = PackBody(ref src, elementsPerPart, bitsPerElement, extractMask);
+
+            tracker.PartChanged(prevPart, nextPart, bitsPerElement);
+            Unsafe.Add(ref dst, j) = nextPart;
 
             src = ref Unsafe.Add(ref src, elementsPerPart);
         }
@@ -128,12 +141,18 @@ public static partial class BitHelper
         {
             int tailBitLen = (int)count * bitsPerElement;
             P clearMask = P.AllBitsSet << tailBitLen;
-            dst &= clearMask;
 
             P tailPart = PackBody(ref src, (int)count, bitsPerElement, extractMask);
             tailPart >>>= sizeof(P) * 8 - tailBitLen;
-            dst |= tailPart;
+
+            P prevPart = dst;
+            P nextPart = (prevPart & clearMask) | tailPart;
+
+            tracker.PartChanged(prevPart, nextPart, bitsPerElement);
+            dst = nextPart;
         }
+
+        return tracker;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -222,42 +241,48 @@ public static partial class BitHelper
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void PackN<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source, int bitsPerElement)
+    private static T PackN<P, E, T>(
+        T tracker, Span<P> destination, nint start, ReadOnlySpan<E> source, int bitsPerElement)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        PackCore(destination, start, source, bitsPerElement);
+        return PackCore(tracker, destination, start, source, bitsPerElement);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Pack1<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source)
+    private static T Pack1<P, E, T>(T tracker, Span<P> destination, nint start, ReadOnlySpan<E> source)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        PackCore(destination, start, source, 1);
+        return PackCore(tracker, destination, start, source, 1);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Pack2<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source)
+    private static T Pack2<P, E, T>(T tracker, Span<P> destination, nint start, ReadOnlySpan<E> source)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        PackCore(destination, start, source, 2);
+        return PackCore(tracker, destination, start, source, 2);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Pack3<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source)
+    private static T Pack3<P, E, T>(T tracker, Span<P> destination, nint start, ReadOnlySpan<E> source)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        PackCore(destination, start, source, 3);
+        return PackCore(tracker, destination, start, source, 3);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void Pack4<P, E>(Span<P> destination, nint start, ReadOnlySpan<E> source)
+    private static T Pack4<P, E, T>(T tracker, Span<P> destination, nint start, ReadOnlySpan<E> source)
         where P : unmanaged, IBinaryInteger<P>
         where E : unmanaged, IBinaryInteger<E>
+        where T : struct, IBitPartTracker<P>
     {
-        PackCore(destination, start, source, 4);
+        return PackCore(tracker, destination, start, source, 4);
     }
 }

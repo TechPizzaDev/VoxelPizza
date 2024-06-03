@@ -1,9 +1,12 @@
 [submodule "veldrid"]
-	path = veldrid
-	url = https://github.com/TechnologicalPizza/veldrid
+	path = submodules/veldrid
+	url = https://github.com/TechPizzaDev/veldrid
 [submodule "LoudPizza"]
-	path = LoudPizza
-	url = https://github.com/TechnologicalPizza/LoudPizza
+	path = submodules/LoudPizza
+	url = https://github.com/TechPizzaDev/LoudPizza
 [submodule "submodules/SharpFastNoise2"]
 	path = submodules/SharpFastNoise2
 	url = https://github.com/TechPizzaDev/SharpFastNoise2
+[submodule "submodules/LoudPizza"]
+	path = submodules/LoudPizza
+	url = https://github.com/TechPizzaDev/LoudPizza

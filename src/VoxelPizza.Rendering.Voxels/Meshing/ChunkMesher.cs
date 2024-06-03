@@ -50,7 +50,6 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             _paintVertexStore.PrepareCapacityFor(storePrepareCapacity * 4);
         }
 
-        [SkipLocalsInit]
         public unsafe bool Mesh(BlockMemory worldSlice, out ChunkMeshResult result)
         {
             // TODO: chunk/draw layers (seperate mesh provider arrays per layer)?
@@ -120,7 +119,6 @@ namespace VoxelPizza.Rendering.Voxels.Meshing
             }
         }
 
-        [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         private static unsafe bool MeshRow(
             ref ChunkMeshOutput meshOutput,

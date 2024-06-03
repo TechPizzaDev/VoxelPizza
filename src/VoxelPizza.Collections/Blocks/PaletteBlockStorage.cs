@@ -60,7 +60,6 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
         return _palette[(int)index];
     }
 
-    [SkipLocalsInit]
     public override void GetBlocks(Int3 offset, Size3 size, Int3 dstOffset, Size3 dstSize, Span<uint> dstSpan)
     {
         switch (_storage.BitsPerElement)
@@ -72,6 +71,7 @@ public sealed class PaletteBlockStorage<TDescriptor> : BlockStorage<TDescriptor>
         }
     }
 
+    [SkipLocalsInit]
     private unsafe void GetBlocksCore<E>(Int3 offset, Size3 size, Int3 dstOffset, Size3 dstSize, Span<uint> dstSpan)
         where E : unmanaged, IBinaryInteger<E>
     {

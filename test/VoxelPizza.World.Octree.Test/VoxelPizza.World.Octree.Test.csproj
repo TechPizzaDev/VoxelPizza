@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\VoxelPizza.World.Octree\VoxelPizza.World.Octree.csproj" />
+    </ItemGroup>
+</Project>

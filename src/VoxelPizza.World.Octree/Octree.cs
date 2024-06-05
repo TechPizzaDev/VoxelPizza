@@ -17,8 +17,6 @@ public class Octree<B, L>
     private readonly int _depth;
 
     private Branch? _root;
-    private int _branchCount;
-    private int _leafCount;
 
     /// <summary>
     /// Maximum depth of the tree.
@@ -117,8 +115,7 @@ public class Octree<B, L>
         if (branch == null)
         {
             Debug.Assert(depth == 0);
-            branch = new LeafBranch();
-            _leafCount++;
+            branch = AllocLeafBranch();
         }
         Debug.Assert(branch is LeafBranch);
 
@@ -126,12 +123,14 @@ public class Octree<B, L>
         return new Leaf(Unsafe.As<LeafBranch>(branch), leafIndex);
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private NestBranch AllocNestBranch()
+    protected virtual NestBranch AllocNestBranch()
     {
-        NestBranch branch = new();
-        _branchCount++;
-        return branch;
+        return new NestBranch();
+    }
+
+    protected virtual LeafBranch AllocLeafBranch()
+    {
+        return new LeafBranch();
     }
 
     private static int GetIndex(int x, int y, int z, int mask)

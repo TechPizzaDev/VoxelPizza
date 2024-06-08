@@ -15,6 +15,13 @@ namespace VoxelPizza.Collections;
 public class BucketDict<TKey, TValue> : BucketDict<TKey, TValue, IdentityComparer<TKey>>
     where TKey : notnull
 {
+    public BucketDict()
+    {
+    }
+
+    public BucketDict(int capacity) : base(capacity)
+    {
+    }
 }
 
 [DebuggerDisplay("Count = {Count}")]

@@ -9,12 +9,12 @@ namespace VoxelPizza.Collections;
 public class IndexMap<T> : IReadOnlyList<T>, IReadOnlyDictionary<T, int>
     where T : notnull, IEquatable<T>
 {
-    private readonly Dictionary<T, int> _map;
+    private readonly BucketDict<T, int> _map;
     private readonly List<T> _list;
 
     public IndexMap(int capacity)
     {
-        _map = new Dictionary<T, int>(capacity);
+        _map = new BucketDict<T, int>(capacity);
         _list = new List<T>(capacity);
     }
 
@@ -27,7 +27,7 @@ public class IndexMap<T> : IReadOnlyList<T>, IReadOnlyDictionary<T, int>
             int len = keys.IndexOfAnyExcept(key);
             if (len == -1)
                 len = keys.Length;
-            
+
             TryAdd(key, out _);
 
             keys = keys.Slice(len);
@@ -40,12 +40,12 @@ public class IndexMap<T> : IReadOnlyList<T>, IReadOnlyDictionary<T, int>
 
     public int Count => _map.Count;
 
-    public Dictionary<T, int>.KeyCollection Keys => _map.Keys;
+    public BucketDict<T, int>.KeyCollection Keys => _map.Keys;
 
     [DebuggerBrowsable(DebuggerBrowsableState.Never)]
     IEnumerable<T> IReadOnlyDictionary<T, int>.Keys => Keys;
 
-    public Dictionary<T, int>.ValueCollection Values => _map.Values;
+    public BucketDict<T, int>.ValueCollection Values => _map.Values;
 
     [DebuggerBrowsable(DebuggerBrowsableState.Never)]
     IEnumerable<int> IReadOnlyDictionary<T, int>.Values => Values;
@@ -61,7 +61,7 @@ public class IndexMap<T> : IReadOnlyList<T>, IReadOnlyDictionary<T, int>
 
     public bool TryAdd(T key, out int index)
     {
-        ref int slot = ref CollectionsMarshal.GetValueRefOrAddDefault(_map, key, out bool exists);
+        ref int slot = ref _map.GetValueRefOrAddDefault(key, out bool exists);
         if (!exists)
         {
             slot = GetNextIndex();
@@ -88,7 +88,7 @@ public class IndexMap<T> : IReadOnlyList<T>, IReadOnlyDictionary<T, int>
 
     public void Clear() => _map.Clear();
 
-    public Dictionary<T, int>.Enumerator GetEnumerator() => _map.GetEnumerator();
+    public BucketDict<T, int>.Enumerator GetEnumerator() => _map.GetEnumerator();
 
     IEnumerator<T> IEnumerable<T>.GetEnumerator() => ((IEnumerable<T>)_list).GetEnumerator();
 

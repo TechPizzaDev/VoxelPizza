@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace VoxelPizza.World.Octree.Test;
@@ -24,7 +23,7 @@ public class OctreeTests
                 for (int x = 0; x < size; x++)
                 {
                     var iLeaf = tree.GetOrAddLeaf(x, y, z);
-                    Assert.False(iLeaf.IsEmpty);
+                    Assert.True(iLeaf.HasValue);
 
                     var gLeaf = tree.GetLeaf(x, y, z);
                     Assert.Equal(iLeaf, gLeaf);
@@ -46,7 +45,7 @@ public class OctreeTests
                 for (int x = 0; x < size; x++)
                 {
                     var gLeaf = tree.GetLeaf(x, y, z);
-                    Assert.True(gLeaf.IsEmpty);
+                    Assert.False(gLeaf.HasValue);
                 }
             }
         }

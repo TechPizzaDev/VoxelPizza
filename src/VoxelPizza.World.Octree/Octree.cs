@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace VoxelPizza.World.Octree;
@@ -10,7 +11,7 @@ namespace VoxelPizza.World.Octree;
 /// Heavily based on <see href="https://github.com/mwarning/SimpleOctree" />, 
 /// modified to not store leaves as individual nodes.
 /// </remarks>
-/// <typeparam name="B">Value stored in each branch.</typeparam>
+/// <typeparam name="B">Value stored in each <see cref="Branch">.</typeparam>
 /// <typeparam name="L">Value stored in each leaf.</typeparam>
 public class Octree<B, L>
 {
@@ -29,7 +30,7 @@ public class Octree<B, L>
 
         _depth = depth;
     }
-    
+
     /// <summary>
     /// Size of the bounding box, serving as the exclusive bound for coordinates.
     /// </summary>
@@ -38,11 +39,14 @@ public class Octree<B, L>
     /// </remarks>
     public int GetWidth()
     {
+        // LeafBranch is a contiguous 2x2x2 array,
+        // so that's the smallest we can go since (1 << (0 + 1)) equals 2.
+
         return 1 << (_depth + 1);
     }
 
     /// <summary>
-    /// Maximum number of leaves.
+    /// Maximum number of leaf values.
     /// </summary>
     public int GetMaxCapacity()
     {
@@ -51,9 +55,9 @@ public class Octree<B, L>
     }
 
     /// <summary>
-    /// Get a <see cref="Leaf"/> at the given position if the branch exists.
+    /// Get a leaf at the given position.
     /// </summary>
-    /// <returns>The <see cref="Leaf"/> if the branch exists, otherwise an empty <see cref="Leaf"/>.</returns>
+    /// <returns>The leaf if the branch exists; otherwise a leaf with no value.</returns>
     public Leaf GetLeaf(int x, int y, int z)
     {
         uint width = (uint)GetWidth();
@@ -62,31 +66,31 @@ public class Octree<B, L>
         Debug.Assert((uint)z < width);
 
         Branch? branch = _root;
-        int mask = 1 << _depth;
+        NestBranch? parent = null;
+        int depth = _depth;
 
-        while (mask != 1 && branch != null)
+        while (depth > 0 && branch != null)
         {
             Debug.Assert(branch is NestBranch);
 
-            mask >>>= 1;
+            parent = Unsafe.As<NestBranch>(branch);
+            depth--;
+
+            int mask = 1 << depth;
             int index = GetIndex(x, y, z, mask);
-            branch = Unsafe.As<NestBranch>(branch).GetBranch(index);
+            branch = parent.GetBranch(index);
         }
 
-        if (branch == null)
-        {
-            return new Leaf();
-        }
-        Debug.Assert(branch is LeafBranch);
+        Debug.Assert(branch == null || branch is LeafBranch);
 
         int leafIndex = GetIndex(x, y, z, 1);
         return new Leaf(Unsafe.As<LeafBranch>(branch), leafIndex);
     }
 
     /// <summary>
-    /// Get or add a <see cref="Leaf"/> at the given position.
+    /// Get or add a leaf at the given position.
     /// </summary>
-    /// <returns>The <see cref="Leaf"/>.</returns>
+    /// <returns>The leaf if all branch allocations succeed; otherwise a leaf with no value.</returns>
     public Leaf GetOrAddLeaf(int x, int y, int z)
     {
         uint width = (uint)GetWidth();
@@ -95,40 +99,49 @@ public class Octree<B, L>
         Debug.Assert((uint)z < width);
 
         ref Branch? branch = ref _root;
+        NestBranch? parent = null;
         int depth = _depth;
 
         while (depth > 0)
         {
+            int depthLevel = _depth - depth;
             if (branch == null)
             {
-                branch = AllocNestBranch();
+                branch = AllocNestBranch(parent, depthLevel);
+                if (branch == null)
+                {
+                    goto Return;
+                }
             }
             Debug.Assert(branch is NestBranch);
 
+            parent = Unsafe.As<NestBranch>(branch);
             depth--;
 
             int mask = 1 << depth;
             int index = GetIndex(x, y, z, mask);
-            branch = ref Unsafe.As<NestBranch>(branch).GetBranch(index);
+            branch = ref parent.GetBranch(index);
         }
 
+        Debug.Assert(depth == 0);
         if (branch == null)
         {
-            Debug.Assert(depth == 0);
-            branch = AllocLeafBranch();
+            branch = AllocLeafBranch(parent);
         }
-        Debug.Assert(branch is LeafBranch);
+
+        Return:
+        Debug.Assert(branch == null || branch is LeafBranch);
 
         int leafIndex = GetIndex(x, y, z, 1);
         return new Leaf(Unsafe.As<LeafBranch>(branch), leafIndex);
     }
 
-    protected virtual NestBranch AllocNestBranch()
+    protected virtual NestBranch? AllocNestBranch(NestBranch? parent, int depthLevel)
     {
         return new NestBranch();
     }
 
-    protected virtual LeafBranch AllocLeafBranch()
+    protected virtual LeafBranch? AllocLeafBranch(NestBranch? parent)
     {
         return new LeafBranch();
     }
@@ -145,13 +158,28 @@ public class Octree<B, L>
             ((y & mask) != 0 ? 1 : 0) * 4;
     }
 
-    public readonly struct Leaf(LeafBranch parent, int index) : IEquatable<Leaf>
+    public readonly struct Leaf : IEquatable<Leaf>
     {
-        public LeafBranch Parent { get; } = parent;
-        public int Index { get; } = index;
+        public LeafBranch? Parent { get; }
+        public int Index { get; }
 
-        public bool IsEmpty => Parent == null;
-        public ref L Value => ref Parent.GetLeaf(Index);
+        internal Leaf(LeafBranch? parent, int index)
+        {
+            Parent = parent;
+            Index = index;
+        }
+
+        [MemberNotNullWhen(true, nameof(Parent))]
+        public bool HasValue => Parent != null;
+
+        public ref L Value
+        {
+            get
+            {
+                Debug.Assert(Parent != null);
+                return ref Parent.GetLeaf(Index);
+            }
+        }
 
         public bool Equals(Leaf other)
         {
@@ -175,6 +203,8 @@ public class Octree<B, L>
 
         public ref L GetLeaf(int index) => ref _leaves[index];
 
+        public Span<L> AsSpan() => _leaves;
+
         [InlineArray(8)]
         private struct Array
         {
@@ -187,6 +217,8 @@ public class Octree<B, L>
         private Array _branches;
 
         public ref Branch? GetBranch(int index) => ref _branches[index];
+
+        public Span<Branch?> AsSpan() => _branches;
 
         [InlineArray(8)]
         private struct Array

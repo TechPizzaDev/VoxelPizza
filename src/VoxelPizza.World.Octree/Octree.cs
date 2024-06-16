@@ -76,7 +76,7 @@ public class Octree<B, L>
             parent = Unsafe.As<NestBranch>(branch);
             depth--;
 
-            int mask = 1 << depth;
+            int mask = 2 << depth;
             int index = GetIndex(x, y, z, mask);
             branch = parent.GetBranch(index);
         }
@@ -118,7 +118,7 @@ public class Octree<B, L>
             parent = Unsafe.As<NestBranch>(branch);
             depth--;
 
-            int mask = 1 << depth;
+            int mask = 2 << depth;
             int index = GetIndex(x, y, z, mask);
             branch = ref parent.GetBranch(index);
         }

@@ -136,14 +136,90 @@ public class Octree<B, L>
         return new Leaf(Unsafe.As<LeafBranch>(branch), leafIndex);
     }
 
-    protected virtual NestBranch? AllocNestBranch(NestBranch? parent, int depthLevel)
+    /// <summary>
+    /// Walk through every non-null branch of the tree.
+    /// </summary>
+    /// <typeparam name="T">The type of the visitor implementation.</typeparam>
+    /// <param name="visitor">The visitor implementation that will accept branches.</param>
+    public void Traverse<T>(ref T visitor)
+        where T : IBranchVisitor
+    {
+        if (_root != null)
+        {
+            Traverse(ref visitor, _root, 0, 0, 0, _depth);
+        }
+    }
+
+    /// <summary>
+    /// Allocate a new branch for nested branches.
+    /// </summary>
+    /// <param name="parentBranch">The parent branch where the new branch will be stored.</param>
+    /// <param name="depthLevel">The depth of the new branch.</param>
+    /// <returns>A new branch, or <see langword="null"/> which will stop traversal.</returns>
+    protected virtual NestBranch? AllocNestBranch(NestBranch? parentBranch, int depthLevel)
     {
         return new NestBranch();
     }
 
-    protected virtual LeafBranch? AllocLeafBranch(NestBranch? parent)
+    /// <summary>
+    /// Allocate a new branch for leaf values.
+    /// </summary>
+    /// <param name="parentBranch">The parent branch where the new branch will be stored.</param>
+    /// <returns>A new branch, or <see langword="null"/> which will stop traversal.</returns>
+    protected virtual LeafBranch? AllocLeafBranch(NestBranch? parentBranch)
     {
         return new LeafBranch();
+    }
+
+    private static void Traverse<T>(ref T visitor, Branch branch, int x, int y, int z, int depth)
+        where T : IBranchVisitor
+    {
+        Debug.Assert(branch != null);
+
+        if (depth == 0)
+        {
+            Debug.Assert(branch is LeafBranch);
+
+            visitor.VisitLeaf(Unsafe.As<LeafBranch>(branch), x, y, z);
+            return;
+        }
+        Debug.Assert(branch is NestBranch);
+
+        NestBranch parent = Unsafe.As<NestBranch>(branch);
+        if (!visitor.VisitNest(parent, x, y, z, depth))
+        {
+            return;
+        }
+
+        depth--;
+        int mask = 2 << depth;
+
+        Span<Branch?> children = parent.AsSpan();
+        for (int i = 0; i < children.Length; i++)
+        {
+            Branch? child = children[i];
+            if (child == null)
+            {
+                continue;
+            }
+
+            (int tX, int tY, int tZ) = GetCoords(x, y, z, i, mask);
+            Traverse(ref visitor, child, tX, tY, tZ, depth);
+        }
+    }
+
+    private static (int x, int y, int z) GetCoords(int x, int y, int z, int i, int mask)
+    {
+        Debug.Assert(i < 8);
+
+        //int cX = (i & 1) != 0 ? (x | mask) : x;
+        //int cZ = (i & 2) != 0 ? (z | mask) : z;
+        //int cY = (i & 4) != 0 ? (y | mask) : y;
+
+        int cX = x | (((i << 31) >> 31) & mask);
+        int cZ = z | (((i << 30) >> 31) & mask);
+        int cY = y | (((i << 29) >> 31) & mask);
+        return (cX, cY, cZ);
     }
 
     private static int GetIndex(int x, int y, int z, int mask)
@@ -152,10 +228,10 @@ public class Octree<B, L>
         // Since size is always a power of two, size has always
         // only one bit set and it is used as bit mask to check the Nth bit.
 
-        return
-            ((x & mask) != 0 ? 1 : 0) * 1 +
-            ((z & mask) != 0 ? 1 : 0) * 2 +
-            ((y & mask) != 0 ? 1 : 0) * 4;
+        int iX = ((x & mask) != 0 ? 1 : 0) * 1;
+        int iZ = ((z & mask) != 0 ? 1 : 0) * 2;
+        int iY = ((y & mask) != 0 ? 1 : 0) * 4;
+        return iX + iZ + iY;
     }
 
     public readonly struct Leaf : IEquatable<Leaf>
@@ -197,6 +273,7 @@ public class Octree<B, L>
         public B? Value;
     }
 
+    [DebuggerTypeProxy(typeof(LeafBranchDebugView<,>))]
     public sealed class LeafBranch : Branch
     {
         private Array _leaves;
@@ -212,6 +289,7 @@ public class Octree<B, L>
         }
     }
 
+    [DebuggerTypeProxy(typeof(NestBranchDebugView<,>))]
     public sealed class NestBranch : Branch
     {
         private Array _branches;
@@ -226,4 +304,45 @@ public class Octree<B, L>
             private Branch? _e0;
         }
     }
+
+    /// <summary>
+    /// Used for traversing branches with <see cref="Traverse{T}(ref T)"/>.
+    /// </summary>
+    public interface IBranchVisitor
+    {
+        /// <summary>
+        /// Visits a branch that contains nested branches, optionally skipping it.
+        /// </summary>
+        /// <param name="branch">The branch with nested branches.</param>
+        /// <param name="x">X coordinate of the branch.</param>
+        /// <param name="x">Y coordinate of the branch.</param>
+        /// <param name="x">Z coordinate of the branch.</param>
+        /// <param name="depth">The depth of the branch.</param>
+        /// <returns>
+        /// <see langword="true"/> to visit the branch; 
+        /// <see langword="false"/> to skip it and nested branches.
+        /// </returns>
+        bool VisitNest(NestBranch branch, int x, int y, int z, int depth);
+
+        /// <summary>
+        /// Visits a branch with leaf values.
+        /// </summary>
+        /// <param name="branch">The leaf branch.</param>
+        /// <param name="x">X coordinate of the branch.</param>
+        /// <param name="x">Y coordinate of the branch.</param>
+        /// <param name="x">Z coordinate of the branch.</param>
+        void VisitLeaf(LeafBranch branch, int x, int y, int z);
+    }
+}
+
+internal sealed class NestBranchDebugView<B, L>(Octree<B, L>.NestBranch branch)
+{
+    public ref B? Value => ref branch.Value;
+    public Span<Octree<B, L>.Branch?> Branches => branch.AsSpan();
+}
+
+internal sealed class LeafBranchDebugView<B, L>(Octree<B, L>.LeafBranch branch)
+{
+    public ref B? Value => ref branch.Value;
+    public Span<L> Leaves => branch.AsSpan();
 }

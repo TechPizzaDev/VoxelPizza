@@ -5,4 +5,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\VoxelPizza.Collections\VoxelPizza.Collections.csproj" />
+  </ItemGroup>
+
 </Project>

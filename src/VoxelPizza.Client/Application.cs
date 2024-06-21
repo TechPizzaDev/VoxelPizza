@@ -5,6 +5,7 @@ using System.Threading;
 using Veldrid;
 using Veldrid.Sdl2;
 using Veldrid.StartupUtilities;
+using VoxelPizza.Client.Input;
 
 namespace VoxelPizza.Client
 {

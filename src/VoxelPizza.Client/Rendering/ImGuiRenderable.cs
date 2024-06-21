@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using Veldrid;
+using VoxelPizza.Client.Input;
 
 namespace VoxelPizza.Client
 {

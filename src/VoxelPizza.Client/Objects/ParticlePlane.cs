@@ -5,6 +5,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Veldrid;
 using Veldrid.Utilities;
+using VoxelPizza.Client.Input;
+using VoxelPizza.Client.Resources;
 using VoxelPizza.Numerics;
 
 namespace VoxelPizza.Client.Objects

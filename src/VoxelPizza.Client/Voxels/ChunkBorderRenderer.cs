@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Veldrid;
 using VoxelPizza.Client.Rendering.Voxels;
+using VoxelPizza.Client.Resources;
 using VoxelPizza.Diagnostics;
 using VoxelPizza.Memory;
 using VoxelPizza.Numerics;

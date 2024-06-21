@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Veldrid;
 using Veldrid.Sdl2;
+using VoxelPizza.Client.Input;
 
 namespace VoxelPizza.Client
 {

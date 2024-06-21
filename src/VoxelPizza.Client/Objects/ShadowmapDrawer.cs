@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using Veldrid;
 using Veldrid.Sdl2;
 using Veldrid.Utilities;
+using VoxelPizza.Client.Resources;
 
 namespace VoxelPizza.Client.Objects
 {

@@ -3,7 +3,7 @@ using System.Numerics;
 using Veldrid;
 using Veldrid.Sdl2;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Client.Input
 {
     public static class InputTracker
     {

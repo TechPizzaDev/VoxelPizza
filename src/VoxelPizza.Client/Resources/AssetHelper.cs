@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Client.Resources
 {
     internal static class AssetHelper
     {

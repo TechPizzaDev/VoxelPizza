@@ -4,7 +4,7 @@ using System.IO;
 using Veldrid;
 using Veldrid.SPIRV;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Client.Resources
 {
     public static class ShaderHelper
     {

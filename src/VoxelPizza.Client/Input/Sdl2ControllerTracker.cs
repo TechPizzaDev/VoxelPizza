@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using Veldrid.Sdl2;
 using static Veldrid.Sdl2.Sdl2Native;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Client.Input
 {
     public class Sdl2ControllerTracker : IDisposable
     {
@@ -23,7 +23,7 @@ namespace VoxelPizza.Client
             _controller = SDL_GameControllerOpen(index);
             SDL_Joystick joystick = SDL_GameControllerGetJoystick(_controller);
             _controllerIndex = SDL_JoystickInstanceID(joystick);
-            ControllerName = Marshal.PtrToStringUTF8((IntPtr)SDL_GameControllerName(_controller));
+            ControllerName = Marshal.PtrToStringUTF8((nint)SDL_GameControllerName(_controller));
             Sdl2Events.Subscribe(ProcessEvent);
         }
 
@@ -82,7 +82,7 @@ namespace VoxelPizza.Client
         {
             return value < 0
                 ? -(value / (float)short.MinValue)
-                : (value / (float)short.MaxValue);
+                : value / (float)short.MaxValue;
         }
 
         public void Dispose()

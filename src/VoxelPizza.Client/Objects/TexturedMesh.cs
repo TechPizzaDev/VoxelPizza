@@ -3,6 +3,7 @@ using System.Numerics;
 using Veldrid;
 using Veldrid.ImageSharp;
 using Veldrid.Utilities;
+using VoxelPizza.Client.Resources;
 
 namespace VoxelPizza.Client.Objects
 {

@@ -1,7 +1,8 @@
 using System;
 using Veldrid;
+using VoxelPizza;
 
-namespace VoxelPizza.Client
+namespace VoxelPizza.Client.Resources
 {
     public struct ShaderSetCacheKey : IEquatable<ShaderSetCacheKey>
     {

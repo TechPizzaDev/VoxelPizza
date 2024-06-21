@@ -1,9 +1,10 @@
 using System.Numerics;
 using Veldrid;
 using Veldrid.Utilities;
+using VoxelPizza.Client.Resources;
 
 namespace VoxelPizza.Client.Objects
-{ 
+{
     internal class ScreenDuplicator : Renderable
     {
         private DisposeCollector _disposeCollector;

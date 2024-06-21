@@ -5,6 +5,7 @@ using Veldrid.Utilities;
 using Veldrid.ImageSharp;
 using Veldrid;
 using System;
+using VoxelPizza.Client.Resources;
 
 namespace VoxelPizza.Client.Objects
 {

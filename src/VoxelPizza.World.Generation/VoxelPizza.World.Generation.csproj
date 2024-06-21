@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <ProjectReference Include="..\VoxelPizza.World\VoxelPizza.World.csproj" />
+        <ProjectReference Include="..\..\submodules\SharpFastNoise2\SharpFastNoise2\SharpFastNoise2.csproj" />
+    </ItemGroup>
+
+</Project>

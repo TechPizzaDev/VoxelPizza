@@ -37,6 +37,7 @@
         <ProjectReference Include="..\VoxelPizza.Base\VoxelPizza.Base.csproj" />
         <ProjectReference Include="..\VoxelPizza.Rendering.Voxels\VoxelPizza.Rendering.Voxels.csproj" />
         <ProjectReference Include="..\VoxelPizza.World\VoxelPizza.World.csproj" />
+        <ProjectReference Include="..\VoxelPizza.World.Generation\VoxelPizza.World.Generation.csproj" />
     </ItemGroup>
 
 </Project>

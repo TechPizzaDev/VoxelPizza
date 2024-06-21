@@ -1,9 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
-    <PropertyGroup>
-        <RootNamespace>VoxelPizza.Client</RootNamespace>
-    </PropertyGroup>
-
+    
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <AssetsDir>$(MSBuildThisFileDirectory)Assets</AssetsDir>

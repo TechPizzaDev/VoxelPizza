@@ -1,9 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <RootNamespace>VoxelPizza.Collections</RootNamespace>
-    </PropertyGroup>
-
     <ItemGroup>
       <ProjectReference Include="..\VoxelPizza.Numerics\VoxelPizza.Numerics.csproj" />
     </ItemGroup>

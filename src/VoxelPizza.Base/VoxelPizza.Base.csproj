@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <RootNamespace>VoxelPizza</RootNamespace>
-  </PropertyGroup>
-  
-  <ItemGroup>
-    <ProjectReference Include="..\..\submodules\veldrid\src\Veldrid\Veldrid.csproj" />
-    <ProjectReference Include="..\VoxelPizza.Collections\VoxelPizza.Collections.csproj" />
-    <ProjectReference Include="..\VoxelPizza.Numerics\VoxelPizza.Numerics.csproj" />
-  </ItemGroup>
-  
+    <PropertyGroup>
+        <RootNamespace>VoxelPizza</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\submodules\veldrid\src\Veldrid\Veldrid.csproj" />
+        <ProjectReference Include="..\VoxelPizza.Collections\VoxelPizza.Collections.csproj" />
+        <ProjectReference Include="..\VoxelPizza.Numerics\VoxelPizza.Numerics.csproj" />
+    </ItemGroup>
+
 </Project>

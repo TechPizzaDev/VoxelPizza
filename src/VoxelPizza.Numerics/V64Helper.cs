@@ -33,13 +33,16 @@ public static class V64Helper
     {
         if (AdvSimd.IsSupported)
         {
-            return sizeof(T) switch
+            Vector64<T> negCount = -count;
+            switch (sizeof(T))
             {
-                sizeof(byte) => AdvSimd.ShiftLogical(value.AsByte(), -count.AsSByte()).As<byte, T>(),
-                sizeof(short) => AdvSimd.ShiftLogical(value.AsInt16(), -count.AsInt16()).As<short, T>(),
-                sizeof(int) => AdvSimd.ShiftLogical(value.AsInt32(), -count.AsInt32()).As<int, T>(),
-                _ => ShiftRightLogicalFallback(value, count),
-            };
+                case sizeof(byte):
+                    return AdvSimd.ShiftLogical(value.AsByte(), negCount.AsSByte()).As<byte, T>();
+                case sizeof(short):
+                    return AdvSimd.ShiftLogical(value.AsInt16(), negCount.AsInt16()).As<short, T>();
+                case sizeof(int):
+                    return AdvSimd.ShiftLogical(value.AsInt32(), negCount.AsInt32()).As<int, T>();
+            }
         }
 
         return ShiftRightLogicalFallback(value, count);

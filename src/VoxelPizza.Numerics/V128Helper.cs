@@ -171,14 +171,18 @@ public static class V128Helper
 
         if (AdvSimd.IsSupported)
         {
-            return sizeof(T) switch
+            Vector128<T> negCount = -count;
+            switch (sizeof(T))
             {
-                sizeof(byte) => AdvSimd.ShiftLogical(value.AsByte(), -count.AsSByte()).As<byte, T>(),
-                sizeof(short) => AdvSimd.ShiftLogical(value.AsInt16(), -count.AsInt16()).As<short, T>(),
-                sizeof(int) => AdvSimd.ShiftLogical(value.AsInt32(), -count.AsInt32()).As<int, T>(),
-                sizeof(long) => AdvSimd.ShiftLogical(value.AsInt64(), -count.AsInt64()).As<long, T>(),
-                _ => ShiftRightLogicalFallback(value, count),
-            };
+                case sizeof(byte):
+                    return AdvSimd.ShiftLogical(value.AsByte(), negCount.AsSByte()).As<byte, T>();
+                case sizeof(short):
+                    return AdvSimd.ShiftLogical(value.AsInt16(), negCount.AsInt16()).As<short, T>();
+                case sizeof(int):
+                    return AdvSimd.ShiftLogical(value.AsInt32(), negCount.AsInt32()).As<int, T>();
+                case sizeof(long):
+                    return AdvSimd.ShiftLogical(value.AsInt64(), negCount.AsInt64()).As<long, T>();
+            }
         }
 
         return ShiftRightLogicalFallback(value, count);
@@ -193,5 +197,40 @@ public static class V128Helper
             result = result.WithElement(i, value.GetElement(i) >>> int.CreateTruncating(count.GetElement(i)));
         }
         return result;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector128<byte> SubtractSaturate(Vector128<byte> left, Vector128<byte> right)
+    {
+        if (Sse2.IsSupported)
+        {
+            return Sse2.SubtractSaturate(left, right);
+        }
+        else if (AdvSimd.IsSupported)
+        {
+            return AdvSimd.SubtractSaturate(left, right);
+        }
+        else if (PackedSimd.IsSupported)
+        {
+            return PackedSimd.SubtractSaturate(left, right);
+        }
+        else
+        {
+            return SoftwareFallback(left, right);
+        }
+
+        static Vector128<byte> SoftwareFallback(Vector128<byte> left, Vector128<byte> right)
+        {
+            Unsafe.SkipInit(out Vector128<byte> result);
+            for (int i = 0; i < Vector128<byte>.Count; i++)
+            {
+                int sum = left.GetElement(i) - right.GetElement(i);
+                // Negative (Int32) sum will have bits set to one beyond the first 8 bits.
+                int mask = ~(sum >> 8);
+                byte value = (byte)(sum & mask);
+                result = result.WithElement(i, value);
+            }
+            return result;
+        }
     }
 }

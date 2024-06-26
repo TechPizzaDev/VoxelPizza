@@ -35,4 +35,19 @@ public static class V256Helper
                 V128Helper.NarrowSaturate(lower.GetUpper(), upper.GetUpper()));
         }
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector256<byte> SubtractSaturate(Vector256<byte> left, Vector256<byte> right)
+    {
+        if (Avx2.IsSupported)
+        {
+            return Avx2.SubtractSaturate(left, right);
+        }
+        else
+        {
+            return Vector256.Create(
+                V128Helper.SubtractSaturate(left.GetLower(), right.GetLower()),
+                V128Helper.SubtractSaturate(left.GetUpper(), right.GetUpper()));
+        }
+    }
 }

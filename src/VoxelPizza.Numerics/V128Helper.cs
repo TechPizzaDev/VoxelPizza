@@ -233,4 +233,74 @@ public static class V128Helper
             return result;
         }
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector128<byte> ShiftLeftLogical128BitLane(Vector128<byte> value, [ConstantExpected(Max = (byte)15)] byte numBytes)
+    {
+        if (numBytes == 0)
+        {
+            return value.AsByte();
+        }
+        else if (numBytes > 15)
+        {
+            return Vector128<byte>.Zero;
+        }
+
+        if (Sse2.IsSupported)
+        {
+            return Sse2.ShiftLeftLogical128BitLane(value, numBytes);
+        }
+
+        int index = 16 - numBytes;
+        if (AdvSimd.IsSupported)
+        {
+            return AdvSimd.ExtractVector128(Vector128<byte>.Zero, value.AsByte(), (byte)index);
+        }
+        else
+        {
+            return ExtractVector128Fallback(Vector128<byte>.Zero, value.AsByte(), index);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector128<byte> ShiftRightLogical128BitLane(Vector128<byte> value, [ConstantExpected(Max = (byte)15)] byte numBytes)
+    {
+        if (numBytes == 0)
+        {
+            return value.AsByte();
+        }
+        else if (numBytes > 15)
+        {
+            return Vector128<byte>.Zero;
+        }
+
+        if (Sse2.IsSupported)
+        {
+            return Sse2.ShiftRightLogical128BitLane(value, numBytes);
+        }
+        else if (AdvSimd.IsSupported)
+        {
+            return AdvSimd.ExtractVector128(value.AsByte(), Vector128<byte>.Zero, numBytes);
+        }
+        else
+        {
+            return ExtractVector128Fallback(value.AsByte(), Vector128<byte>.Zero, numBytes);
+        }
+    }
+
+    private static Vector128<byte> ExtractVector128Fallback(Vector128<byte> upper, Vector128<byte> lower, int index)
+    {
+        Unsafe.SkipInit(out Vector128<byte> result);
+        for (int i = index; i < Vector128<byte>.Count; i++)
+        {
+            // Extract high elements into lower.
+            result = result.WithElement(i - index, upper.GetElement(i));
+        }
+        for (int i = 0; i < index; i++)
+        {
+            // Extract low elements into upper.
+            result = result.WithElement(i + (Vector128<byte>.Count - index), lower.GetElement(i));
+        }
+        return result;
+    }
 }
